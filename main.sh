@@ -1,9 +1,8 @@
 #!/bin/bash
 
-# ========== VOLTRON TECH X ULTIMATE SCRIPT ==========
-# Version: 2.0.3
-# Description: Complete VPN Server Management
-# Includes: DNSTT, DNS2TCP, V2RAY over DNSTT, Traffic Limits, MTU 1800 Ultimate Mode
+# ========== VOLTRON TECH ULTIMATE SCRIPT ==========
+# Version: 3.0.0 (COMPLETE)
+# Description: SSH • DNSTT • DNS2TCP • V2RAY over DNSTT • MTU 1800 ULTIMATE
 # Author: Voltron Tech
 
 # ========== COLOR CODES ==========
@@ -11,6 +10,7 @@ C_RESET='\033[0m'
 C_BOLD='\033[1m'
 C_DIM='\033[2m'
 C_WHITE='\033[97m'
+
 C_RED='\033[91m'
 C_GREEN='\033[92m'
 C_YELLOW='\033[93m'
@@ -35,26 +35,33 @@ DOMAIN="voltrontechtx.shop"
 
 # ========== DIRECTORY STRUCTURE ==========
 DB_DIR="/etc/voltrontech"
-VOLTRON_DB="$DB_DIR/users.db"
+DB_FILE="$DB_DIR/users.db"
 INSTALL_FLAG_FILE="$DB_DIR/.install"
 SSL_CERT_DIR="$DB_DIR/ssl"
 SSL_CERT_FILE="$SSL_CERT_DIR/voltrontech.pem"
+
+# DNS Protocols Directories
 DNSTT_KEYS_DIR="$DB_DIR/dnstt"
 DNS2TCP_KEYS_DIR="$DB_DIR/dns2tcp"
 V2RAY_DIR="$DB_DIR/v2ray-dnstt"
 V2RAY_USERS_DB="$V2RAY_DIR/users/users.db"
 V2RAY_CONFIG="$V2RAY_DIR/v2ray/config.json"
+
+# Config Files
 DNSTT_INFO_FILE="$DB_DIR/dnstt_info.conf"
 DNS2TCP_INFO_FILE="$DB_DIR/dns2tcp_info.conf"
 V2RAY_INFO_FILE="$DB_DIR/v2ray_info.conf"
 DNS_INFO_FILE="$DB_DIR/dns_info.conf"
+
+# Other Protocols
+BADVPN_BUILD_DIR="/root/badvpn-build"
 UDP_CUSTOM_DIR="/root/udp"
+ZIVPN_DIR="/etc/zivpn"
 BACKUP_DIR="$DB_DIR/backups"
 LOGS_DIR="$DB_DIR/logs"
 CONFIG_DIR="$DB_DIR/config"
-ZIVPN_DIR="/etc/zivpn"
 
-# ========== SERVICE FILES ==========
+# Service Files
 DNSTT_SERVICE="/etc/systemd/system/dnstt.service"
 DNSTT5300_SERVICE="/etc/systemd/system/dnstt-5300.service"
 DNS2TCP53_SERVICE="/etc/systemd/system/dns2tcp-53.service"
@@ -62,14 +69,14 @@ DNS2TCP5300_SERVICE="/etc/systemd/system/dns2tcp-5300.service"
 V2RAY_SERVICE="/etc/systemd/system/v2ray-dnstt.service"
 BADVPN_SERVICE="/etc/systemd/system/badvpn.service"
 UDP_CUSTOM_SERVICE="/etc/systemd/system/udp-custom.service"
-HAPROXY_SERVICE="/etc/systemd/system/haproxy.service"
+HAPROXY_CONFIG="/etc/haproxy/haproxy.cfg"
+NGINX_CONFIG="/etc/nginx/sites-available/default"
 VOLTRONPROXY_SERVICE="/etc/systemd/system/voltronproxy.service"
-NGINX_SERVICE="/etc/systemd/system/nginx.service"
 ZIVPN_SERVICE="/etc/systemd/system/zivpn.service"
-LIMITER_SERVICE="/etc/systemd/system/voltron-limiter.service"
+LIMITER_SERVICE="/etc/systemd/system/voltrontech-limiter.service"
 TRAFFIC_SERVICE="/etc/systemd/system/voltron-traffic.service"
 
-# ========== BINARY LOCATIONS ==========
+# Binary Locations
 DNSTT_BIN="/usr/local/bin/dnstt-server"
 DNS2TCP_BIN="/usr/local/bin/dns2tcp-server"
 V2RAY_BIN="/usr/local/bin/xray"
@@ -77,10 +84,10 @@ BADVPN_BIN="/usr/local/bin/badvpn-udpgw"
 UDP_CUSTOM_BIN="$UDP_CUSTOM_DIR/udp-custom"
 VOLTRONPROXY_BIN="/usr/local/bin/voltronproxy"
 ZIVPN_BIN="/usr/local/bin/zivpn"
-LIMITER_SCRIPT="/usr/local/bin/voltron-limiter.sh"
+LIMITER_SCRIPT="/usr/local/bin/voltrontech-limiter.sh"
 TRAFFIC_SCRIPT="/usr/local/bin/voltron-traffic.sh"
 
-# ========== PORTS ==========
+# Ports
 DNS_PORT=53
 DNS2_PORT=5300
 V2RAY_PORT=8787
@@ -99,7 +106,7 @@ create_directories() {
     mkdir -p $DB_DIR $DNSTT_KEYS_DIR $DNS2TCP_KEYS_DIR $V2RAY_DIR $BACKUP_DIR $LOGS_DIR $CONFIG_DIR $SSL_CERT_DIR
     mkdir -p $V2RAY_DIR/dnstt $V2RAY_DIR/v2ray $V2RAY_DIR/users
     mkdir -p $UDP_CUSTOM_DIR $ZIVPN_DIR
-    touch $VOLTRON_DB
+    touch $DB_FILE
     touch $V2RAY_USERS_DB
     echo "{}" > $DB_DIR/cloudflare_records.json 2>/dev/null
 }
@@ -140,11 +147,7 @@ detect_package_manager() {
 detect_service_manager() {
     if command -v systemctl &>/dev/null; then
         SERVICE_MANAGER="systemd"
-        MANAGE_SERVICE() {
-            local action=$1
-            local service=$2
-            systemctl $action $service
-        }
+        MANAGE_SERVICE() { systemctl $1 $2; }
     else
         echo -e "${C_RED}❌ systemd not found!${C_RESET}"
         exit 1
@@ -155,25 +158,19 @@ detect_service_manager() {
 detect_firewall() {
     if command -v ufw &>/dev/null && ufw status | grep -q "active"; then
         FIREWALL="ufw"
-        OPEN_PORT() {
-            ufw allow $1/$2
-        }
+        OPEN_PORT() { ufw allow $1/$2; }
     elif command -v firewall-cmd &>/dev/null && systemctl is-active firewalld &>/dev/null; then
         FIREWALL="firewalld"
-        OPEN_PORT() {
+        OPEN_PORT() { 
             firewall-cmd --add-port=$1/$2 --permanent
             firewall-cmd --reload
         }
     elif command -v iptables &>/dev/null; then
         FIREWALL="iptables"
-        OPEN_PORT() {
-            iptables -A INPUT -p $2 --dport $1 -j ACCEPT
-        }
+        OPEN_PORT() { iptables -A INPUT -p $2 --dport $1 -j ACCEPT; }
     else
         FIREWALL="none"
-        OPEN_PORT() {
-            echo -e "${C_YELLOW}⚠️ No firewall detected, assuming port $1/$2 is open${C_RESET}"
-        }
+        OPEN_PORT() { echo -e "${C_YELLOW}⚠️ No firewall detected, assuming port $1/$2 is open${C_RESET}"; }
     fi
     echo -e "${C_GREEN}✅ Detected firewall: $FIREWALL${C_RESET}"
 }
@@ -228,11 +225,7 @@ safe_read() {
     local prompt="$1"
     local var_name="$2"
     clean_input_buffer
-    if [ -n "$prompt" ]; then
-        read -p "$prompt" "$var_name"
-    else
-        read "$var_name"
-    fi
+    read -p "$prompt" "$var_name"
 }
 
 # ========== GET CURRENT MTU ==========
@@ -248,7 +241,7 @@ get_current_mtu() {
 check_service() {
     local service=$1
     if systemctl is-active "$service" &>/dev/null; then
-        echo -e "${C_GREEN}RUNNING${C_RESET}"
+        echo -e "${C_GREEN}● RUNNING${C_RESET}"
     else
         echo ""
     fi
@@ -300,15 +293,15 @@ show_banner() {
     local current_mtu=$(get_current_mtu)
     
     echo -e "${C_BOLD}${C_PURPLE}╔═══════════════════════════════════════════════════════════════╗${C_RESET}"
-    echo -e "${C_BOLD}${C_PURPLE}║           🔥 VOLTRON TECH X ULTIMATE v2.0.3 🔥               ║${C_RESET}"
-    echo -e "${C_BOLD}${C_PURPLE}║        SSH • DNSTT • DNS2TCP • V2RAY • MTU 1800 ULTIMATE     ║${C_RESET}"
+    echo -e "${C_BOLD}${C_PURPLE}║           🔥 VOLTRON TECH ULTIMATE v3.0.0 🔥                  ║${C_RESET}"
+    echo -e "${C_BOLD}${C_PURPLE}║        SSH • DNSTT • DNS2TCP • V2RAY • MTU 1800 ULTIMATE      ║${C_RESET}"
     echo -e "${C_BOLD}${C_PURPLE}╠═══════════════════════════════════════════════════════════════╣${C_RESET}"
     echo -e "${C_BOLD}${C_PURPLE}║  Server IP: ${C_GREEN}$IP${C_PURPLE}${C_RESET}"
     echo -e "${C_BOLD}${C_PURPLE}║  Location:  ${C_GREEN}$LOCATION, $COUNTRY${C_PURPLE}${C_RESET}"
     echo -e "${C_BOLD}${C_PURPLE}║  ISP:       ${C_GREEN}$ISP${C_PURPLE}${C_RESET}"
-    echo -e "${C_BOLD}${C_PURPLE}║  Current MTU: ${C_GREEN}$current_mtu${C_PURPLE}${C_RESET}"
+    echo -e "${C_BOLD}${C_PURPLE}║  MTU:       ${C_GREEN}$current_mtu${C_PURPLE}${C_RESET}"
     if [ "$current_mtu" -eq 1800 ]; then
-        echo -e "${C_BOLD}${C_PURPLE}║  ${C_YELLOW}⚡ MTU 1800 ULTIMATE ACTIVE - ISP sees 512!${C_PURPLE}${C_RESET}"
+        echo -e "${C_BOLD}${C_PURPLE}║  ${C_YELLOW}⚡ MTU 1800 ACTIVE - ISP sees 512!${C_PURPLE}${C_RESET}"
     fi
     echo -e "${C_BOLD}${C_PURPLE}╚═══════════════════════════════════════════════════════════════╝${C_RESET}"
     echo ""
@@ -351,7 +344,7 @@ EOF
 }
 
 # ========== MTU SELECTION ==========
-mtu_selection() {
+mtu_selection_during_install() {
     echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
     echo -e "${C_BLUE}           📡 SELECT MTU${C_RESET}"
     echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
@@ -361,7 +354,7 @@ mtu_selection() {
     echo -e "  ${C_GREEN}[03]${C_RESET} MTU 1000  - ⚡⚡ SUPER BOOST MODE"
     echo -e "  ${C_GREEN}[04]${C_RESET} MTU 1200  - ⚡⚡ MEGA BOOST MODE"
     echo -e "  ${C_GREEN}[05]${C_RESET} MTU 1500  - ⚡⚡ TURBO BOOST MODE"
-    echo -e "  ${C_GREEN}[06]${C_RESET} MTU 1800  - 🔥 ULTIMATE MODE (FOOLS ISP! ISP sees 512)"
+    echo -e "  ${C_GREEN}[06]${C_RESET} MTU 1800  - 🔥 ULTIMATE MODE (FOOLS ISP!)"
     echo -e "  ${C_GREEN}[07]${C_RESET} Auto-detect optimal MTU"
     echo ""
     
@@ -399,16 +392,13 @@ while true; do
             if id "$user" &>/dev/null; then
                 connections=$(pgrep -u "$user" sshd | wc -l)
                 
-                # Simulate traffic (0.01GB per connection per hour)
                 if [ $connections -gt 0 ]; then
                     new_traffic=$(echo "scale=3; $traffic_used + 0.01" | bc 2>/dev/null || echo "$traffic_used")
                     
-                    # Check traffic limit
                     if [ "$traffic_limit" != "0" ] && [ -n "$traffic_limit" ]; then
                         if [ $(echo "$new_traffic >= $traffic_limit" | bc 2>/dev/null) -eq 1 ]; then
                             usermod -L "$user" 2>/dev/null
                             killall -u "$user" 2>/dev/null
-                            logger "User $user locked - traffic limit exceeded"
                         fi
                     fi
                     
@@ -453,7 +443,6 @@ while true; do
         while IFS=: read -r user pass expiry limit traffic_limit traffic_used; do
             [[ -z "$user" ]] && continue
             
-            # Check expiry
             expiry_ts=$(date -d "$expiry" +%s 2>/dev/null || echo 0)
             if [[ $expiry_ts -lt $current_ts && $expiry_ts -ne 0 ]]; then
                 usermod -L "$user" 2>/dev/null
@@ -461,12 +450,18 @@ while true; do
                 continue
             fi
             
-            # Check connection limit
             online=$(pgrep -u "$user" sshd | wc -l)
             if [[ "$online" -gt "$limit" ]]; then
                 usermod -L "$user" 2>/dev/null
                 killall -u "$user" 2>/dev/null
                 (sleep 120; usermod -U "$user" 2>/dev/null) &
+            fi
+            
+            if [ "$traffic_limit" != "0" ] && [ -n "$traffic_limit" ] && [ -n "$traffic_used" ]; then
+                if [ $(echo "$traffic_used >= $traffic_limit" | bc 2>/dev/null) -eq 1 ]; then
+                    usermod -L "$user" 2>/dev/null
+                    killall -u "$user" 2>/dev/null
+                fi
             fi
         done < "$DB_FILE"
     fi
@@ -494,73 +489,147 @@ EOF
     systemctl start voltron-limiter.service 2>/dev/null
 }
 
-# ========== SSH USER MANAGEMENT ==========
+# ========== VOLTRON TECH BOOSTER ==========
+install_voltron_booster() {
+    echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    echo -e "${C_BLUE}           🚀 VOLTRON TECH ULTIMATE BOOSTER${C_RESET}"
+    echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+
+    # Enable BBR
+    echo -e "\n${C_GREEN}🔧 Enabling BBR Congestion Control...${C_RESET}"
+    if ! lsmod | grep -q bbr; then
+        modprobe tcp_bbr 2>/dev/null || echo -e "${C_YELLOW}⚠️ Could not load BBR module, continuing...${C_RESET}"
+        echo "tcp_bbr" >> /etc/modules-load.d/modules.conf 2>/dev/null || true
+    fi
+
+    cat >> /etc/sysctl.conf <<EOF
+# VOLTRON TECH ULTIMATE BOOSTER - BBR
+net.core.default_qdisc = fq
+net.ipv4.tcp_congestion_control = bbr
+EOF
+    sysctl -p 2>/dev/null || echo -e "${C_YELLOW}⚠️ Could not apply sysctl settings, continuing...${C_RESET}"
+    echo -e "${C_GREEN}✅ BBR enabled successfully${C_RESET}"
+
+    # TCP Buffer Optimization
+    echo -e "\n${C_GREEN}📊 Optimizing TCP Buffers for MAXIMUM SPEED...${C_RESET}"
+    cat >> /etc/sysctl.conf <<EOF
+# VOLTRON TECH ULTIMATE BOOSTER - TCP Buffers
+net.core.rmem_max = 536870912
+net.core.wmem_max = 536870912
+net.ipv4.tcp_rmem = 4096 87380 536870912
+net.ipv4.tcp_wmem = 4096 65536 536870912
+net.core.netdev_max_backlog = 20000
+net.ipv4.tcp_window_scaling = 1
+net.ipv4.tcp_timestamps = 1
+net.ipv4.tcp_sack = 1
+net.ipv4.tcp_no_metrics_save = 1
+net.ipv4.tcp_moderate_rcvbuf = 1
+EOF
+    sysctl -p 2>/dev/null || echo -e "${C_YELLOW}⚠️ Could not apply sysctl settings, continuing...${C_RESET}"
+    echo -e "${C_GREEN}✅ TCP Buffers optimized!${C_RESET}"
+
+    echo -e "\n${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
+    echo -e "${C_GREEN}           ✅ VOLTRON TECH ULTIMATE BOOSTER INSTALLED!${C_RESET}"
+    echo -e "${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
+}
+
+# ========== SSH USER MANAGEMENT (UPDATED WITH TRAFFIC LIMIT) ==========
 create_user() {
     clear
     show_banner
-    echo -e "${C_BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
-    echo -e "${C_GREEN}           👤 CREATE SSH USER${C_RESET}"
-    echo -e "${C_BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+    echo -e "${C_BOLD}${C_PURPLE}--- ✨ Create New SSH User ---${C_RESET}"
     
-    read -p "Username: " username
-    read -p "Password: " password
-    read -p "Expiry (days): " days
-    read -p "Connection limit: " limit
-    read -p "Traffic limit (GB) [0=unlimited]: " traffic_limit
+    local username
+    safe_read "👉 Enter username: " username
+    if [[ -z "$username" ]]; then
+        echo -e "\n${C_RED}❌ Username cannot be empty.${C_RESET}"
+        safe_read "" dummy
+        return
+    fi
     
+    if id "$username" &>/dev/null || grep -q "^$username:" "$DB_FILE"; then
+        echo -e "\n${C_RED}❌ User already exists.${C_RESET}"
+        safe_read "" dummy
+        return
+    fi
+    
+    local password
+    safe_read "🔑 Enter password: " password
+    
+    local days
+    safe_read "🗓️ Expiry (days): " days
+    if ! [[ "$days" =~ ^[0-9]+$ ]]; then
+        echo -e "\n${C_RED}❌ Invalid number.${C_RESET}"
+        safe_read "" dummy
+        return
+    fi
+    
+    local limit
+    safe_read "📶 Connection limit: " limit
+    if ! [[ "$limit" =~ ^[0-9]+$ ]]; then
+        echo -e "\n${C_RED}❌ Invalid number.${C_RESET}"
+        safe_read "" dummy
+        return
+    fi
+    
+    local traffic_limit
+    safe_read "📊 Traffic limit (GB) [0=unlimited]: " traffic_limit
     traffic_limit=${traffic_limit:-0}
-    expire_date=$(date -d "+$days days" +%Y-%m-%d)
     
-    useradd -m -s /usr/sbin/nologin "$username" 2>/dev/null
+    local expire_date=$(date -d "+$days days" +%Y-%m-%d)
+    
+    useradd -m -s /usr/sbin/nologin "$username"
     echo "$username:$password" | chpasswd
     chage -E "$expire_date" "$username"
-    echo "$username:$password:$expire_date:$limit:$traffic_limit:0" >> "$VOLTRON_DB"
+    echo "$username:$password:$expire_date:$limit:$traffic_limit:0" >> "$DB_FILE"
     
-    echo -e "${C_GREEN}✅ SSH user created: $username${C_RESET}"
-    echo -e "  Traffic limit: $traffic_limit GB"
-    read -p "Press Enter"
+    echo -e "\n${C_GREEN}✅ User '$username' created successfully!${C_RESET}"
+    echo -e "  Expires: $expire_date"
+    echo -e "  Limit: $limit connections"
+    echo -e "  Traffic: $traffic_limit GB"
+    safe_read "" dummy
 }
 
 delete_user() {
     clear
     show_banner
-    echo -e "${C_BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
-    echo -e "${C_RED}           🗑️ DELETE SSH USER${C_RESET}"
-    echo -e "${C_BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+    echo -e "${C_BOLD}${C_PURPLE}--- 🗑️ Delete User ---${C_RESET}"
     
-    read -p "Username: " username
+    local username
+    safe_read "👉 Username: " username
     
     if ! id "$username" &>/dev/null; then
-        echo -e "${C_RED}❌ User not found${C_RESET}"
-        read -p "Press Enter"
+        echo -e "\n${C_RED}❌ User not found.${C_RESET}"
+        safe_read "" dummy
         return
     fi
     
-    read -p "Confirm delete? (y/n): " confirm
+    local confirm
+    safe_read "Confirm delete? (y/n): " confirm
     [[ "$confirm" != "y" ]] && return
     
     killall -u "$username" 2>/dev/null
     userdel -r "$username" 2>/dev/null
-    sed -i "/^$username:/d" "$VOLTRON_DB"
+    sed -i "/^$username:/d" "$DB_FILE"
     
-    echo -e "${C_GREEN}✅ User deleted${C_RESET}"
-    read -p "Press Enter"
+    echo -e "\n${C_GREEN}✅ User deleted${C_RESET}"
+    safe_read "" dummy
 }
 
 list_users() {
     clear
     show_banner
-    echo -e "${C_BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
-    echo -e "${C_GREEN}           📋 SSH USERS LIST${C_RESET}"
-    echo -e "${C_BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+    echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    echo -e "${C_BOLD}${C_PURPLE}                      📋 SSH USERS LIST${C_RESET}"
+    echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
     
-    if [ ! -s "$VOLTRON_DB" ]; then
-        echo -e "${C_YELLOW}No SSH users found${C_RESET}"
-        read -p "Press Enter"
+    if [ ! -s "$DB_FILE" ]; then
+        echo -e "\n${C_YELLOW}No SSH users found${C_RESET}"
+        safe_read "" dummy
         return
     fi
     
-    printf "${C_BOLD}%-15s %-12s %-8s %-20s %-10s${C_RESET}\n" "USERNAME" "EXPIRY" "LIMIT" "TRAFFIC" "STATUS"
+    printf "${C_BOLD}%-15s | %-12s | %-8s | %-20s | %-10s${C_RESET}\n" "USERNAME" "EXPIRY" "LIMIT" "TRAFFIC" "STATUS"
     echo -e "${C_CYAN}─────────────────────────────────────────────────────────────────${C_RESET}"
     
     while IFS=: read -r user pass expiry limit traffic_limit traffic_used; do
@@ -571,15 +640,9 @@ list_users() {
         # Format traffic
         if [[ -z "$traffic_limit" ]] || [[ "$traffic_limit" == "0" ]]; then
             traffic_disp="${traffic_used}GB/∞"
-            traffic_ok=1
         else
             percent=$(echo "scale=1; $traffic_used * 100 / $traffic_limit" | bc 2>/dev/null || echo "0")
             traffic_disp="${traffic_used}/$traffic_limit GB ($percent%)"
-            if [ $(echo "$traffic_used >= $traffic_limit" | bc 2>/dev/null) -eq 1 ]; then
-                traffic_ok=0
-            else
-                traffic_ok=1
-            fi
         fi
         
         # Check status
@@ -589,65 +652,76 @@ list_users() {
             status="${C_YELLOW}LOCKED${C_RESET}"
         elif [[ "$(date -d "$expiry" +%s 2>/dev/null)" -lt "$(date +%s)" ]]; then
             status="${C_RED}EXPIRED${C_RESET}"
-        elif [ "$traffic_ok" -eq 0 ]; then
+        elif [ "$traffic_limit" != "0" ] && [ $(echo "$traffic_used >= $traffic_limit" | bc 2>/dev/null) -eq 1 ]; then
             status="${C_RED}LIMIT${C_RESET}"
         else
             status="${C_GREEN}ACTIVE${C_RESET}"
         fi
         
-        printf "%-15s %-12s %-8s %-20s %s\n" "$user" "$expiry" "$online/$limit" "$traffic_disp" "$status"
-    done < "$VOLTRON_DB"
+        printf "%-15s | %-12s | %-8s | %-20s | %s\n" \
+            "$user" "$expiry" "$online/$limit" "$traffic_disp" "$status"
+    done < "$DB_FILE"
     
     echo ""
-    read -p "Press Enter"
+    safe_read "" dummy
 }
 
 lock_user() {
-    read -p "Username: " username
+    local username
+    safe_read "👉 Username: " username
     usermod -L "$username"
-    echo -e "${C_GREEN}✅ User locked${C_RESET}"
-    read -p "Press Enter"
+    echo -e "\n${C_GREEN}✅ User locked${C_RESET}"
+    safe_read "" dummy
 }
 
 unlock_user() {
-    read -p "Username: " username
+    local username
+    safe_read "👉 Username: " username
     usermod -U "$username"
-    echo -e "${C_GREEN}✅ User unlocked${C_RESET}"
-    read -p "Press Enter"
+    echo -e "\n${C_GREEN}✅ User unlocked${C_RESET}"
+    safe_read "" dummy
 }
 
 renew_user() {
-    read -p "Username: " username
-    read -p "Additional days: " days
-    new_expiry=$(date -d "+$days days" +%Y-%m-%d)
+    local username
+    safe_read "👉 Username: " username
+    
+    local days
+    safe_read "📆 Additional days: " days
+    
+    local new_expiry=$(date -d "+$days days" +%Y-%m-%d)
     chage -E "$new_expiry" "$username"
     
-    local line=$(grep "^$username:" "$VOLTRON_DB")
+    local line=$(grep "^$username:" "$DB_FILE")
     local pass=$(echo "$line" | cut -d: -f2)
     local limit=$(echo "$line" | cut -d: -f4)
     local traffic_limit=$(echo "$line" | cut -d: -f5)
     local traffic_used=$(echo "$line" | cut -d: -f6)
     
-    sed -i "s/^$username:.*/$username:$pass:$new_expiry:$limit:$traffic_limit:$traffic_used/" "$VOLTRON_DB"
+    sed -i "s/^$username:.*/$username:$pass:$new_expiry:$limit:$traffic_limit:$traffic_used/" "$DB_FILE"
     
-    echo -e "${C_GREEN}✅ User renewed until $new_expiry${C_RESET}"
-    read -p "Press Enter"
+    echo -e "\n${C_GREEN}✅ User renewed until $new_expiry${C_RESET}"
+    safe_read "" dummy
 }
 
 cleanup_expired() {
-    echo -e "${C_BLUE}Cleaning up expired users...${C_RESET}"
-    current_ts=$(date +%s)
+    echo -e "\n${C_BLUE}🧹 Cleaning up expired users...${C_RESET}"
+    local current_ts=$(date +%s)
+    local count=0
+    
     while IFS=: read -r user pass expiry limit traffic_limit traffic_used; do
-        expiry_ts=$(date -d "$expiry" +%s 2>/dev/null || echo 0)
+        local expiry_ts=$(date -d "$expiry" +%s 2>/dev/null || echo 0)
         if [[ $expiry_ts -lt $current_ts && $expiry_ts -ne 0 ]]; then
             killall -u "$user" 2>/dev/null
             userdel -r "$user" 2>/dev/null
-            sed -i "/^$user:/d" "$VOLTRON_DB"
+            sed -i "/^$user:/d" "$DB_FILE"
             echo "  Removed $user"
+            ((count++))
         fi
-    done < "$VOLTRON_DB"
-    echo -e "${C_GREEN}✅ Cleanup complete${C_RESET}"
-    read -p "Press Enter"
+    done < "$DB_FILE"
+    
+    echo -e "${C_GREEN}✅ Removed $count expired users${C_RESET}"
+    safe_read "" dummy
 }
 
 # ========== DNSTT FUNCTIONS ==========
@@ -686,40 +760,40 @@ download_dnstt_binary() {
 install_dnstt() {
     clear
     show_banner
-    echo -e "${C_BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
-    echo -e "${C_GREEN}           📡 INSTALL DNSTT${C_RESET}"
-    echo -e "${C_BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+    echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    echo -e "${C_BOLD}${C_PURPLE}           📡 DNSTT INSTALLATION${C_RESET}"
+    echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
     
     if [ -f "$DNSTT_SERVICE" ]; then
-        echo -e "${C_YELLOW}DNSTT already installed${C_RESET}"
-        read -p "Press Enter"
+        echo -e "\n${C_YELLOW}ℹ️ DNSTT is already installed.${C_RESET}"
+        safe_read "" dummy
         return
     fi
     
     # Free port 53
-    echo -e "${C_BLUE}[1/5] Freeing port 53...${C_RESET}"
+    echo -e "\n${C_BLUE}[1/6] Freeing port 53...${C_RESET}"
     systemctl stop systemd-resolved 2>/dev/null
     echo "nameserver 8.8.8.8" > /etc/resolv.conf
     
     # Download binary
-    echo -e "${C_BLUE}[2/5] Downloading DNSTT binary...${C_RESET}"
+    echo -e "${C_BLUE}[2/6] Downloading DNSTT binary...${C_RESET}"
     if ! download_dnstt_binary; then
-        echo -e "${C_RED}❌ Failed to download DNSTT binary${C_RESET}"
-        read -p "Press Enter"
+        echo -e "\n${C_RED}❌ Failed to download DNSTT binary${C_RESET}"
+        safe_read "" dummy
         return
     fi
     
     # Generate keys
-    echo -e "${C_BLUE}[3/5] Generating keys...${C_RESET}"
+    echo -e "${C_BLUE}[3/6] Generating keys...${C_RESET}"
     mkdir -p "$DNSTT_KEYS_DIR"
     "$DNSTT_BIN" -gen-key -privkey-file "$DNSTT_KEYS_DIR/server.key" -pubkey-file "$DNSTT_KEYS_DIR/server.pub" 2>/dev/null
     
     # Get MTU
-    echo -e "${C_BLUE}[4/5] Selecting MTU...${C_RESET}"
-    mtu_selection
+    echo -e "${C_BLUE}[4/6] Selecting MTU...${C_RESET}"
+    mtu_selection_during_install
     
     # DNS Configuration
-    echo -e "\n${C_BLUE}[5/5] DNS Configuration:${C_RESET}"
+    echo -e "\n${C_BLUE}[5/6] DNS Configuration:${C_RESET}"
     echo "1) Auto-generate with Cloudflare"
     echo "2) Manual"
     read -p "Choice [1]: " dns_choice
@@ -728,6 +802,7 @@ install_dnstt() {
     local domain=""
     local ns_record_id=""
     local tunnel_record_id=""
+    local public_key=$(cat "$DNSTT_KEYS_DIR/server.pub" 2>/dev/null)
     
     if [ "$dns_choice" == "1" ]; then
         local rand=$(head /dev/urandom | tr -dc a-z0-9 | head -c 8)
@@ -753,6 +828,8 @@ install_dnstt() {
     fi
     
     # Create services
+    echo -e "\n${C_BLUE}[6/6] Creating services...${C_RESET}"
+    
     cat > "$DNSTT_SERVICE" <<EOF
 [Unit]
 Description=DNSTT Server
@@ -790,7 +867,7 @@ EOF
     # Save info
     cat > "$DNSTT_INFO_FILE" <<EOF
 TUNNEL_DOMAIN="$domain"
-PUBLIC_KEY="$(cat $DNSTT_KEYS_DIR/server.pub)"
+PUBLIC_KEY="$public_key"
 MTU="$MTU"
 NS_RECORD_ID="$ns_record_id"
 TUNNEL_RECORD_ID="$tunnel_record_id"
@@ -799,18 +876,19 @@ EOF
     echo -e "\n${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
     echo -e "${C_GREEN}           ✅ DNSTT INSTALLED SUCCESSFULLY!${C_RESET}"
     echo -e "${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "  Tunnel Domain: ${C_YELLOW}$domain${C_RESET}"
-    echo -e "  Public Key:    ${C_YELLOW}$(cat $DNSTT_KEYS_DIR/server.pub)${C_RESET}"
-    echo -e "  MTU:           ${C_YELLOW}$MTU${C_RESET}"
+    echo -e "  ${C_CYAN}Tunnel Domain:${C_RESET} ${C_YELLOW}$domain${C_RESET}"
+    echo -e "  ${C_CYAN}Public Key:${C_RESET}    ${C_YELLOW}$public_key${C_RESET}"
+    echo -e "  ${C_CYAN}MTU:${C_RESET}           ${C_YELLOW}$MTU${C_RESET}"
     if [ $MTU -eq 1800 ]; then
-        echo -e "  Status:        ${C_GREEN}SPECIAL MODE - ISP sees 512!${C_RESET}"
+        echo -e "  ${C_CYAN}Status:${C_RESET}        ${C_GREEN}SPECIAL MODE - ISP sees 512!${C_RESET}"
     fi
     echo -e "${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
-    read -p "Press Enter"
+    echo -e "${C_YELLOW}⚠️ SAVE THIS PUBLIC KEY! You'll need it for clients.${C_RESET}"
+    safe_read "" dummy
 }
 
 uninstall_dnstt() {
-    echo -e "${C_BLUE}🗑️ Uninstalling DNSTT...${C_RESET}"
+    echo -e "\n${C_BLUE}🗑️ Uninstalling DNSTT...${C_RESET}"
     
     systemctl stop dnstt.service dnstt-5300.service 2>/dev/null
     systemctl disable dnstt.service dnstt-5300.service 2>/dev/null
@@ -819,16 +897,15 @@ uninstall_dnstt() {
     rm -rf "$DNSTT_KEYS_DIR"
     rm -f "$DNSTT_INFO_FILE"
     
-    # Remove Cloudflare records
-    if [ -f "$DNSTT_INFO_FILE" ]; then
-        source "$DNSTT_INFO_FILE"
+    if [ -f "$DNS_INFO_FILE" ]; then
+        source "$DNS_INFO_FILE"
         [ -n "$TUNNEL_RECORD_ID" ] && delete_cloudflare_record "$TUNNEL_RECORD_ID"
         [ -n "$NS_RECORD_ID" ] && delete_cloudflare_record "$NS_RECORD_ID"
     fi
     
     systemctl daemon-reload
     echo -e "${C_GREEN}✅ DNSTT uninstalled${C_RESET}"
-    read -p "Press Enter"
+    safe_read "" dummy
 }
 
 show_dnstt_details() {
@@ -839,7 +916,7 @@ show_dnstt_details() {
     
     if [ ! -f "$DNSTT_INFO_FILE" ]; then
         echo -e "${C_YELLOW}DNSTT is not installed${C_RESET}"
-        read -p "Press Enter"
+        safe_read "" dummy
         return
     fi
     
@@ -863,30 +940,30 @@ show_dnstt_details() {
     systemctl is-active dnstt.service &>/dev/null && echo -e "    • dnstt.service: ${C_GREEN}active${C_RESET}" || echo -e "    • dnstt.service: ${C_RED}inactive${C_RESET}"
     systemctl is-active dnstt-5300.service &>/dev/null && echo -e "    • dnstt-5300.service: ${C_GREEN}active${C_RESET}" || echo -e "    • dnstt-5300.service: ${C_RED}inactive${C_RESET}"
     
-    read -p "Press Enter"
+    safe_read "" dummy
 }
 
 # ========== DNS2TCP FUNCTIONS ==========
 install_dns2tcp() {
     clear
     show_banner
-    echo -e "${C_BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
-    echo -e "${C_GREEN}           📡 INSTALL DNS2TCP${C_RESET}"
-    echo -e "${C_BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+    echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    echo -e "${C_BOLD}${C_PURPLE}           📡 DNS2TCP INSTALLATION${C_RESET}"
+    echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
     
     if [ -f "$DNS2TCP53_SERVICE" ]; then
-        echo -e "${C_YELLOW}DNS2TCP already installed${C_RESET}"
-        read -p "Press Enter"
+        echo -e "\n${C_YELLOW}ℹ️ DNS2TCP is already installed.${C_RESET}"
+        safe_read "" dummy
         return
     fi
     
     # Install dependencies
-    echo -e "${C_BLUE}[1/5] Installing dependencies...${C_RESET}"
+    echo -e "\n${C_BLUE}[1/6] Installing dependencies...${C_RESET}"
     $PKG_UPDATE
     $PKG_INSTALL dns2tcp screen lsof
     
     # Configure systemd-resolved
-    echo -e "${C_BLUE}[2/5] Configuring systemd-resolved...${C_RESET}"
+    echo -e "${C_BLUE}[2/6] Configuring systemd-resolved...${C_RESET}"
     cp /etc/systemd/resolved.conf /etc/systemd/resolved.conf.backup 2>/dev/null
     cat > /etc/systemd/resolved.conf <<EOF
 [Resolve]
@@ -896,7 +973,7 @@ EOF
     systemctl restart systemd-resolved
     
     # Create directories
-    echo -e "${C_BLUE}[3/5] Creating directories...${C_RESET}"
+    echo -e "${C_BLUE}[3/6] Creating directories...${C_RESET}"
     mkdir -p /root/dns2tcp
     mkdir -p /var/empty/dns2tcp
     
@@ -906,11 +983,11 @@ EOF
     fi
     
     # Get MTU
-    echo -e "${C_BLUE}[4/5] Selecting MTU...${C_RESET}"
-    mtu_selection
+    echo -e "${C_BLUE}[4/6] Selecting MTU...${C_RESET}"
+    mtu_selection_during_install
     
     # DNS Configuration
-    echo -e "\n${C_BLUE}[5/5] DNS Configuration:${C_RESET}"
+    echo -e "\n${C_BLUE}[5/6] DNS Configuration:${C_RESET}"
     echo "1) Auto-generate with Cloudflare"
     echo "2) Manual"
     read -p "Choice [1]: " dns_choice
@@ -953,7 +1030,7 @@ EOF
         fi
     done
     
-    # Create config for port 53
+    # Create configs
     cat > /root/dns2tcp/dns2tcp-53.conf <<EOF
 listen = 0.0.0.0
 port = 53
@@ -964,7 +1041,6 @@ key = $key
 resources = ssh:127.0.0.1:$target_port
 EOF
 
-    # Create config for port 5300
     cat > /root/dns2tcp/dns2tcp-5300.conf <<EOF
 listen = 0.0.0.0
 port = 5300
@@ -976,6 +1052,8 @@ resources = ssh:127.0.0.1:$target_port
 EOF
 
     # Create services
+    echo -e "${C_BLUE}[6/6] Creating services...${C_RESET}"
+    
     cat > "$DNS2TCP53_SERVICE" <<EOF
 [Unit]
 Description=DNS2TCP Server (Port 53)
@@ -1030,19 +1108,20 @@ EOF
     echo -e "\n${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
     echo -e "${C_GREEN}           ✅ DNS2TCP INSTALLED SUCCESSFULLY!${C_RESET}"
     echo -e "${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "  Tunnel Domain: ${C_YELLOW}$domain${C_RESET}"
-    echo -e "  Key:           ${C_YELLOW}$key${C_RESET}"
-    echo -e "  Target Port:   ${C_YELLOW}$target_port${C_RESET}"
-    echo -e "  MTU:           ${C_YELLOW}$MTU${C_RESET}"
+    echo -e "  ${C_CYAN}Tunnel Domain:${C_RESET} ${C_YELLOW}$domain${C_RESET}"
+    echo -e "  ${C_CYAN}Key:${C_RESET}           ${C_YELLOW}$key${C_RESET}"
+    echo -e "  ${C_CYAN}Target Port:${C_RESET}   ${C_YELLOW}$target_port${C_RESET}"
+    echo -e "  ${C_CYAN}MTU:${C_RESET}           ${C_YELLOW}$MTU${C_RESET}"
     if [ $MTU -eq 1800 ]; then
-        echo -e "  Status:        ${C_GREEN}SPECIAL MODE - ISP sees 512!${C_RESET}"
+        echo -e "  ${C_CYAN}Status:${C_RESET}        ${C_GREEN}SPECIAL MODE - ISP sees 512!${C_RESET}"
     fi
     echo -e "${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
-    read -p "Press Enter"
+    echo -e "${C_YELLOW}⚠️ SAVE THIS KEY! You'll need it for clients.${C_RESET}"
+    safe_read "" dummy
 }
 
 uninstall_dns2tcp() {
-    echo -e "${C_BLUE}🗑️ Uninstalling DNS2TCP...${C_RESET}"
+    echo -e "\n${C_BLUE}🗑️ Uninstalling DNS2TCP...${C_RESET}"
     
     systemctl stop dns2tcp-53.service dns2tcp-5300.service 2>/dev/null
     systemctl disable dns2tcp-53.service dns2tcp-5300.service 2>/dev/null
@@ -1056,7 +1135,6 @@ uninstall_dns2tcp() {
         cp /etc/resolv.conf.backup /etc/resolv.conf
     fi
     
-    # Remove Cloudflare records
     if [ -f "$DNS2TCP_INFO_FILE" ]; then
         source "$DNS2TCP_INFO_FILE"
         [ -n "$TUNNEL_RECORD_ID" ] && delete_cloudflare_record "$TUNNEL_RECORD_ID"
@@ -1065,7 +1143,7 @@ uninstall_dns2tcp() {
     
     systemctl daemon-reload
     echo -e "${C_GREEN}✅ DNS2TCP uninstalled${C_RESET}"
-    read -p "Press Enter"
+    safe_read "" dummy
 }
 
 show_dns2tcp_details() {
@@ -1076,7 +1154,7 @@ show_dns2tcp_details() {
     
     if [ ! -f "$DNS2TCP_INFO_FILE" ]; then
         echo -e "${C_YELLOW}DNS2TCP is not installed${C_RESET}"
-        read -p "Press Enter"
+        safe_read "" dummy
         return
     fi
     
@@ -1101,7 +1179,7 @@ show_dns2tcp_details() {
     systemctl is-active dns2tcp-53.service &>/dev/null && echo -e "    • dns2tcp-53.service: ${C_GREEN}active${C_RESET}" || echo -e "    • dns2tcp-53.service: ${C_RED}inactive${C_RESET}"
     systemctl is-active dns2tcp-5300.service &>/dev/null && echo -e "    • dns2tcp-5300.service: ${C_GREEN}active${C_RESET}" || echo -e "    • dns2tcp-5300.service: ${C_RED}inactive${C_RESET}"
     
-    read -p "Press Enter"
+    safe_read "" dummy
 }
 
 # ========== V2RAY over DNSTT FUNCTIONS ==========
@@ -1117,38 +1195,36 @@ generate_v2ray_json() {
     
     case $protocol in
         vmess)
-            cat <<EOF
-{
+            local vmess_json='{
   "v": "2",
-  "ps": "$username",
-  "add": "$DOMAIN",
-  "port": "8787",
-  "id": "$uuid",
+  "ps": "'$username'",
+  "add": "'$DOMAIN'",
+  "port": "'$V2RAY_PORT'",
+  "id": "'$uuid'",
   "aid": "0",
   "net": "tcp",
   "type": "none",
   "host": "",
   "path": "",
   "tls": ""
-}
-EOF
+}'
+            echo "$vmess_json" | jq . 2>/dev/null || echo "$vmess_json"
+            echo ""
+            echo -e "${C_CYAN}VMess Link:${C_RESET}"
+            echo "vmess://$(echo -n "$vmess_json" | base64 -w 0 2>/dev/null || echo -n "$vmess_json" | base64)"
             ;;
         vless)
-            cat <<EOF
-VLESS Config:
-  Address: $DOMAIN
-  Port: 8788
-  UUID: $uuid
-  Encryption: none
-EOF
+            echo -e "${C_CYAN}VLESS Config:${C_RESET}"
+            echo "  Address: $DOMAIN"
+            echo "  Port: $((V2RAY_PORT+1))"
+            echo "  UUID: $uuid"
+            echo "  Encryption: none"
             ;;
         trojan)
-            cat <<EOF
-Trojan Config:
-  Address: $DOMAIN
-  Port: 8789
-  Password: $password
-EOF
+            echo -e "${C_CYAN}Trojan Config:${C_RESET}"
+            echo "  Address: $DOMAIN"
+            echo "  Port: $((V2RAY_PORT+2))"
+            echo "  Password: $password"
             ;;
     esac
 }
@@ -1156,24 +1232,24 @@ EOF
 install_v2ray_dnstt() {
     clear
     show_banner
-    echo -e "${C_BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
-    echo -e "${C_GREEN}           🚀 INSTALL V2RAY over DNSTT${C_RESET}"
-    echo -e "${C_BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+    echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    echo -e "${C_BOLD}${C_PURPLE}           🚀 V2RAY over DNSTT INSTALLATION${C_RESET}"
+    echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
     
     if [ -f "$V2RAY_SERVICE" ]; then
-        echo -e "${C_YELLOW}V2RAY over DNSTT already installed${C_RESET}"
-        read -p "Press Enter"
+        echo -e "\n${C_YELLOW}ℹ️ V2RAY over DNSTT is already installed.${C_RESET}"
+        safe_read "" dummy
         return
     fi
     
     # Check if DNSTT is installed
     if [ ! -f "$DNSTT_SERVICE" ]; then
-        echo -e "${C_YELLOW}⚠️ DNSTT not found. Installing DNSTT first...${C_RESET}"
+        echo -e "\n${C_YELLOW}⚠️ DNSTT not found. Installing DNSTT first...${C_RESET}"
         install_dnstt
     fi
     
     # Install Xray
-    echo -e "${C_BLUE}[1/4] Installing Xray...${C_RESET}"
+    echo -e "\n${C_BLUE}[1/4] Installing Xray...${C_RESET}"
     bash -c 'curl -sL https://raw.githubusercontent.com/XTLS/Xray-install/main/install-release.sh | bash -s -- install'
     
     # Create directories
@@ -1182,7 +1258,7 @@ install_v2ray_dnstt() {
     
     # Get MTU
     echo -e "${C_BLUE}[3/4] Selecting MTU...${C_RESET}"
-    mtu_selection
+    mtu_selection_during_install
     
     # Create V2Ray config
     echo -e "${C_BLUE}[4/4] Creating V2Ray configuration...${C_RESET}"
@@ -1245,20 +1321,20 @@ EOF
     echo -e "\n${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
     echo -e "${C_GREEN}           ✅ V2RAY over DNSTT INSTALLED SUCCESSFULLY!${C_RESET}"
     echo -e "${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "  VMess Port:    ${C_YELLOW}$V2RAY_PORT${C_RESET}"
-    echo -e "  VLESS Port:    ${C_YELLOW}$((V2RAY_PORT+1))${C_RESET}"
-    echo -e "  Trojan Port:   ${C_YELLOW}$((V2RAY_PORT+2))${C_RESET}"
-    echo -e "  MTU:           ${C_YELLOW}$MTU${C_RESET}"
+    echo -e "  ${C_CYAN}VMess Port:${C_RESET}   ${C_YELLOW}$V2RAY_PORT${C_RESET}"
+    echo -e "  ${C_CYAN}VLESS Port:${C_RESET}   ${C_YELLOW}$((V2RAY_PORT+1))${C_RESET}"
+    echo -e "  ${C_CYAN}Trojan Port:${C_RESET}  ${C_YELLOW}$((V2RAY_PORT+2))${C_RESET}"
+    echo -e "  ${C_CYAN}MTU:${C_RESET}          ${C_YELLOW}$MTU${C_RESET}"
     if [ $MTU -eq 1800 ]; then
-        echo -e "  Status:        ${C_GREEN}SPECIAL MODE - ISP sees 512!${C_RESET}"
+        echo -e "  ${C_CYAN}Status:${C_RESET}       ${C_GREEN}SPECIAL MODE - ISP sees 512!${C_RESET}"
     fi
     echo -e "${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
     echo -e "${C_YELLOW}Use V2Ray User Management to add users${C_RESET}"
-    read -p "Press Enter"
+    safe_read "" dummy
 }
 
 uninstall_v2ray_dnstt() {
-    echo -e "${C_BLUE}🗑️ Uninstalling V2RAY over DNSTT...${C_RESET}"
+    echo -e "\n${C_BLUE}🗑️ Uninstalling V2RAY over DNSTT...${C_RESET}"
     
     systemctl stop v2ray-dnstt.service 2>/dev/null
     systemctl disable v2ray-dnstt.service 2>/dev/null
@@ -1268,7 +1344,7 @@ uninstall_v2ray_dnstt() {
     
     systemctl daemon-reload
     echo -e "${C_GREEN}✅ V2RAY over DNSTT uninstalled${C_RESET}"
-    read -p "Press Enter"
+    safe_read "" dummy
 }
 
 show_v2ray_details() {
@@ -1279,7 +1355,7 @@ show_v2ray_details() {
     
     if [ ! -f "$V2RAY_INFO_FILE" ]; then
         echo -e "${C_YELLOW}V2RAY over DNSTT is not installed${C_RESET}"
-        read -p "Press Enter"
+        safe_read "" dummy
         return
     fi
     
@@ -1299,9 +1375,11 @@ show_v2ray_details() {
     if [ $MTU -eq 1800 ]; then
         echo -e "  Note:          ${C_GREEN}SPECIAL MODE - ISP sees 512!${C_RESET}"
     fi
-    echo -e "  Total Users:   ${C_YELLOW}$(wc -l < "$V2RAY_USERS_DB" 2>/dev/null || echo 0)${C_RESET}"
     
-    read -p "Press Enter"
+    local user_count=$(wc -l < "$V2RAY_USERS_DB" 2>/dev/null || echo 0)
+    echo -e "  Total Users:   ${C_YELLOW}$user_count${C_RESET}"
+    
+    safe_read "" dummy
 }
 
 # ========== V2RAY USER MANAGEMENT ==========
@@ -1363,7 +1441,7 @@ create_v2ray_user() {
     
     echo ""
     echo -e "${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
-    read -p "Press Enter"
+    safe_read "" dummy
 }
 
 list_v2ray_users() {
@@ -1374,7 +1452,7 @@ list_v2ray_users() {
     
     if [ ! -f "$V2RAY_USERS_DB" ] || [ ! -s "$V2RAY_USERS_DB" ]; then
         echo -e "${C_YELLOW}No V2Ray users found${C_RESET}"
-        read -p "Press Enter"
+        safe_read "" dummy
         return
     fi
     
@@ -1408,7 +1486,7 @@ list_v2ray_users() {
     done < "$V2RAY_USERS_DB"
     
     echo ""
-    read -p "Press Enter"
+    safe_read "" dummy
 }
 
 view_v2ray_user() {
@@ -1423,7 +1501,7 @@ view_v2ray_user() {
     
     if [ -z "$user_line" ]; then
         echo -e "\n${C_RED}❌ User not found${C_RESET}"
-        read -p "Press Enter"
+        safe_read "" dummy
         return
     fi
     
@@ -1443,7 +1521,7 @@ view_v2ray_user() {
     echo -e "\n${C_CYAN}JSON Configuration:${C_RESET}"
     generate_v2ray_json "$user" "$uuid" "$proto" "$pass"
     
-    read -p "Press Enter"
+    safe_read "" dummy
 }
 
 edit_v2ray_user() {
@@ -1458,7 +1536,7 @@ edit_v2ray_user() {
     
     if [ -z "$user_line" ]; then
         echo -e "\n${C_RED}❌ User not found${C_RESET}"
-        read -p "Press Enter"
+        safe_read "" dummy
         return
     fi
     
@@ -1517,7 +1595,7 @@ edit_v2ray_user() {
         *) echo -e "${C_RED}Invalid choice${C_RESET}" ;;
     esac
     
-    read -p "Press Enter"
+    safe_read "" dummy
 }
 
 delete_v2ray_user() {
@@ -1530,7 +1608,7 @@ delete_v2ray_user() {
     
     if ! grep -q "^$username:" "$V2RAY_USERS_DB" 2>/dev/null; then
         echo -e "\n${C_RED}❌ User not found${C_RESET}"
-        read -p "Press Enter"
+        safe_read "" dummy
         return
     fi
     
@@ -1540,28 +1618,28 @@ delete_v2ray_user() {
         echo -e "${C_GREEN}✅ User deleted${C_RESET}"
     fi
     
-    read -p "Press Enter"
+    safe_read "" dummy
 }
 
 lock_v2ray_user() {
     read -p "Username: " username
     sed -i "s/^\($username:[^:]*:[^:]*:[^:]*:[^:]*:[^:]*:[^:]*:\)active/\1locked/" "$V2RAY_USERS_DB"
     echo -e "${C_GREEN}✅ User locked${C_RESET}"
-    read -p "Press Enter"
+    safe_read "" dummy
 }
 
 unlock_v2ray_user() {
     read -p "Username: " username
     sed -i "s/^\($username:[^:]*:[^:]*:[^:]*:[^:]*:[^:]*:[^:]*:\)locked/\1active/" "$V2RAY_USERS_DB"
     echo -e "${C_GREEN}✅ User unlocked${C_RESET}"
-    read -p "Press Enter"
+    safe_read "" dummy
 }
 
 reset_v2ray_traffic() {
     read -p "Username: " username
     sed -i "s/^\($username:[^:]*:[^:]*:[^:]*:[^:]*:\)[^:]*:/\10:/" "$V2RAY_USERS_DB"
     echo -e "${C_GREEN}✅ Traffic reset to 0${C_RESET}"
-    read -p "Press Enter"
+    safe_read "" dummy
 }
 
 # ========== V2RAY MAIN MENU ==========
@@ -1576,9 +1654,9 @@ v2ray_menu() {
             installed_status="${C_RED}● NOT INSTALLED${C_RESET}"
         fi
         
-        echo -e "${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
+        echo -e "${C_PURPLE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
         echo -e "${C_PURPLE}              🚀 V2RAY over DNSTT MANAGEMENT $installed_status${C_RESET}"
-        echo -e "${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
+        echo -e "${C_PURPLE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
         echo ""
         
         if [ -f "$V2RAY_SERVICE" ]; then
@@ -1619,7 +1697,7 @@ v2ray_menu() {
             case $choice in
                 1) install_v2ray_dnstt ;;
                 2) show_v2ray_details ;;
-                3) systemctl restart v2ray-dnstt.service; echo "Restarted"; read -p "Press Enter" ;;
+                3) systemctl restart v2ray-dnstt.service; echo "Restarted"; safe_read "" dummy ;;
                 4) uninstall_v2ray_dnstt ;;
                 5) create_v2ray_user ;;
                 6) list_v2ray_users ;;
@@ -1629,9 +1707,9 @@ v2ray_menu() {
                 10) lock_v2ray_user ;;
                 11) unlock_v2ray_user ;;
                 12) reset_v2ray_traffic ;;
-                13) mtu_selection ;;
-                14) cat "$V2RAY_CONFIG" | jq . 2>/dev/null || cat "$V2RAY_CONFIG"; read -p "Press Enter" ;;
-                15) systemctl restart v2ray-dnstt.service; echo "Restarted"; read -p "Press Enter" ;;
+                13) mtu_selection_during_install ;;
+                14) cat "$V2RAY_CONFIG" | jq . 2>/dev/null || cat "$V2RAY_CONFIG"; safe_read "" dummy ;;
+                15) systemctl restart v2ray-dnstt.service; echo "Restarted"; safe_read "" dummy ;;
                 0) return ;;
                 *) echo -e "${C_RED}Invalid${C_RESET}"; sleep 2 ;;
             esac
@@ -1641,7 +1719,10 @@ v2ray_menu() {
 
 # ========== OTHER PROTOCOLS (SIMPLIFIED) ==========
 install_badvpn() {
-    echo -e "${C_BLUE}🚀 Installing badvpn...${C_RESET}"
+    clear
+    show_banner
+    echo -e "${C_BOLD}${C_PURPLE}--- 🚀 Installing badvpn ---${C_RESET}"
+    
     $PKG_INSTALL cmake make gcc git
     cd /tmp
     git clone https://github.com/ambrop72/badvpn.git
@@ -1668,7 +1749,7 @@ EOF
     systemctl enable badvpn.service
     systemctl start badvpn.service
     echo -e "${C_GREEN}✅ badvpn installed on port $BADVPN_PORT${C_RESET}"
-    read -p "Press Enter"
+    safe_read "" dummy
 }
 
 uninstall_badvpn() {
@@ -1677,11 +1758,14 @@ uninstall_badvpn() {
     rm -f "$BADVPN_SERVICE" "$BADVPN_BIN"
     systemctl daemon-reload
     echo -e "${C_GREEN}✅ badvpn uninstalled${C_RESET}"
-    read -p "Press Enter"
+    safe_read "" dummy
 }
 
 install_udp_custom() {
-    echo -e "${C_BLUE}🚀 Installing udp-custom...${C_RESET}"
+    clear
+    show_banner
+    echo -e "${C_BOLD}${C_PURPLE}--- 🚀 Installing udp-custom ---${C_RESET}"
+    
     mkdir -p "$UDP_CUSTOM_DIR"
     arch=$(uname -m)
     if [[ "$arch" == "x86_64" ]]; then
@@ -1714,7 +1798,7 @@ EOF
     systemctl enable udp-custom.service
     systemctl start udp-custom.service
     echo -e "${C_GREEN}✅ udp-custom installed on port $UDP_CUSTOM_PORT${C_RESET}"
-    read -p "Press Enter"
+    safe_read "" dummy
 }
 
 uninstall_udp_custom() {
@@ -1724,15 +1808,18 @@ uninstall_udp_custom() {
     rm -rf "$UDP_CUSTOM_DIR"
     systemctl daemon-reload
     echo -e "${C_GREEN}✅ udp-custom uninstalled${C_RESET}"
-    read -p "Press Enter"
+    safe_read "" dummy
 }
 
 install_ssl_tunnel() {
-    echo -e "${C_BLUE}🔒 Installing SSL Tunnel...${C_RESET}"
+    clear
+    show_banner
+    echo -e "${C_BOLD}${C_PURPLE}--- 🔒 Installing SSL Tunnel ---${C_RESET}"
+    
     $PKG_INSTALL haproxy
     openssl req -x509 -newkey rsa:2048 -nodes -days 365 -keyout "$SSL_CERT_FILE" -out "$SSL_CERT_FILE" -subj "/CN=VOLTRON TECH" 2>/dev/null
     
-    cat > /etc/haproxy/haproxy.cfg <<EOF
+    cat > "$HAPROXY_CONFIG" <<EOF
 global
     log /dev/log local0
     chroot /var/lib/haproxy
@@ -1757,20 +1844,23 @@ EOF
 
     systemctl restart haproxy
     echo -e "${C_GREEN}✅ SSL Tunnel installed on port $SSL_PORT${C_RESET}"
-    read -p "Press Enter"
+    safe_read "" dummy
 }
 
 uninstall_ssl_tunnel() {
     systemctl stop haproxy 2>/dev/null
     $PKG_REMOVE haproxy
-    rm -f /etc/haproxy/haproxy.cfg
+    rm -f "$HAPROXY_CONFIG"
     rm -f "$SSL_CERT_FILE"
     echo -e "${C_GREEN}✅ SSL Tunnel uninstalled${C_RESET}"
-    read -p "Press Enter"
+    safe_read "" dummy
 }
 
 install_voltron_proxy() {
-    echo -e "${C_BLUE}🦅 Installing VOLTRON Proxy...${C_RESET}"
+    clear
+    show_banner
+    echo -e "${C_BOLD}${C_PURPLE}--- 🦅 Installing VOLTRON Proxy ---${C_RESET}"
+    
     arch=$(uname -m)
     if [[ "$arch" == "x86_64" ]]; then
         curl -L -o "$VOLTRONPROXY_BIN" "https://github.com/HumbleTechtz/voltron-tech/releases/latest/download/voltronproxy"
@@ -1779,6 +1869,9 @@ install_voltron_proxy() {
     fi
     chmod +x "$VOLTRONPROXY_BIN"
     
+    read -p "Enter port(s) [8080]: " ports
+    ports=${ports:-8080}
+    
     cat > "$VOLTRONPROXY_SERVICE" <<EOF
 [Unit]
 Description=VOLTRON Proxy
@@ -1786,7 +1879,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=$VOLTRONPROXY_BIN -p $VOLTRON_PROXY_PORT
+ExecStart=$VOLTRONPROXY_BIN -p $ports
 Restart=always
 
 [Install]
@@ -1796,25 +1889,31 @@ EOF
     systemctl daemon-reload
     systemctl enable voltronproxy.service
     systemctl start voltronproxy.service
-    echo -e "${C_GREEN}✅ VOLTRON Proxy installed on port $VOLTRON_PROXY_PORT${C_RESET}"
-    read -p "Press Enter"
+    
+    echo "$ports" > "$VOLTRONPROXY_CONFIG_FILE"
+    echo -e "${C_GREEN}✅ VOLTRON Proxy installed on port(s) $ports${C_RESET}"
+    safe_read "" dummy
 }
 
 uninstall_voltron_proxy() {
     systemctl stop voltronproxy.service 2>/dev/null
     systemctl disable voltronproxy.service 2>/dev/null
     rm -f "$VOLTRONPROXY_SERVICE" "$VOLTRONPROXY_BIN"
+    rm -f "$VOLTRONPROXY_CONFIG_FILE"
     systemctl daemon-reload
     echo -e "${C_GREEN}✅ VOLTRON Proxy uninstalled${C_RESET}"
-    read -p "Press Enter"
+    safe_read "" dummy
 }
 
 install_nginx_proxy() {
-    echo -e "${C_BLUE}🌐 Installing Nginx Proxy...${C_RESET}"
+    clear
+    show_banner
+    echo -e "${C_BOLD}${C_PURPLE}--- 🌐 Installing Nginx Proxy ---${C_RESET}"
+    
     $PKG_INSTALL nginx
     openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /etc/ssl/private/nginx-selfsigned.key -out /etc/ssl/certs/nginx-selfsigned.pem -subj "/CN=VOLTRON TECH" 2>/dev/null
     
-    cat > /etc/nginx/sites-available/default <<'EOF'
+    cat > "$NGINX_CONFIG" <<'EOF'
 server {
     listen 80;
     listen 443 ssl http2;
@@ -1832,19 +1931,22 @@ EOF
 
     systemctl restart nginx
     echo -e "${C_GREEN}✅ Nginx Proxy installed${C_RESET}"
-    read -p "Press Enter"
+    safe_read "" dummy
 }
 
 uninstall_nginx_proxy() {
     systemctl stop nginx 2>/dev/null
     $PKG_REMOVE nginx
-    rm -f /etc/nginx/sites-available/default
+    rm -f "$NGINX_CONFIG"
     echo -e "${C_GREEN}✅ Nginx Proxy uninstalled${C_RESET}"
-    read -p "Press Enter"
+    safe_read "" dummy
 }
 
 install_zivpn() {
-    echo -e "${C_BLUE}🛡️ Installing ZiVPN...${C_RESET}"
+    clear
+    show_banner
+    echo -e "${C_BOLD}${C_PURPLE}--- 🛡️ Installing ZiVPN ---${C_RESET}"
+    
     arch=$(uname -m)
     if [[ "$arch" == "x86_64" ]]; then
         curl -L -o "$ZIVPN_BIN" "https://github.com/zahidbd2/udp-zivpn/releases/download/udp-zivpn_1.4.9/udp-zivpn-linux-amd64"
@@ -1891,7 +1993,7 @@ EOF
     systemctl enable zivpn.service
     systemctl start zivpn.service
     echo -e "${C_GREEN}✅ ZiVPN installed on port $ZIVPN_PORT${C_RESET}"
-    read -p "Press Enter"
+    safe_read "" dummy
 }
 
 uninstall_zivpn() {
@@ -1901,13 +2003,16 @@ uninstall_zivpn() {
     rm -rf "$ZIVPN_DIR"
     systemctl daemon-reload
     echo -e "${C_GREEN}✅ ZiVPN uninstalled${C_RESET}"
-    read -p "Press Enter"
+    safe_read "" dummy
 }
 
 install_xui_panel() {
-    echo -e "${C_BLUE}💻 Installing X-UI Panel...${C_RESET}"
+    clear
+    show_banner
+    echo -e "${C_BOLD}${C_PURPLE}--- 💻 Installing X-UI Panel ---${C_RESET}"
+    
     bash <(curl -Ls https://raw.githubusercontent.com/alireza0/x-ui/master/install.sh)
-    read -p "Press Enter"
+    safe_read "" dummy
 }
 
 uninstall_xui_panel() {
@@ -1917,13 +2022,16 @@ uninstall_xui_panel() {
     rm -f /usr/local/bin/x-ui
     rm -rf /etc/x-ui /usr/local/x-ui
     echo -e "${C_GREEN}✅ X-UI uninstalled${C_RESET}"
-    read -p "Press Enter"
+    safe_read "" dummy
 }
 
 install_dt_proxy() {
-    echo -e "${C_BLUE}🚀 Installing DT Proxy...${C_RESET}"
+    clear
+    show_banner
+    echo -e "${C_BOLD}${C_PURPLE}--- 🚀 Installing DT Proxy ---${C_RESET}"
+    
     curl -sL https://raw.githubusercontent.com/voltrontech/ProxyMods/main/install.sh | bash
-    read -p "Press Enter"
+    safe_read "" dummy
 }
 
 uninstall_dt_proxy() {
@@ -1931,39 +2039,55 @@ uninstall_dt_proxy() {
     rm -f /etc/systemd/system/proxy-*.service 2>/dev/null
     systemctl daemon-reload
     echo -e "${C_GREEN}✅ DT Proxy uninstalled${C_RESET}"
-    read -p "Press Enter"
+    safe_read "" dummy
 }
 
 # ========== BACKUP & RESTORE ==========
-backup_data() {
-    echo -e "${C_BLUE}💾 Creating backup...${C_RESET}"
-    backup_file="/root/voltrontech-backup-$(date +%Y%m%d-%H%M%S).tar.gz"
-    tar -czf "$backup_file" $DB_DIR 2>/dev/null
-    echo -e "${C_GREEN}✅ Backup created: $backup_file${C_RESET}"
-    read -p "Press Enter"
+backup_user_data() {
+    clear
+    show_banner
+    echo -e "${C_BOLD}${C_PURPLE}--- 💾 Backup User Data ---${C_RESET}"
+    
+    local backup_path
+    safe_read "👉 Backup path [/root/voltrontech_backup.tar.gz]: " backup_path
+    backup_path=${backup_path:-/root/voltrontech_backup.tar.gz}
+    
+    tar -czf "$backup_path" $DB_DIR 2>/dev/null
+    echo -e "${C_GREEN}✅ Backup created: $backup_path${C_RESET}"
+    safe_read "" dummy
 }
 
-restore_data() {
-    echo -e "${C_BLUE}📥 Available backups:${C_RESET}"
-    ls -la /root/voltrontech-backup-*.tar.gz 2>/dev/null
-    echo ""
-    read -p "Enter backup file path: " backup_file
-    if [ -f "$backup_file" ]; then
-        tar -xzf "$backup_file" -C / 2>/dev/null
-        echo -e "${C_GREEN}✅ Restore complete${C_RESET}"
-    else
+restore_user_data() {
+    clear
+    show_banner
+    echo -e "${C_BOLD}${C_PURPLE}--- 📥 Restore User Data ---${C_RESET}"
+    
+    local backup_path
+    safe_read "👉 Backup path: " backup_path
+    
+    if [ ! -f "$backup_path" ]; then
         echo -e "${C_RED}❌ File not found${C_RESET}"
+        safe_read "" dummy
+        return
     fi
-    read -p "Press Enter"
+    
+    echo -e "${C_RED}⚠️ This will overwrite all current data!${C_RESET}"
+    local confirm
+    safe_read "Are you sure? (y/n): " confirm
+    
+    if [[ "$confirm" == "y" ]]; then
+        tar -xzf "$backup_path" -C / 2>/dev/null
+        echo -e "${C_GREEN}✅ Restore complete${C_RESET}"
+    fi
+    
+    safe_read "" dummy
 }
 
 # ========== CLOUDFLARE DNS GENERATOR ==========
 generate_cloudflare_dns() {
     clear
     show_banner
-    echo -e "${C_BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
-    echo -e "${C_GREEN}           🌐 GENERATE CLOUDFLARE DNS${C_RESET}"
-    echo -e "${C_BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+    echo -e "${C_BOLD}${C_PURPLE}--- 🌐 Generate Cloudflare DNS ---${C_RESET}"
     
     local ip=$(curl -s ifconfig.me)
     
@@ -1972,7 +2096,7 @@ generate_cloudflare_dns() {
     
     if [ -z "$ns_record_id" ]; then
         echo -e "${C_RED}❌ Failed to create A record${C_RESET}"
-        read -p "Press Enter"
+        safe_read "" dummy
         return
     fi
     
@@ -1980,19 +2104,18 @@ generate_cloudflare_dns() {
     local tun_record_id=$(create_cloudflare_record "NS" "tun" "ns.$DOMAIN")
     local tun2_record_id=$(create_cloudflare_record "NS" "tun2" "ns.$DOMAIN")
     
-    echo -e "${C_GREEN}✅ DNS records created successfully!${C_RESET}"
-    echo -e "  A record:  ns.$DOMAIN → $ip"
-    echo -e "  NS record: tun.$DOMAIN → ns.$DOMAIN"
-    echo -e "  NS record: tun2.$DOMAIN → ns.$DOMAIN"
+    echo -e "${C_GREEN}✅ DNS records created!${C_RESET}"
+    echo -e "  A:  ns.$DOMAIN → $ip"
+    echo -e "  NS: tun.$DOMAIN → ns.$DOMAIN"
+    echo -e "  NS: tun2.$DOMAIN → ns.$DOMAIN"
     
-    # Save record IDs
     cat > "$DNS_INFO_FILE" <<EOF
 NS_RECORD_ID="$ns_record_id"
 TUN_RECORD_ID="$tun_record_id"
 TUN2_RECORD_ID="$tun2_record_id"
 EOF
     
-    read -p "Press Enter"
+    safe_read "" dummy
 }
 
 # ========== PROTOCOL MENU ==========
@@ -2014,23 +2137,24 @@ protocol_menu() {
         echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
         echo -e "${C_BOLD}${C_PURPLE}              🔌 PROTOCOL & PANEL MANAGEMENT${C_RESET}"
         echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
+        echo ""
         echo -e "  ${C_GREEN}1)${C_RESET} DNSTT (53,5300 UDP)              $dnstt_status"
         echo -e "  ${C_GREEN}2)${C_RESET} DNS2TCP (53,5300 TCP)            $dns2tcp_status"
         echo -e "  ${C_GREEN}3)${C_RESET} V2RAY over DNSTT                 $v2ray_status"
         echo -e "  ${C_GREEN}4)${C_RESET} badvpn (7300 UDP)                $badvpn_status"
         echo -e "  ${C_GREEN}5)${C_RESET} udp-custom                       $udp_status"
-        echo -e "  ${C_GREEN}6)${C_RESET} SSL Tunnel (HAProxy)             $haproxy_status"
+        echo -e "  ${C_GREEN}6)${C_RESET} SSL Tunnel                       $haproxy_status"
         echo -e "  ${C_GREEN}7)${C_RESET} VOLTRON Proxy                    $voltronproxy_status"
         echo -e "  ${C_GREEN}8)${C_RESET} Nginx Proxy                      $nginx_status"
         echo -e "  ${C_GREEN}9)${C_RESET} ZiVPN                            $zivpn_status"
-        echo -e "  ${C_GREEN}10)${C_RESET} X-UI Panel                      $( [ -f /usr/local/x-ui/bin/x-ui ] && echo -e "${C_GREEN}RUNNING${C_RESET}" )"
-        echo -e "  ${C_GREEN}11)${C_RESET} DT Proxy                        $( [ -f /usr/local/bin/main ] && echo -e "${C_GREEN}RUNNING${C_RESET}" )"
+        echo -e "  ${C_GREEN}10)${C_RESET} X-UI Panel                      $( [ -f /usr/local/x-ui/bin/x-ui ] && echo -e "${C_GREEN}● INSTALLED${C_RESET}" )"
+        echo -e "  ${C_GREEN}11)${C_RESET} DT Proxy                        $( [ -f /usr/local/bin/main ] && echo -e "${C_GREEN}● INSTALLED${C_RESET}" )"
         echo ""
         echo -e "  ${C_RED}0)${C_RESET} Return"
         echo ""
         
         local choice
-        safe_read "👉 Select protocol: " choice
+        read -p "Choice: " choice
         
         case $choice in
             1)
@@ -2123,7 +2247,7 @@ protocol_menu() {
 }
 
 # ========== UNINSTALL EVERYTHING ==========
-uninstall_everything() {
+uninstall_script() {
     clear
     show_banner
     echo -e "${C_RED}═══════════════════════════════════════════════════════════════${C_RESET}"
@@ -2133,7 +2257,7 @@ uninstall_everything() {
     read -p "Type YES to confirm: " confirm
     if [[ "$confirm" != "YES" ]]; then
         echo -e "${C_GREEN}Cancelled${C_RESET}"
-        read -p "Press Enter"
+        safe_read "" dummy
         return
     fi
     
@@ -2170,6 +2294,7 @@ uninstall_everything() {
 
 # ========== MAIN MENU ==========
 main_menu() {
+    initial_setup
     while true; do
         show_banner
         
@@ -2214,13 +2339,13 @@ main_menu() {
             6) renew_user ;;
             7) cleanup_expired ;;
             8) protocol_menu ;;
-            9) mtu_selection ;;
+            9) mtu_selection_during_install ;;
             10) generate_cloudflare_dns ;;
-            11) backup_data ;;
-            12) restore_data ;;
-            99) uninstall_everything ;;
+            11) backup_user_data ;;
+            12) restore_user_data ;;
+            99) uninstall_script ;;
             0) echo -e "${C_GREEN}👋 Goodbye!${C_RESET}"; exit 0 ;;
-            *) echo -e "${C_RED}Invalid option${C_RESET}"; sleep 2 ;;
+            *) echo -e "${C_RED}Invalid${C_RESET}"; sleep 2 ;;
         esac
     done
 }
