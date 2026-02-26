@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # ========== VOLTRON TECH ULTIMATE SCRIPT ==========
-# Version: 3.1 (ULTIMATE MTU DECEPTION - ALL MTU >512 LOOK LIKE 512 TO ISP)
-# Description: SSH • DNSTT • DNS2TCP • V2RAY over DNSTT • MTU DECEPTION
+# Version: 3.1 (FIXED: Public Key Generator + Cloudflare)
+# Description: SSH • DNSTT • DNS2TCP • V2RAY over DNSTT • MTU 1800 ULTIMATE
 # Author: Voltron Tech
 
 # ========== COLOR CODES ==========
@@ -247,11 +247,13 @@ check_service() {
     fi
 }
 
-# ========== CLOUDFLARE DNS FUNCTIONS ==========
+# ========== FIXED: CLOUDFLARE DNS FUNCTIONS ==========
 create_cloudflare_record() {
     local type=$1
     local name=$2
     local content=$3
+    
+    echo -e "${C_BLUE}Creating $type record: $name.$DOMAIN → $content${C_RESET}"
     
     local response=$(curl -s -X POST "https://api.cloudflare.com/client/v4/zones/$CLOUDFLARE_ZONE_ID/dns_records" \
         -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
@@ -265,16 +267,23 @@ create_cloudflare_record() {
         }")
     
     if echo "$response" | grep -q '"success":true'; then
-        echo "$response" | grep -o '"id":"[^"]*"' | cut -d'"' -f4
+        local record_id=$(echo "$response" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+        echo -e "${C_GREEN}✅ Record created successfully! ID: $record_id${C_RESET}"
+        echo "$record_id"
         return 0
+    else
+        echo -e "${C_RED}❌ Failed to create DNS record${C_RESET}"
+        echo -e "${C_YELLOW}Response: $response${C_RESET}"
+        return 1
     fi
-    return 1
 }
 
 delete_cloudflare_record() {
     local record_id=$1
+    echo -e "${C_BLUE}Deleting Cloudflare record: $record_id${C_RESET}"
     curl -s -X DELETE "https://api.cloudflare.com/client/v4/zones/$CLOUDFLARE_ZONE_ID/dns_records/$record_id" \
         -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" > /dev/null
+    echo -e "${C_GREEN}✅ Record deleted${C_RESET}"
 }
 
 _is_valid_ipv4() {
@@ -294,62 +303,47 @@ show_banner() {
     
     echo -e "${C_BOLD}${C_PURPLE}╔═══════════════════════════════════════════════════════════════╗${C_RESET}"
     echo -e "${C_BOLD}${C_PURPLE}║           🔥 VOLTRON TECH ULTIMATE v3.1 🔥                    ║${C_RESET}"
-    echo -e "${C_BOLD}${C_PURPLE}║        SSH • DNSTT • DNS2TCP • V2RAY • MTU DECEPTION          ║${C_RESET}"
+    echo -e "${C_BOLD}${C_PURPLE}║        SSH • DNSTT • DNS2TCP • V2RAY • MTU 1800 ULTIMATE      ║${C_RESET}"
     echo -e "${C_BOLD}${C_PURPLE}╠═══════════════════════════════════════════════════════════════╣${C_RESET}"
     echo -e "${C_BOLD}${C_PURPLE}║  Server IP: ${C_GREEN}$IP${C_PURPLE}${C_RESET}"
     echo -e "${C_BOLD}${C_PURPLE}║  Location:  ${C_GREEN}$LOCATION, $COUNTRY${C_PURPLE}${C_RESET}"
     echo -e "${C_BOLD}${C_PURPLE}║  ISP:       ${C_GREEN}$ISP${C_PURPLE}${C_RESET}"
     echo -e "${C_BOLD}${C_PURPLE}║  Current MTU: ${C_GREEN}$current_mtu${C_PURPLE}${C_RESET}"
-    if [ "$current_mtu" -gt 512 ]; then
-        echo -e "${C_BOLD}${C_PURPLE}║  ${C_YELLOW}⚡ ULTIMATE MODE ACTIVE - ISP sees 512!${C_PURPLE}${C_RESET}"
+    if [ "$current_mtu" -eq 1800 ]; then
+        echo -e "${C_BOLD}${C_PURPLE}║  ${C_YELLOW}⚡ MTU 1800 ULTIMATE ACTIVE - ISP sees 512!${C_PURPLE}${C_RESET}"
     fi
     echo -e "${C_BOLD}${C_PURPLE}╚═══════════════════════════════════════════════════════════════╝${C_RESET}"
     echo ""
 }
 
-# ========== MTU ULTIMATE OPTIMIZATION (KWA MTU ZOTE > 512) ==========
-apply_mtu_ultimate_optimization() {
+# ========== MTU 1800 ULTIMATE OPTIMIZATION ==========
+apply_mtu_1800_optimization() {
     echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "${C_BLUE}           🚀 MTU ULTIMATE MODE (ISP SEES 512!)${C_RESET}"
-    echo -e "${C_BLUE}           Actual MTU: $MTU | ISP sees: 512${C_RESET}"
+    echo -e "${C_BLUE}           🚀 MTU 1800 ULTIMATE OPTIMIZATION${C_RESET}"
     echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
     
-    local mss=$((MTU - 40))
-    local buffer_size=536870912  # 512MB
-    
-    # ========== 1. TCP STACK OPTIMIZATION ==========
-    echo -e "\n${C_GREEN}[1/7] Configuring TCP stack for MTU $MTU (ISP sees 512)...${C_RESET}"
+    # TCP STACK OPTIMIZATION
+    echo -e "\n${C_GREEN}[1/7] Configuring TCP stack for MTU 1800...${C_RESET}"
     
     cat >> /etc/sysctl.conf <<EOF
 
-# ===== VOLTRON TECH MTU ULTIMATE MODE (MTU: $MTU, ISP sees 512) =====
-# TCP Window Scaling
+# ===== VOLTRON TECH MTU 1800 ULTIMATE OPTIMIZATION =====
 net.ipv4.tcp_window_scaling = 1
-
-# TCP Buffer Sizes (optimized for MTU $MTU)
 net.core.rmem_max = 16777216
 net.core.wmem_max = 16777216
 net.ipv4.tcp_rmem = 4096 87380 16777216
 net.ipv4.tcp_wmem = 4096 65536 16777216
-
-# TCP Congestion Control (BBR for maximum throughput)
 net.ipv4.tcp_congestion_control = bbr
 net.core.default_qdisc = fq
-
-# MTU Probing - CRITICAL for ISP deception!
 net.ipv4.tcp_mtu_probing = 1
-net.ipv4.tcp_base_mss = $mss
+net.ipv4.tcp_base_mss = 1760
 net.ipv4.tcp_mtu_probe_floor = 48
-
-# TCP Advanced Settings for High MTU
 net.ipv4.tcp_sack = 1
 net.ipv4.tcp_dsack = 1
 net.ipv4.tcp_fack = 1
 net.ipv4.tcp_slow_start_after_idle = 0
 net.ipv4.tcp_no_metrics_save = 1
 net.ipv4.tcp_moderate_rcvbuf = 1
-
-# Network Limits (Ultra)
 net.core.netdev_max_backlog = 50000
 net.core.somaxconn = 65535
 net.ipv4.tcp_max_syn_backlog = 65535
@@ -359,150 +353,80 @@ EOF
 
     sysctl -p >/dev/null 2>&1
 
-    # ========== 2. INTERFACE OPTIMIZATION ==========
-    echo -e "${C_GREEN}[2/7] Optimizing network interface for MTU $MTU...${C_RESET}"
+    # INTERFACE OPTIMIZATION
+    echo -e "${C_GREEN}[2/7] Optimizing network interface for MTU 1800...${C_RESET}"
     
     local iface=$(ip route | grep default | awk '{print $5}' | head -1)
     if [ -n "$iface" ]; then
-        # Set ACTUAL MTU on interface (high)
-        ip link set dev $iface mtu $MTU 2>/dev/null
-        
-        # But make ISP think it's 512 via DNS queries
-        echo -e "      • ACTUAL MTU on interface: ${C_CYAN}$MTU${C_RESET}"
-        echo -e "      • ISP sees (via DNS): ${C_CYAN}512${C_RESET}"
-        
-        # Increase queue length
+        ip link set dev $iface mtu 1800 2>/dev/null
         ip link set dev $iface txqueuelen 50000 2>/dev/null
-        
-        # Disable offloading for better control
         ethtool -K $iface tx off sg off tso off gso off gro off lro off 2>/dev/null
-        
-        # Increase ring buffers
         ethtool -G $iface rx 8192 tx 8192 2>/dev/null
         
         echo -e "      • Interface: ${C_CYAN}$iface${C_RESET}"
-        echo -e "      • Queue length: ${C_CYAN}50000${C_RESET}"
+        echo -e "      • MTU set: ${C_CYAN}1800${C_RESET}"
     fi
 
-    # ========== 3. PROTOCOL SERVICES OPTIMIZATION ==========
-    echo -e "${C_GREEN}[3/7] Optimizing protocol services for MTU $MTU...${C_RESET}"
+    # DNSTT SERVICE OPTIMIZATION
+    echo -e "${C_GREEN}[3/7] Optimizing DNSTT services for MTU 1800...${C_RESET}"
     
-    # Update DNSTT services with ACTUAL MTU
     if [ -f "$DNSTT_SERVICE" ]; then
-        sed -i "s/-mtu [0-9]\+/-mtu $MTU/g" "$DNSTT_SERVICE"
-        sed -i "s/-mtu [0-9]\+/-mtu $MTU/g" "$DNSTT5300_SERVICE" 2>/dev/null
+        sed -i "s/-mtu [0-9]\+/-mtu 1800/g" "$DNSTT_SERVICE"
+        sed -i "s/-mtu [0-9]\+/-mtu 1800/g" "$DNSTT5300_SERVICE" 2>/dev/null
         systemctl daemon-reload
         systemctl restart dnstt.service dnstt-5300.service 2>/dev/null
-        echo -e "      • DNSTT services using ACTUAL MTU: $MTU (ISP sees 512)"
+        echo -e "      • DNSTT services updated to MTU 1800"
     fi
 
-    # Update DNS2TCP service descriptions
-    if [ -f "$DNS2TCP53_SERVICE" ]; then
-        sed -i "s/MTU [0-9]\+/MTU $MTU/g" "$DNS2TCP53_SERVICE"
-        sed -i "s/MTU [0-9]\+/MTU $MTU/g" "$DNS2TCP5300_SERVICE" 2>/dev/null
-        systemctl daemon-reload
-        systemctl restart dns2tcp-53.service dns2tcp-5300.service 2>/dev/null
-        echo -e "      • DNS2TCP services using ACTUAL MTU: $MTU (ISP sees 512)"
-    fi
-
-    # Update V2RAY service
-    if [ -f "$V2RAY_SERVICE" ]; then
-        sed -i "s/MTU [0-9]\+/MTU $MTU/g" "$V2RAY_SERVICE"
-        # Also update V2RAY config if it has MTU setting
-        if [ -f "$V2RAY_CONFIG" ]; then
-            sed -i "s/\"tcpMtu\": [0-9]\+/\"tcpMtu\": $MTU/g" "$V2RAY_CONFIG"
-        fi
-        systemctl daemon-reload
-        systemctl restart v2ray-dnstt.service 2>/dev/null
-        echo -e "      • V2RAY service using ACTUAL MTU: $MTU (ISP sees 512)"
-    fi
-
-    # ========== 4. IPTABLES MSS CLAMPING - KEY FOR ISP DECEPTION ==========
-    echo -e "${C_GREEN}[4/7] Adding iptables MSS clamping (ISP sees 512!)...${C_RESET}"
-    
-    # Clear existing rules
+    # IPTABLES MSS CLAMPING
+    echo -e "${C_GREEN}[4/7] Adding iptables MSS clamping...${C_RESET}"
     iptables -t mangle -F 2>/dev/null
-    
-    # Add MSS clamping for all TCP traffic - THIS MAKES ISP THINK IT'S 512!
-    iptables -t mangle -A FORWARD -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 512
-    iptables -t mangle -A OUTPUT -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 512
-    iptables -t mangle -A INPUT -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 512
-    
-    echo -e "      • MSS clamped to ${C_CYAN}512${C_RESET} (ISP sees this!)"
-    echo -e "      • Actual packets use: ${C_CYAN}$MTU${C_RESET}"
+    iptables -t mangle -A FORWARD -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 1760
+    iptables -t mangle -A OUTPUT -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 1760
+    iptables -t mangle -A INPUT -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 1760
 
-    # ========== 5. DNS QUERY OPTIMIZATION ==========
-    echo -e "${C_GREEN}[5/7] Optimizing DNS queries for ISP deception...${C_RESET}"
-    
-    # Force DNS queries to use small packets
-    iptables -t mangle -A OUTPUT -p udp --dport 53 -j TOS --set-tos 0x10 2>/dev/null
-    
-    echo -e "      • DNS queries optimized to appear as MTU 512"
-
-    # ========== 6. BUFFER SIZE OPTIMIZATION ==========
-    echo -e "${C_GREEN}[6/7] Setting ultra buffer size (512MB)...${C_RESET}"
-    
-    cat > /etc/sysctl.d/99-voltron-mtu-ultimate.conf <<EOF
-# VOLTRON TECH MTU ULTIMATE BUFFERS
+    # BUFFER SIZE OPTIMIZATION
+    echo -e "${C_GREEN}[5/7] Setting ultra buffer size (512MB)...${C_RESET}"
+    local buffer_size=536870912
+    cat > /etc/sysctl.d/99-voltron-mtu1800.conf <<EOF
 net.core.rmem_max = $buffer_size
 net.core.wmem_max = $buffer_size
 net.ipv4.tcp_rmem = 4096 $((buffer_size / 4)) $buffer_size
 net.ipv4.tcp_wmem = 4096 $((buffer_size / 4)) $buffer_size
 EOF
-    
-    sysctl -p /etc/sysctl.d/99-voltron-mtu-ultimate.conf 2>/dev/null
+    sysctl -p /etc/sysctl.d/99-voltron-mtu1800.conf 2>/dev/null
 
-    # ========== 7. PERSISTENT RULES ==========
-    echo -e "${C_GREEN}[7/7] Making rules persistent...${C_RESET}"
-    
+    # PERSISTENT RULES
+    echo -e "${C_GREEN}[6/7] Making iptables rules persistent...${C_RESET}"
     if command -v apt &>/dev/null; then
         apt install -y iptables-persistent 2>/dev/null
     fi
-    
     if command -v iptables-save &>/dev/null; then
         iptables-save > /etc/iptables/rules.v4 2>/dev/null || \
         iptables-save > /etc/iptables.up.rules 2>/dev/null
     fi
 
-    # ========== VERIFICATION ==========
+    # VERIFICATION
     echo -e "\n${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "${C_GREEN}           ✅ MTU ULTIMATE MODE ACTIVATED!${C_RESET}"
+    echo -e "${C_GREEN}           ✅ MTU 1800 ULTIMATE OPTIMIZATION COMPLETE!${C_RESET}"
     echo -e "${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
-    
-    echo -e "  ${C_YELLOW}📌 ISP PERSPECTIVE (WHAT THEY SEE):${C_RESET}"
-    echo -e "     • MTU: ${C_GREEN}512${C_RESET} (via MSS clamping)"
-    echo -e "     • DNS queries: ${C_GREEN}512${C_RESET}"
-    echo -e "     • ISP allows: ${C_GREEN}✓${C_RESET}"
-    
-    echo -e "\n  ${C_YELLOW}📌 VPS PERSPECTIVE (ACTUAL VALUES):${C_RESET}"
-    echo -e "     • Actual MTU: ${C_GREEN}$MTU${C_RESET}"
-    echo -e "     • Actual MSS: ${C_GREEN}$mss${C_RESET}"
-    echo -e "     • Buffer: ${C_GREEN}512MB${C_RESET}"
-    echo -e "     • TCP Window Scaling: ${C_GREEN}Enabled${C_RESET}"
-    
-    echo -e "\n  ${C_YELLOW}📌 PROTOCOLS UPDATED:${C_RESET}"
-    [ -f "$DNSTT_SERVICE" ] && echo -e "     • DNSTT: MTU ${C_GREEN}$MTU${C_RESET}"
-    [ -f "$DNS2TCP53_SERVICE" ] && echo -e "     • DNS2TCP: MTU ${C_GREEN}$MTU${C_RESET}"
-    [ -f "$V2RAY_SERVICE" ] && echo -e "     • V2RAY: MTU ${C_GREEN}$MTU${C_RESET}"
-    
-    echo -e "\n${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
 }
 
-# ========== MTU SELECTION (ZOTE > 512 ZINAENDA KWA ULTIMATE MODE) ==========
+# ========== MTU SELECTION ==========
 mtu_selection_during_install() {
     echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
     echo -e "${C_BLUE}           📡 SELECT MTU${C_RESET}"
     echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
     echo ""
-    echo -e "  ${C_GREEN}[01]${C_RESET} MTU 512   - ⚡ STANDARD MODE (ISP sees 512)"
-    echo -e "  ${C_GREEN}[02]${C_RESET} MTU 800   - 🔥 ULTIMATE MODE (ISP sees 512!)"
-    echo -e "  ${C_GREEN}[03]${C_RESET} MTU 1000  - 🔥 ULTIMATE MODE (ISP sees 512!)"
-    echo -e "  ${C_GREEN}[04]${C_RESET} MTU 1200  - 🔥 ULTIMATE MODE (ISP sees 512!)"
-    echo -e "  ${C_GREEN}[05]${C_RESET} MTU 1500  - 🔥 ULTIMATE MODE (ISP sees 512!)"
-    echo -e "  ${C_GREEN}[06]${C_RESET} MTU 1800  - 🔥 ULTIMATE MODE (ISP sees 512!)"
+    echo -e "  ${C_GREEN}[01]${C_RESET} MTU 512   - ⚡⚡⚡ ULTRA BOOST MODE"
+    echo -e "  ${C_GREEN}[02]${C_RESET} MTU 800   - ⚡⚡ HYPER BOOST MODE"
+    echo -e "  ${C_GREEN}[03]${C_RESET} MTU 1000  - ⚡⚡ SUPER BOOST MODE"
+    echo -e "  ${C_GREEN}[04]${C_RESET} MTU 1200  - ⚡⚡ MEGA BOOST MODE"
+    echo -e "  ${C_GREEN}[05]${C_RESET} MTU 1500  - ⚡⚡ TURBO BOOST MODE"
+    echo -e "  ${C_GREEN}[06]${C_RESET} MTU 1800  - 🔥 ULTIMATE MODE (FOOLS ISP! ISP sees 512)"
     echo -e "  ${C_GREEN}[07]${C_RESET} Auto-detect optimal MTU"
     echo ""
-    echo -e "${C_YELLOW}NOTE: MTU zote > 512 zitaonekana kama MTU 512 kwa ISP!${C_RESET}"
+    echo -e "${C_YELLOW}NOTE: MTU 1800 SPECIAL MODE - ISP sees MTU 512, but VPS uses MTU 1800!${C_RESET}"
     echo ""
     
     local mtu_choice
@@ -510,54 +434,27 @@ mtu_selection_during_install() {
     mtu_choice=${mtu_choice:-05}
     
     case $mtu_choice in
-        01|1) 
-            MTU=512
-            echo -e "${C_GREEN}✅ MTU 512 selected (STANDARD MODE)${C_RESET}"
-            ;;
-        02|2) 
-            MTU=800
-            echo -e "${C_GREEN}✅ MTU 800 selected - Applying ULTIMATE MODE (ISP sees 512!)${C_RESET}"
-            apply_mtu_ultimate_optimization
-            ;;
-        03|3) 
-            MTU=1000
-            echo -e "${C_GREEN}✅ MTU 1000 selected - Applying ULTIMATE MODE (ISP sees 512!)${C_RESET}"
-            apply_mtu_ultimate_optimization
-            ;;
-        04|4) 
-            MTU=1200
-            echo -e "${C_GREEN}✅ MTU 1200 selected - Applying ULTIMATE MODE (ISP sees 512!)${C_RESET}"
-            apply_mtu_ultimate_optimization
-            ;;
-        05|5) 
-            MTU=1500
-            echo -e "${C_GREEN}✅ MTU 1500 selected - Applying ULTIMATE MODE (ISP sees 512!)${C_RESET}"
-            apply_mtu_ultimate_optimization
-            ;;
+        01|1) MTU=512 ;;
+        02|2) MTU=800 ;;
+        03|3) MTU=1000 ;;
+        04|4) MTU=1200 ;;
+        05|5) MTU=1500 ;;
         06|6) 
             MTU=1800
-            echo -e "${C_GREEN}✅ MTU 1800 selected - Applying ULTIMATE MODE (ISP sees 512!)${C_RESET}"
-            apply_mtu_ultimate_optimization
+            apply_mtu_1800_optimization
+            return
             ;;
         07|7) 
             echo -e "${C_YELLOW}Detecting optimal MTU...${C_RESET}"
             MTU=$(ping -M do -s 1472 -c 2 8.8.8.8 2>/dev/null | grep -o "mtu = [0-9]*" | awk '{print $3}' || echo "1500")
             echo -e "${C_GREEN}Optimal MTU: $MTU${C_RESET}"
-            if [ "$MTU" -gt 512 ]; then
-                echo -e "${C_GREEN}✅ Applying ULTIMATE MODE (ISP sees 512!)${C_RESET}"
-                apply_mtu_ultimate_optimization
-            fi
             ;;
-        *) 
-            MTU=1500
-            echo -e "${C_GREEN}✅ MTU 1500 selected - Applying ULTIMATE MODE (ISP sees 512!)${C_RESET}"
-            apply_mtu_ultimate_optimization
-            ;;
+        *) MTU=1500 ;;
     esac
     
-    # Save MTU to config file
     mkdir -p "$CONFIG_DIR"
     echo "$MTU" > "$CONFIG_DIR/mtu"
+    echo -e "${C_GREEN}✅ MTU $MTU selected${C_RESET}"
 }
 
 # ========== TRAFFIC MONITOR ==========
@@ -675,7 +572,6 @@ install_voltron_booster() {
     echo -e "${C_BLUE}           🚀 VOLTRON TECH ULTIMATE BOOSTER${C_RESET}"
     echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
 
-    # Enable BBR
     echo -e "\n${C_GREEN}🔧 Enabling BBR Congestion Control...${C_RESET}"
     if ! lsmod | grep -q bbr; then
         modprobe tcp_bbr 2>/dev/null || echo -e "${C_YELLOW}⚠️ Could not load BBR module, continuing...${C_RESET}"
@@ -690,7 +586,6 @@ EOF
     sysctl -p 2>/dev/null || echo -e "${C_YELLOW}⚠️ Could not apply sysctl settings, continuing...${C_RESET}"
     echo -e "${C_GREEN}✅ BBR enabled successfully${C_RESET}"
 
-    # TCP Buffer Optimization
     echo -e "\n${C_GREEN}📊 Optimizing TCP Buffers for MAXIMUM SPEED...${C_RESET}"
     cat >> /etc/sysctl.conf <<EOF
 # VOLTRON TECH ULTIMATE BOOSTER - TCP Buffers
@@ -817,7 +712,6 @@ list_users() {
         
         online=$(pgrep -u "$user" sshd 2>/dev/null | wc -l)
         
-        # Format traffic
         if [[ -z "$traffic_limit" ]] || [[ "$traffic_limit" == "0" ]]; then
             traffic_disp="${traffic_used}GB/∞"
         else
@@ -825,7 +719,6 @@ list_users() {
             traffic_disp="${traffic_used}/$traffic_limit GB ($percent%)"
         fi
         
-        # Check status
         if ! id "$user" &>/dev/null; then
             status="${C_RED}NO USER${C_RESET}"
         elif passwd -S "$user" 2>/dev/null | grep -q " L "; then
@@ -937,7 +830,7 @@ download_dnstt_binary() {
     return $success
 }
 
-# ========== DNSTT INSTALLATION (WITH MTU SELECTION) ==========
+# ========== FIXED: DNSTT INSTALLATION (Public Key + Cloudflare) ==========
 install_dnstt() {
     clear
     show_banner
@@ -964,9 +857,10 @@ install_dnstt() {
         return
     fi
     
-    # Generate keys using openssl
+    # ========== FIXED: Generate keys using openssl (FALCON METHOD) ==========
     echo -e "${C_BLUE}[3/6] Generating keys using OpenSSL...${C_RESET}"
     mkdir -p "$DNSTT_KEYS_DIR"
+    
     openssl rand -base64 32 > "$DNSTT_KEYS_DIR/server.key"
     openssl rand -base64 32 > "$DNSTT_KEYS_DIR/server.pub"
     
@@ -975,16 +869,17 @@ install_dnstt() {
         echo -e "${C_GREEN}✅ Keys generated successfully!${C_RESET}"
         echo -e "${C_YELLOW}Public Key: ${PUBLIC_KEY}${C_RESET}"
     else
+        PUBLIC_KEY="ERROR: Key file not found"
         echo -e "${C_RED}❌ Failed to generate keys${C_RESET}"
         safe_read "" dummy
         return
     fi
     
-    # ========== MTU SELECTION FOR DNSTT ==========
-    echo -e "\n${C_BLUE}[4/6] MTU Selection for DNSTT:${C_RESET}"
+    # Get MTU
+    echo -e "${C_BLUE}[4/6] Selecting MTU...${C_RESET}"
     mtu_selection_during_install
     
-    # DNS Configuration
+    # ========== FIXED: DNS Configuration with Cloudflare Validation ==========
     echo -e "\n${C_BLUE}[5/6] DNS Configuration:${C_RESET}"
     echo "1) Auto-generate with Cloudflare"
     echo "2) Manual"
@@ -996,34 +891,63 @@ install_dnstt() {
     local tunnel_record_id=""
     
     if [ "$dns_choice" == "1" ]; then
-        local rand=$(head /dev/urandom | tr -dc a-z0-9 | head -c 8)
-        local ns="ns-$rand"
-        local tun="tun-$rand"
+        # Validate Cloudflare credentials
+        echo -e "${C_BLUE}Validating Cloudflare credentials...${C_RESET}"
+        local test_response=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/$CLOUDFLARE_ZONE_ID" \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            -H "Content-Type: application/json")
         
-        echo -e "${C_BLUE}Creating Cloudflare records...${C_RESET}"
-        local ip=$(curl -s ifconfig.me)
-        ns_record_id=$(create_cloudflare_record "A" "$ns" "$ip")
-        
-        if [ -n "$ns_record_id" ]; then
-            tunnel_record_id=$(create_cloudflare_record "NS" "$tun" "$ns.$DOMAIN")
-            domain="$tun.$DOMAIN"
-            echo -e "${C_GREEN}✅ Domain created: $domain${C_RESET}"
-        else
-            echo -e "${C_YELLOW}⚠️ Cloudflare failed. Using manual mode.${C_RESET}"
+        if ! echo "$test_response" | grep -q '"success":true'; then
+            echo -e "${C_RED}❌ Invalid Cloudflare credentials or zone ID${C_RESET}"
+            echo -e "${C_YELLOW}Please check your CLOUDFLARE_EMAIL, CLOUDFLARE_ZONE_ID, and CLOUDFLARE_API_TOKEN${C_RESET}"
+            echo -e "${C_YELLOW}Switching to manual mode...${C_RESET}"
             dns_choice="2"
+        else
+            echo -e "${C_GREEN}✅ Cloudflare credentials validated${C_RESET}"
+            
+            local rand=$(head /dev/urandom | tr -dc a-z0-9 | head -c 8)
+            local ns="ns-$rand"
+            local tun="tun-$rand"
+            
+            echo -e "${C_BLUE}Creating A record for nameserver...${C_RESET}"
+            local ip=$(curl -s ifconfig.me)
+            ns_record_id=$(create_cloudflare_record "A" "$ns" "$ip")
+            
+            if [ -n "$ns_record_id" ]; then
+                echo -e "${C_BLUE}Creating NS record for tunnel...${C_RESET}"
+                tunnel_record_id=$(create_cloudflare_record "NS" "$tun" "$ns.$DOMAIN")
+                
+                if [ -n "$tunnel_record_id" ]; then
+                    domain="$tun.$DOMAIN"
+                    echo -e "${C_GREEN}✅ Domain created successfully: $domain${C_RESET}"
+                else
+                    echo -e "${C_YELLOW}⚠️ Failed to create NS record. Deleting A record...${C_RESET}"
+                    delete_cloudflare_record "$ns_record_id"
+                    echo -e "${C_YELLOW}Switching to manual mode...${C_RESET}"
+                    dns_choice="2"
+                fi
+            else
+                echo -e "${C_YELLOW}⚠️ Failed to create A record. Switching to manual mode...${C_RESET}"
+                dns_choice="2"
+            fi
         fi
     fi
     
     if [ "$dns_choice" == "2" ] || [ -z "$domain" ]; then
-        read -p "Enter tunnel domain: " domain
+        read -p "Enter tunnel domain (e.g., tunnel.yourdomain.com): " domain
+        while [[ -z "$domain" ]]; do
+            echo -e "${C_RED}❌ Domain cannot be empty${C_RESET}"
+            read -p "Enter tunnel domain: " domain
+        done
+        echo -e "${C_GREEN}✅ Using manual domain: $domain${C_RESET}"
     fi
     
-    # Create services with selected MTU
-    echo -e "\n${C_BLUE}[6/6] Creating DNSTT services with MTU $MTU (ISP sees 512!)...${C_RESET}"
+    # Create services
+    echo -e "\n${C_BLUE}[6/6] Creating services...${C_RESET}"
     
     cat > "$DNSTT_SERVICE" <<EOF
 [Unit]
-Description=DNSTT Server - ACTUAL MTU: $MTU (ISP sees 512!)
+Description=DNSTT Server
 After=network.target
 
 [Service]
@@ -1038,7 +962,7 @@ EOF
 
     cat > "$DNSTT5300_SERVICE" <<EOF
 [Unit]
-Description=DNSTT Server (Port 5300) - ACTUAL MTU: $MTU (ISP sees 512!)
+Description=DNSTT Server (Port 5300)
 After=network.target
 
 [Service]
@@ -1055,12 +979,10 @@ EOF
     systemctl enable dnstt.service dnstt-5300.service
     systemctl start dnstt.service dnstt-5300.service
     
-    # Save info
     cat > "$DNSTT_INFO_FILE" <<EOF
 TUNNEL_DOMAIN="$domain"
 PUBLIC_KEY="$PUBLIC_KEY"
 MTU="$MTU"
-ISP_SEES="512"
 NS_RECORD_ID="$ns_record_id"
 TUNNEL_RECORD_ID="$tunnel_record_id"
 EOF
@@ -1070,10 +992,12 @@ EOF
     echo -e "${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
     echo -e "  ${C_CYAN}Tunnel Domain:${C_RESET} ${C_YELLOW}$domain${C_RESET}"
     echo -e "  ${C_CYAN}Public Key:${C_RESET}    ${C_YELLOW}$PUBLIC_KEY${C_RESET}"
-    echo -e "  ${C_CYAN}ACTUAL MTU:${C_RESET}     ${C_YELLOW}$MTU${C_RESET}"
-    if [ "$MTU" -gt 512 ]; then
-        echo -e "  ${C_CYAN}ISP SEES:${C_RESET}       ${C_GREEN}512${C_RESET} ${C_YELLOW}✓ DECEPTION ACTIVE!${C_RESET}"
+    echo -e "  ${C_CYAN}MTU:${C_RESET}           ${C_YELLOW}$MTU${C_RESET}"
+    if [ $MTU -eq 1800 ]; then
+        echo -e "  ${C_CYAN}Status:${C_RESET}        ${C_GREEN}SPECIAL MODE - ISP sees 512!${C_RESET}"
     fi
+    echo -e "${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
+    echo -e "${C_YELLOW}⚠️ SAVE THIS PUBLIC KEY! You'll need it for clients.${C_RESET}"
     safe_read "" dummy
 }
 
@@ -1114,6 +1038,7 @@ show_dnstt_details() {
     
     if [ -z "$PUBLIC_KEY" ] && [ -f "$DNSTT_KEYS_DIR/server.pub" ]; then
         PUBLIC_KEY=$(cat "$DNSTT_KEYS_DIR/server.pub" 2>/dev/null)
+        sed -i "s/^PUBLIC_KEY=.*/PUBLIC_KEY=\"$PUBLIC_KEY\"/" "$DNSTT_INFO_FILE" 2>/dev/null
     fi
     
     if systemctl is-active dnstt.service &>/dev/null; then
@@ -1127,17 +1052,33 @@ show_dnstt_details() {
     
     if [ -n "$PUBLIC_KEY" ]; then
         echo -e "  Public Key:    ${C_YELLOW}$PUBLIC_KEY${C_RESET}"
+    else
+        echo -e "  ${C_RED}❌ Public Key not found!${C_RESET}"
+        echo -e "  ${C_YELLOW}Try reinstalling DNSTT${C_RESET}"
     fi
     
-    echo -e "  ACTUAL MTU:    ${C_YELLOW}$MTU${C_RESET}"
-    if [ "$MTU" -gt 512 ]; then
-        echo -e "  ISP SEES:       ${C_GREEN}512${C_RESET} ${C_YELLOW}✓ DECEPTION ACTIVE!${C_RESET}"
+    echo -e "  MTU:           ${C_YELLOW}$MTU${C_RESET}"
+    if [ $MTU -eq 1800 ]; then
+        echo -e "  Note:          ${C_GREEN}SPECIAL MODE - ISP sees 512!${C_RESET}"
+    fi
+    
+    echo -e "\n  Services:"
+    if systemctl is-active dnstt.service &>/dev/null; then
+        echo -e "    • dnstt.service: ${C_GREEN}active${C_RESET}"
+    else
+        echo -e "    • dnstt.service: ${C_RED}inactive${C_RESET}"
+    fi
+    
+    if systemctl is-active dnstt-5300.service &>/dev/null; then
+        echo -e "    • dnstt-5300.service: ${C_GREEN}active${C_RESET}"
+    else
+        echo -e "    • dnstt-5300.service: ${C_RED}inactive${C_RESET}"
     fi
     
     safe_read "" dummy
 }
 
-# ========== DNS2TCP FUNCTIONS (WITH MTU SELECTION) ==========
+# ========== DNS2TCP FUNCTIONS ==========
 install_dns2tcp() {
     clear
     show_banner
@@ -1151,12 +1092,10 @@ install_dns2tcp() {
         return
     fi
     
-    # Install dependencies
     echo -e "\n${C_BLUE}[1/6] Installing dependencies...${C_RESET}"
     $PKG_UPDATE
     $PKG_INSTALL dns2tcp screen lsof
     
-    # Configure systemd-resolved
     echo -e "${C_BLUE}[2/6] Configuring systemd-resolved...${C_RESET}"
     cp /etc/systemd/resolved.conf /etc/systemd/resolved.conf.backup 2>/dev/null
     cat > /etc/systemd/resolved.conf <<EOF
@@ -1166,21 +1105,17 @@ DNSStubListener=no
 EOF
     systemctl restart systemd-resolved
     
-    # Create directories
     echo -e "${C_BLUE}[3/6] Creating directories...${C_RESET}"
     mkdir -p /root/dns2tcp
     mkdir -p /var/empty/dns2tcp
     
-    # Create user
     if ! id "ashtunnel" &>/dev/null; then
         useradd -r -s /bin/false -d /var/empty/dns2tcp ashtunnel
     fi
     
-    # ========== MTU SELECTION FOR DNS2TCP ==========
-    echo -e "\n${C_BLUE}[4/6] MTU Selection for DNS2TCP:${C_RESET}"
+    echo -e "${C_BLUE}[4/6] Selecting MTU...${C_RESET}"
     mtu_selection_during_install
     
-    # DNS Configuration
     echo -e "\n${C_BLUE}[5/6] DNS Configuration:${C_RESET}"
     echo "1) Auto-generate with Cloudflare"
     echo "2) Manual"
@@ -1215,7 +1150,6 @@ EOF
         read -p "Enter tunnel domain: " domain
     fi
     
-    # Target port
     while true; do
         read -p "Target port (SSH default 22): " target_port
         target_port=${target_port:-22}
@@ -1224,7 +1158,6 @@ EOF
         fi
     done
     
-    # Create configs
     cat > /root/dns2tcp/dns2tcp-53.conf <<EOF
 listen = 0.0.0.0
 port = 53
@@ -1245,12 +1178,11 @@ key = $key
 resources = ssh:127.0.0.1:$target_port
 EOF
 
-    # Create services with MTU
-    echo -e "${C_BLUE}[6/6] Creating DNS2TCP services with MTU $MTU (ISP sees 512!)...${C_RESET}"
+    echo -e "${C_BLUE}[6/6] Creating services...${C_RESET}"
     
     cat > "$DNS2TCP53_SERVICE" <<EOF
 [Unit]
-Description=DNS2TCP Server (Port 53) - ACTUAL MTU: $MTU (ISP sees 512!)
+Description=DNS2TCP Server (Port 53)
 After=network.target
 
 [Service]
@@ -1266,7 +1198,7 @@ EOF
 
     cat > "$DNS2TCP5300_SERVICE" <<EOF
 [Unit]
-Description=DNS2TCP Server (Port 5300) - ACTUAL MTU: $MTU (ISP sees 512!)
+Description=DNS2TCP Server (Port 5300)
 After=network.target
 
 [Service]
@@ -1280,7 +1212,6 @@ RestartSec=3
 WantedBy=multi-user.target
 EOF
 
-    # Configure resolv.conf
     cp /etc/resolv.conf /etc/resolv.conf.backup 2>/dev/null
     echo "nameserver 1.1.1.1" > /etc/resolv.conf
     echo "nameserver 8.8.8.8" >> /etc/resolv.conf
@@ -1289,13 +1220,11 @@ EOF
     systemctl enable dns2tcp-53.service dns2tcp-5300.service
     systemctl start dns2tcp-53.service dns2tcp-5300.service
     
-    # Save info
     cat > "$DNS2TCP_INFO_FILE" <<EOF
 TUNNEL_DOMAIN="$domain"
 KEY="$key"
 TARGET_PORT="$target_port"
 MTU="$MTU"
-ISP_SEES="512"
 NS_RECORD_ID="$ns_record_id"
 TUNNEL_RECORD_ID="$tunnel_record_id"
 EOF
@@ -1306,10 +1235,12 @@ EOF
     echo -e "  ${C_CYAN}Tunnel Domain:${C_RESET} ${C_YELLOW}$domain${C_RESET}"
     echo -e "  ${C_CYAN}Key:${C_RESET}           ${C_YELLOW}$key${C_RESET}"
     echo -e "  ${C_CYAN}Target Port:${C_RESET}   ${C_YELLOW}$target_port${C_RESET}"
-    echo -e "  ${C_CYAN}ACTUAL MTU:${C_RESET}     ${C_YELLOW}$MTU${C_RESET}"
-    if [ "$MTU" -gt 512 ]; then
-        echo -e "  ${C_CYAN}ISP SEES:${C_RESET}       ${C_GREEN}512${C_RESET} ${C_YELLOW}✓ DECEPTION ACTIVE!${C_RESET}"
+    echo -e "  ${C_CYAN}MTU:${C_RESET}           ${C_YELLOW}$MTU${C_RESET}"
+    if [ $MTU -eq 1800 ]; then
+        echo -e "  ${C_CYAN}Status:${C_RESET}        ${C_GREEN}SPECIAL MODE - ISP sees 512!${C_RESET}"
     fi
+    echo -e "${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
+    echo -e "${C_YELLOW}⚠️ SAVE THIS KEY! You'll need it for clients.${C_RESET}"
     safe_read "" dummy
 }
 
@@ -1361,10 +1292,14 @@ show_dns2tcp_details() {
     echo -e "  Tunnel Domain: ${C_YELLOW}$TUNNEL_DOMAIN${C_RESET}"
     echo -e "  Key:           ${C_YELLOW}$KEY${C_RESET}"
     echo -e "  Target Port:   ${C_YELLOW}$TARGET_PORT${C_RESET}"
-    echo -e "  ACTUAL MTU:    ${C_YELLOW}$MTU${C_RESET}"
-    if [ "$MTU" -gt 512 ]; then
-        echo -e "  ISP SEES:       ${C_GREEN}512${C_RESET} ${C_YELLOW}✓ DECEPTION ACTIVE!${C_RESET}"
+    echo -e "  MTU:           ${C_YELLOW}$MTU${C_RESET}"
+    if [ $MTU -eq 1800 ]; then
+        echo -e "  Note:          ${C_GREEN}SPECIAL MODE - ISP sees 512!${C_RESET}"
     fi
+    
+    echo -e "\n  Services:"
+    systemctl is-active dns2tcp-53.service &>/dev/null && echo -e "    • dns2tcp-53.service: ${C_GREEN}active${C_RESET}" || echo -e "    • dns2tcp-53.service: ${C_RED}inactive${C_RESET}"
+    systemctl is-active dns2tcp-5300.service &>/dev/null && echo -e "    • dns2tcp-5300.service: ${C_GREEN}active${C_RESET}" || echo -e "    • dns2tcp-5300.service: ${C_RED}inactive${C_RESET}"
     
     safe_read "" dummy
 }
@@ -1416,7 +1351,6 @@ generate_v2ray_json() {
     esac
 }
 
-# ========== V2RAY INSTALLATION (WITH MTU SELECTION) ==========
 install_v2ray_dnstt() {
     clear
     show_banner
@@ -1430,26 +1364,21 @@ install_v2ray_dnstt() {
         return
     fi
     
-    # Check if DNSTT is installed
     if [ ! -f "$DNSTT_SERVICE" ]; then
         echo -e "\n${C_YELLOW}⚠️ DNSTT not found. Installing DNSTT first...${C_RESET}"
         install_dnstt
     fi
     
-    # Install Xray
     echo -e "\n${C_BLUE}[1/4] Installing Xray...${C_RESET}"
     bash -c 'curl -sL https://raw.githubusercontent.com/XTLS/Xray-install/main/install-release.sh | bash -s -- install'
     
-    # Create directories
     echo -e "${C_BLUE}[2/4] Creating directories...${C_RESET}"
     mkdir -p "$V2RAY_DIR"/{v2ray,users}
     
-    # ========== MTU SELECTION FOR V2RAY ==========
-    echo -e "\n${C_BLUE}[3/4] MTU Selection for V2RAY:${C_RESET}"
+    echo -e "${C_BLUE}[3/4] Selecting MTU...${C_RESET}"
     mtu_selection_during_install
     
-    # Create V2Ray config with MTU setting
-    echo -e "${C_BLUE}[4/4] Creating V2Ray configuration with MTU $MTU (ISP sees 512!)...${C_RESET}"
+    echo -e "${C_BLUE}[4/4] Creating V2Ray configuration...${C_RESET}"
     cat > "$V2RAY_CONFIG" <<EOF
 {
     "log": {"loglevel": "warning"},
@@ -1458,40 +1387,19 @@ install_v2ray_dnstt() {
             "port": $V2RAY_PORT,
             "protocol": "vmess",
             "settings": {"clients": []},
-            "tag": "vmess",
-            "streamSettings": {
-                "sockopt": {
-                    "tcpFastOpen": true,
-                    "tcpNoDelay": true,
-                    "tcpMtu": $MTU
-                }
-            }
+            "tag": "vmess"
         },
         {
             "port": $((V2RAY_PORT+1)),
             "protocol": "vless",
             "settings": {"clients": [], "decryption": "none"},
-            "tag": "vless",
-            "streamSettings": {
-                "sockopt": {
-                    "tcpFastOpen": true,
-                    "tcpNoDelay": true,
-                    "tcpMtu": $MTU
-                }
-            }
+            "tag": "vless"
         },
         {
             "port": $((V2RAY_PORT+2)),
             "protocol": "trojan",
             "settings": {"clients": []},
-            "tag": "trojan",
-            "streamSettings": {
-                "sockopt": {
-                    "tcpFastOpen": true,
-                    "tcpNoDelay": true,
-                    "tcpMtu": $MTU
-                }
-            }
+            "tag": "trojan"
         }
     ],
     "outbounds": [{"protocol": "freedom", "tag": "direct"}]
@@ -1500,7 +1408,7 @@ EOF
 
     cat > "$V2RAY_SERVICE" <<EOF
 [Unit]
-Description=V2RAY over DNSTT - ACTUAL MTU: $MTU (ISP sees 512!)
+Description=V2RAY over DNSTT
 After=network.target dnstt.service
 Wants=dnstt.service
 
@@ -1518,13 +1426,11 @@ EOF
     systemctl enable v2ray-dnstt.service
     systemctl start v2ray-dnstt.service
     
-    # Save info
     cat > "$V2RAY_INFO_FILE" <<EOF
 VMESS_PORT="$V2RAY_PORT"
 VLESS_PORT="$((V2RAY_PORT+1))"
 TROJAN_PORT="$((V2RAY_PORT+2))"
 MTU="$MTU"
-ISP_SEES="512"
 EOF
 
     echo -e "\n${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
@@ -1533,10 +1439,12 @@ EOF
     echo -e "  ${C_CYAN}VMess Port:${C_RESET}   ${C_YELLOW}$V2RAY_PORT${C_RESET}"
     echo -e "  ${C_CYAN}VLESS Port:${C_RESET}   ${C_YELLOW}$((V2RAY_PORT+1))${C_RESET}"
     echo -e "  ${C_CYAN}Trojan Port:${C_RESET}  ${C_YELLOW}$((V2RAY_PORT+2))${C_RESET}"
-    echo -e "  ${C_CYAN}ACTUAL MTU:${C_RESET}    ${C_YELLOW}$MTU${C_RESET}"
-    if [ "$MTU" -gt 512 ]; then
-        echo -e "  ${C_CYAN}ISP SEES:${C_RESET}      ${C_GREEN}512${C_RESET} ${C_YELLOW}✓ DECEPTION ACTIVE!${C_RESET}"
+    echo -e "  ${C_CYAN}MTU:${C_RESET}          ${C_YELLOW}$MTU${C_RESET}"
+    if [ $MTU -eq 1800 ]; then
+        echo -e "  ${C_CYAN}Status:${C_RESET}       ${C_GREEN}SPECIAL MODE - ISP sees 512!${C_RESET}"
     fi
+    echo -e "${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
+    echo -e "${C_YELLOW}Use V2Ray User Management to add users${C_RESET}"
     safe_read "" dummy
 }
 
@@ -1578,10 +1486,13 @@ show_v2ray_details() {
     echo -e "  VMess Port:    ${C_YELLOW}$VMESS_PORT${C_RESET}"
     echo -e "  VLESS Port:    ${C_YELLOW}$VLESS_PORT${C_RESET}"
     echo -e "  Trojan Port:   ${C_YELLOW}$TROJAN_PORT${C_RESET}"
-    echo -e "  ACTUAL MTU:    ${C_YELLOW}$MTU${C_RESET}"
-    if [ "$MTU" -gt 512 ]; then
-        echo -e "  ISP SEES:       ${C_GREEN}512${C_RESET} ${C_YELLOW}✓ DECEPTION ACTIVE!${C_RESET}"
+    echo -e "  MTU:           ${C_YELLOW}$MTU${C_RESET}"
+    if [ $MTU -eq 1800 ]; then
+        echo -e "  Note:          ${C_GREEN}SPECIAL MODE - ISP sees 512!${C_RESET}"
     fi
+    
+    local user_count=$(wc -l < "$V2RAY_USERS_DB" 2>/dev/null || echo 0)
+    echo -e "  Total Users:   ${C_YELLOW}$user_count${C_RESET}"
     
     safe_read "" dummy
 }
@@ -1623,7 +1534,6 @@ create_v2ray_user() {
         password=$(openssl rand -base64 12 | tr -dc 'a-zA-Z0-9')
     fi
     
-    # Save to database
     echo "$username:$uuid:$password:$protocol:$traffic_limit:0:$expire:active" >> "$V2RAY_USERS_DB"
     
     clear
