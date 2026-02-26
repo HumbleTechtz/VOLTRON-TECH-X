@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ========== VOLTRON TECH ULTIMATE SCRIPT ==========
-# Version: 3.0 (MTU 1800 SPECIAL)
+# Version: 3.1 (Public Key Fixed)
 # Description: SSH • DNSTT • DNS2TCP • V2RAY over DNSTT • MTU 1800 ULTIMATE
 # Author: Voltron Tech
 
@@ -293,7 +293,7 @@ show_banner() {
     local current_mtu=$(get_current_mtu)
     
     echo -e "${C_BOLD}${C_PURPLE}╔═══════════════════════════════════════════════════════════════╗${C_RESET}"
-    echo -e "${C_BOLD}${C_PURPLE}║           🔥 VOLTRON TECH ULTIMATE v3.0 🔥                    ║${C_RESET}"
+    echo -e "${C_BOLD}${C_PURPLE}║           🔥 VOLTRON TECH ULTIMATE v3.1 🔥                    ║${C_RESET}"
     echo -e "${C_BOLD}${C_PURPLE}║        SSH • DNSTT • DNS2TCP • V2RAY • MTU 1800 ULTIMATE      ║${C_RESET}"
     echo -e "${C_BOLD}${C_PURPLE}╠═══════════════════════════════════════════════════════════════╣${C_RESET}"
     echo -e "${C_BOLD}${C_PURPLE}║  Server IP: ${C_GREEN}$IP${C_PURPLE}${C_RESET}"
@@ -853,7 +853,7 @@ cleanup_expired() {
     safe_read "" dummy
 }
 
-# ========== DNSTT FUNCTIONS ==========
+# ========== DNSTT FUNCTIONS (FIXED - WITH PUBLIC KEY) ==========
 download_dnstt_binary() {
     local arch=$(uname -m)
     local success=0
@@ -917,6 +917,19 @@ install_dnstt() {
     mkdir -p "$DNSTT_KEYS_DIR"
     "$DNSTT_BIN" -gen-key -privkey-file "$DNSTT_KEYS_DIR/server.key" -pubkey-file "$DNSTT_KEYS_DIR/server.pub" 2>/dev/null
     
+    # Wait for keys to be written
+    sleep 1
+    
+    # Read public key
+    if [ -f "$DNSTT_KEYS_DIR/server.pub" ]; then
+        PUBLIC_KEY=$(cat "$DNSTT_KEYS_DIR/server.pub" 2>/dev/null)
+        echo -e "${C_GREEN}✅ Keys generated successfully!${C_RESET}"
+        echo -e "${C_YELLOW}Public Key: ${PUBLIC_KEY}${C_RESET}"
+    else
+        PUBLIC_KEY="ERROR: Key file not found"
+        echo -e "${C_RED}❌ Failed to generate keys${C_RESET}"
+    fi
+    
     # Get MTU
     echo -e "${C_BLUE}[4/6] Selecting MTU...${C_RESET}"
     mtu_selection_during_install
@@ -931,7 +944,6 @@ install_dnstt() {
     local domain=""
     local ns_record_id=""
     local tunnel_record_id=""
-    local public_key=$(cat "$DNSTT_KEYS_DIR/server.pub" 2>/dev/null)
     
     if [ "$dns_choice" == "1" ]; then
         local rand=$(head /dev/urandom | tr -dc a-z0-9 | head -c 8)
@@ -993,10 +1005,10 @@ EOF
     systemctl enable dnstt.service dnstt-5300.service
     systemctl start dnstt.service dnstt-5300.service
     
-    # Save info
+    # Save info with public key
     cat > "$DNSTT_INFO_FILE" <<EOF
 TUNNEL_DOMAIN="$domain"
-PUBLIC_KEY="$public_key"
+PUBLIC_KEY="$PUBLIC_KEY"
 MTU="$MTU"
 NS_RECORD_ID="$ns_record_id"
 TUNNEL_RECORD_ID="$tunnel_record_id"
@@ -1006,7 +1018,7 @@ EOF
     echo -e "${C_GREEN}           ✅ DNSTT INSTALLED SUCCESSFULLY!${C_RESET}"
     echo -e "${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
     echo -e "  ${C_CYAN}Tunnel Domain:${C_RESET} ${C_YELLOW}$domain${C_RESET}"
-    echo -e "  ${C_CYAN}Public Key:${C_RESET}    ${C_YELLOW}$public_key${C_RESET}"
+    echo -e "  ${C_CYAN}Public Key:${C_RESET}    ${C_YELLOW}$PUBLIC_KEY${C_RESET}"
     echo -e "  ${C_CYAN}MTU:${C_RESET}           ${C_YELLOW}$MTU${C_RESET}"
     if [ $MTU -eq 1800 ]; then
         echo -e "  ${C_CYAN}Status:${C_RESET}        ${C_GREEN}SPECIAL MODE - ISP sees 512!${C_RESET}"
@@ -1049,7 +1061,15 @@ show_dnstt_details() {
         return
     fi
     
-    source "$DNSTT_INFO_FILE"
+    # Source the info file
+    source "$DNSTT_INFO_FILE" 2>/dev/null
+    
+    # Fix: Read public key directly from file if not set
+    if [ -z "$PUBLIC_KEY" ] && [ -f "$DNSTT_KEYS_DIR/server.pub" ]; then
+        PUBLIC_KEY=$(cat "$DNSTT_KEYS_DIR/server.pub" 2>/dev/null)
+        # Update the info file
+        sed -i "s/^PUBLIC_KEY=.*/PUBLIC_KEY=\"$PUBLIC_KEY\"/" "$DNSTT_INFO_FILE" 2>/dev/null
+    fi
     
     if systemctl is-active dnstt.service &>/dev/null; then
         status="${C_GREEN}● RUNNING${C_RESET}"
@@ -1059,15 +1079,31 @@ show_dnstt_details() {
     
     echo -e "  Status:        $status"
     echo -e "  Tunnel Domain: ${C_YELLOW}$TUNNEL_DOMAIN${C_RESET}"
-    echo -e "  Public Key:    ${C_YELLOW}$PUBLIC_KEY${C_RESET}"
+    
+    if [ -n "$PUBLIC_KEY" ]; then
+        echo -e "  Public Key:    ${C_YELLOW}$PUBLIC_KEY${C_RESET}"
+    else
+        echo -e "  ${C_RED}❌ Public Key not found!${C_RESET}"
+        echo -e "  ${C_YELLOW}Try reinstalling DNSTT${C_RESET}"
+    fi
+    
     echo -e "  MTU:           ${C_YELLOW}$MTU${C_RESET}"
     if [ $MTU -eq 1800 ]; then
         echo -e "  Note:          ${C_GREEN}SPECIAL MODE - ISP sees 512!${C_RESET}"
     fi
     
     echo -e "\n  Services:"
-    systemctl is-active dnstt.service &>/dev/null && echo -e "    • dnstt.service: ${C_GREEN}active${C_RESET}" || echo -e "    • dnstt.service: ${C_RED}inactive${C_RESET}"
-    systemctl is-active dnstt-5300.service &>/dev/null && echo -e "    • dnstt-5300.service: ${C_GREEN}active${C_RESET}" || echo -e "    • dnstt-5300.service: ${C_RED}inactive${C_RESET}"
+    if systemctl is-active dnstt.service &>/dev/null; then
+        echo -e "    • dnstt.service: ${C_GREEN}active${C_RESET}"
+    else
+        echo -e "    • dnstt.service: ${C_RED}inactive${C_RESET}"
+    fi
+    
+    if systemctl is-active dnstt-5300.service &>/dev/null; then
+        echo -e "    • dnstt-5300.service: ${C_GREEN}active${C_RESET}"
+    else
+        echo -e "    • dnstt-5300.service: ${C_RED}inactive${C_RESET}"
+    fi
     
     safe_read "" dummy
 }
@@ -2282,12 +2318,12 @@ protocol_menu() {
         clear
         show_banner
         
-        local dnstt_status=$(check_service "dnstt")
-        local dns2tcp_status=$(check_service "dns2tcp-53")
-        local v2ray_status=$(check_service "v2ray-dnstt")
         local badvpn_status=$(check_service "badvpn")
         local udp_status=$(check_service "udp-custom")
         local haproxy_status=$(check_service "haproxy")
+        local dnstt_status=$(check_service "dnstt")
+        local dns2tcp_status=$(check_service "dns2tcp-53")
+        local v2ray_status=$(check_service "v2ray-dnstt")
         local voltronproxy_status=$(check_service "voltronproxy")
         local nginx_status=$(check_service "nginx")
         local zivpn_status=$(check_service "zivpn")
