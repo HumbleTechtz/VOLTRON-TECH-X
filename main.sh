@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ========== VOLTRON TECH ULTIMATE SCRIPT ==========
-# Version: 3.1 (FALCON PUBLIC KEY GENERATOR FOR DNSTT & V2RAY)
+# Version: 3.1 (FIXED: Public Key Generator from Falcon)
 # Description: SSH • DNSTT • DNS2TCP • V2RAY over DNSTT • MTU 1800 ULTIMATE
 # Author: Voltron Tech
 
@@ -192,13 +192,11 @@ detect_os() {
 
 # ========== GET IP, LOCATION, ISP ==========
 get_ip_info() {
-    # Get IP
     if [ ! -f "$IP_CACHE_FILE" ] || [ $(( $(date +%s) - $(stat -c %Y "$IP_CACHE_FILE" 2>/dev/null || echo 0) )) -gt 3600 ]; then
         curl -s -4 icanhazip.com > "$IP_CACHE_FILE" 2>/dev/null || echo "Unknown" > "$IP_CACHE_FILE"
     fi
     IP=$(cat "$IP_CACHE_FILE")
     
-    # Get location and ISP
     if [ ! -f "$LOCATION_CACHE_FILE" ] || [ ! -f "$ISP_CACHE_FILE" ] || [ $(( $(date +%s) - $(stat -c %Y "$LOCATION_CACHE_FILE" 2>/dev/null || echo 0) )) -gt 86400 ]; then
         local ip_info=$(curl -s "http://ip-api.com/json/$IP" 2>/dev/null)
         if [ $? -eq 0 ] && [ -n "$ip_info" ]; then
@@ -314,7 +312,6 @@ apply_mtu_1800_optimization() {
     echo -e "${C_BLUE}           🚀 MTU 1800 ULTIMATE OPTIMIZATION${C_RESET}"
     echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
     
-    # TCP STACK OPTIMIZATION
     echo -e "\n${C_GREEN}[1/7] Configuring TCP stack for MTU 1800...${C_RESET}"
     
     cat >> /etc/sysctl.conf <<EOF
@@ -345,7 +342,6 @@ EOF
 
     sysctl -p >/dev/null 2>&1
 
-    # INTERFACE OPTIMIZATION
     echo -e "${C_GREEN}[2/7] Optimizing network interface for MTU 1800...${C_RESET}"
     
     local iface=$(ip route | grep default | awk '{print $5}' | head -1)
@@ -357,10 +353,8 @@ EOF
         
         echo -e "      • Interface: ${C_CYAN}$iface${C_RESET}"
         echo -e "      • MTU set: ${C_CYAN}1800${C_RESET}"
-        echo -e "      • Queue length: ${C_CYAN}50000${C_RESET}"
     fi
 
-    # DNSTT SERVICE OPTIMIZATION
     echo -e "${C_GREEN}[3/7] Optimizing DNSTT services for MTU 1800...${C_RESET}"
     
     if [ -f "$DNSTT_SERVICE" ]; then
@@ -371,14 +365,12 @@ EOF
         echo -e "      • DNSTT services updated to MTU 1800"
     fi
 
-    # IPTABLES MSS CLAMPING
     echo -e "${C_GREEN}[4/7] Adding iptables MSS clamping...${C_RESET}"
     iptables -t mangle -F 2>/dev/null
     iptables -t mangle -A FORWARD -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 1760
     iptables -t mangle -A OUTPUT -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 1760
     iptables -t mangle -A INPUT -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 1760
 
-    # BUFFER SIZE OPTIMIZATION
     echo -e "${C_GREEN}[5/7] Setting ultra buffer size (512MB)...${C_RESET}"
     local buffer_size=536870912
     cat > /etc/sysctl.d/99-voltron-mtu1800.conf <<EOF
@@ -389,7 +381,6 @@ net.ipv4.tcp_wmem = 4096 $((buffer_size / 4)) $buffer_size
 EOF
     sysctl -p /etc/sysctl.d/99-voltron-mtu1800.conf 2>/dev/null
 
-    # PERSISTENT RULES
     echo -e "${C_GREEN}[6/7] Making iptables rules persistent...${C_RESET}"
     if command -v apt &>/dev/null; then
         apt install -y iptables-persistent 2>/dev/null
@@ -399,7 +390,6 @@ EOF
         iptables-save > /etc/iptables.up.rules 2>/dev/null
     fi
 
-    # VERIFICATION
     echo -e "\n${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
     echo -e "${C_GREEN}           ✅ MTU 1800 ULTIMATE OPTIMIZATION COMPLETE!${C_RESET}"
     echo -e "${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
@@ -835,7 +825,7 @@ download_dnstt_binary() {
     return $success
 }
 
-# ========== DNSTT (SSH) - FALCON PUBLIC KEY GENERATOR ==========
+# ========== PUBLIC KEY GENERATOR (DNSTT SSH) ==========
 install_dnstt() {
     clear
     show_banner
@@ -849,12 +839,10 @@ install_dnstt() {
         return
     fi
     
-    # Free port 53
     echo -e "\n${C_BLUE}[1/6] Freeing port 53...${C_RESET}"
     systemctl stop systemd-resolved 2>/dev/null
     echo "nameserver 8.8.8.8" > /etc/resolv.conf
     
-    # Download binary
     echo -e "${C_BLUE}[2/6] Downloading DNSTT binary...${C_RESET}"
     if ! download_dnstt_binary; then
         echo -e "\n${C_RED}❌ Failed to download DNSTT binary${C_RESET}"
@@ -862,7 +850,7 @@ install_dnstt() {
         return
     fi
     
-    # ========== FALCON PUBLIC KEY GENERATOR (DNSTT SSH) ==========
+    # ========== PUBLIC KEY GENERATOR (KUTOKA FALCON) ==========
     echo -e "${C_BLUE}[3/6] 🔐 Generating cryptographic keys for DNSTT SSH...${C_RESET}"
     mkdir -p "$DNSTT_KEYS_DIR"
     "$DNSTT_BIN" -gen-key -privkey-file "$DNSTT_KEYS_DIR/server.key" -pubkey-file "$DNSTT_KEYS_DIR/server.pub"
@@ -877,11 +865,9 @@ install_dnstt() {
     echo -e "${C_GREEN}✅ DNSTT SSH keys generated successfully!${C_RESET}"
     echo -e "${C_YELLOW}SSH Public Key: ${SSH_PUBLIC_KEY}${C_RESET}"
     
-    # Get MTU
     echo -e "${C_BLUE}[4/6] Selecting MTU...${C_RESET}"
     mtu_selection_during_install
     
-    # DNS Configuration
     echo -e "\n${C_BLUE}[5/6] DNS Configuration:${C_RESET}"
     echo "1) Auto-generate with Cloudflare"
     echo "2) Manual"
@@ -915,7 +901,6 @@ install_dnstt() {
         read -p "Enter tunnel domain: " domain
     fi
     
-    # Create services
     echo -e "\n${C_BLUE}[6/6] Creating services...${C_RESET}"
     
     cat > "$DNSTT_SERVICE" <<EOF
@@ -952,7 +937,6 @@ EOF
     systemctl enable dnstt.service dnstt-5300.service
     systemctl start dnstt.service dnstt-5300.service
     
-    # Save info with public key
     cat > "$DNSTT_INFO_FILE" <<EOF
 TUNNEL_DOMAIN="$domain"
 SSH_PUBLIC_KEY="$SSH_PUBLIC_KEY"
@@ -967,11 +951,6 @@ EOF
     echo -e "  ${C_CYAN}Tunnel Domain:${C_RESET} ${C_YELLOW}$domain${C_RESET}"
     echo -e "  ${C_CYAN}SSH Public Key:${C_RESET} ${C_YELLOW}$SSH_PUBLIC_KEY${C_RESET}"
     echo -e "  ${C_CYAN}MTU:${C_RESET}           ${C_YELLOW}$MTU${C_RESET}"
-    if [ $MTU -eq 1800 ]; then
-        echo -e "  ${C_CYAN}Status:${C_RESET}        ${C_GREEN}SPECIAL MODE - ISP sees 512!${C_RESET}"
-    fi
-    echo -e "${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "${C_YELLOW}⚠️ SAVE THIS SSH PUBLIC KEY! You'll need it for SSH clients.${C_RESET}"
     safe_read "" dummy
 }
 
@@ -1010,11 +989,6 @@ show_dnstt_details() {
     
     source "$DNSTT_INFO_FILE" 2>/dev/null
     
-    if [ -z "$SSH_PUBLIC_KEY" ] && [ -f "$DNSTT_KEYS_DIR/server.pub" ]; then
-        SSH_PUBLIC_KEY=$(cat "$DNSTT_KEYS_DIR/server.pub" 2>/dev/null)
-        sed -i "s/^SSH_PUBLIC_KEY=.*/SSH_PUBLIC_KEY=\"$SSH_PUBLIC_KEY\"/" "$DNSTT_INFO_FILE" 2>/dev/null
-    fi
-    
     if systemctl is-active dnstt.service &>/dev/null; then
         status="${C_GREEN}● RUNNING${C_RESET}"
     else
@@ -1023,17 +997,8 @@ show_dnstt_details() {
     
     echo -e "  Status:        $status"
     echo -e "  Tunnel Domain: ${C_YELLOW}$TUNNEL_DOMAIN${C_RESET}"
-    
-    if [ -n "$SSH_PUBLIC_KEY" ]; then
-        echo -e "  SSH Public Key: ${C_YELLOW}$SSH_PUBLIC_KEY${C_RESET}"
-    else
-        echo -e "  ${C_RED}❌ SSH Public Key not found!${C_RESET}"
-    fi
-    
+    echo -e "  SSH Public Key: ${C_YELLOW}$SSH_PUBLIC_KEY${C_RESET}"
     echo -e "  MTU:           ${C_YELLOW}$MTU${C_RESET}"
-    if [ $MTU -eq 1800 ]; then
-        echo -e "  Note:          ${C_GREEN}SPECIAL MODE - ISP sees 512!${C_RESET}"
-    fi
     
     safe_read "" dummy
 }
@@ -1052,12 +1017,10 @@ install_dns2tcp() {
         return
     fi
     
-    # Install dependencies
     echo -e "\n${C_BLUE}[1/6] Installing dependencies...${C_RESET}"
     $PKG_UPDATE
     $PKG_INSTALL dns2tcp screen lsof
     
-    # Configure systemd-resolved
     echo -e "${C_BLUE}[2/6] Configuring systemd-resolved...${C_RESET}"
     cp /etc/systemd/resolved.conf /etc/systemd/resolved.conf.backup 2>/dev/null
     cat > /etc/systemd/resolved.conf <<EOF
@@ -1067,21 +1030,17 @@ DNSStubListener=no
 EOF
     systemctl restart systemd-resolved
     
-    # Create directories
     echo -e "${C_BLUE}[3/6] Creating directories...${C_RESET}"
     mkdir -p /root/dns2tcp
     mkdir -p /var/empty/dns2tcp
     
-    # Create user
     if ! id "ashtunnel" &>/dev/null; then
         useradd -r -s /bin/false -d /var/empty/dns2tcp ashtunnel
     fi
     
-    # Get MTU
     echo -e "${C_BLUE}[4/6] Selecting MTU...${C_RESET}"
     mtu_selection_during_install
     
-    # DNS Configuration
     echo -e "\n${C_BLUE}[5/6] DNS Configuration:${C_RESET}"
     echo "1) Auto-generate with Cloudflare"
     echo "2) Manual"
@@ -1144,7 +1103,6 @@ key = $key
 resources = ssh:127.0.0.1:$target_port
 EOF
 
-    # Create services
     echo -e "${C_BLUE}[6/6] Creating services...${C_RESET}"
     
     cat > "$DNS2TCP53_SERVICE" <<EOF
@@ -1306,7 +1264,7 @@ generate_v2ray_json() {
     esac
 }
 
-# ========== V2RAY over DNSTT - FALCON PUBLIC KEY GENERATOR ==========
+# ========== PUBLIC KEY GENERATOR (V2RAY over DNSTT) ==========
 install_v2ray_dnstt() {
     clear
     show_banner
@@ -1320,14 +1278,13 @@ install_v2ray_dnstt() {
         return
     fi
     
-    # Check if DNSTT binary exists
     if [ ! -f "$DNSTT_BIN" ]; then
         echo -e "\n${C_RED}❌ DNSTT binary not found! Please install DNSTT first.${C_RESET}"
         safe_read "" dummy
         return
     fi
     
-    # ========== FALCON PUBLIC KEY GENERATOR (V2RAY DNSTT) ==========
+    # ========== PUBLIC KEY GENERATOR (V2RAY DNSTT) ==========
     echo -e "\n${C_BLUE}[1/6] 🔐 Generating cryptographic keys for V2RAY tunnel...${C_RESET}"
     mkdir -p "$V2RAY_KEYS_DIR"
     "$DNSTT_BIN" -gen-key -privkey-file "$V2RAY_KEYS_DIR/server.key" -pubkey-file "$V2RAY_KEYS_DIR/server.pub"
@@ -1342,7 +1299,6 @@ install_v2ray_dnstt() {
     echo -e "${C_GREEN}✅ V2RAY tunnel keys generated successfully!${C_RESET}"
     echo -e "${C_YELLOW}V2RAY Public Key: ${V2RAY_PUBLIC_KEY}${C_RESET}"
     
-    # DNS Configuration for V2RAY domain
     echo -e "\n${C_BLUE}[2/6] DNS Configuration for V2RAY domain:${C_RESET}"
     echo "1) Auto-generate with Cloudflare"
     echo "2) Manual"
@@ -1376,19 +1332,15 @@ install_v2ray_dnstt() {
         read -p "Enter V2RAY tunnel domain: " domain
     fi
     
-    # Get MTU
     echo -e "\n${C_BLUE}[3/6] Selecting MTU for V2RAY tunnel...${C_RESET}"
     mtu_selection_during_install
     
-    # Install Xray
     echo -e "\n${C_BLUE}[4/6] Installing Xray (V2RAY core)...${C_RESET}"
     bash -c 'curl -sL https://raw.githubusercontent.com/XTLS/Xray-install/main/install-release.sh | bash -s -- install'
     
-    # Create V2Ray directories
     echo -e "\n${C_BLUE}[5/6] Creating V2Ray directories...${C_RESET}"
     mkdir -p "$V2RAY_DIR"/{v2ray,users}
     
-    # Create V2Ray config
     echo -e "${C_BLUE}[6/6] Creating V2Ray configuration...${C_RESET}"
     cat > "$V2RAY_CONFIG" <<EOF
 {
@@ -1417,7 +1369,6 @@ install_v2ray_dnstt() {
 }
 EOF
 
-    # Create V2Ray service
     cat > "$V2RAY_SERVICE" <<EOF
 [Unit]
 Description=V2RAY over DNSTT
@@ -1433,12 +1384,10 @@ RestartSec=3
 WantedBy=multi-user.target
 EOF
 
-    # Start V2Ray service
     systemctl daemon-reload
     systemctl enable v2ray-dnstt.service
     systemctl start v2ray-dnstt.service
     
-    # Save V2RAY info
     cat > "$V2RAY_INFO_FILE" <<EOF
 TUNNEL_DOMAIN="$domain"
 V2RAY_PUBLIC_KEY="$V2RAY_PUBLIC_KEY"
@@ -1460,7 +1409,7 @@ EOF
     echo -e "  ${C_CYAN}Trojan Port:${C_RESET}         ${C_YELLOW}$((V2RAY_PORT+2))${C_RESET}"
     echo -e "  ${C_CYAN}MTU:${C_RESET}                 ${C_YELLOW}$MTU${C_RESET}"
     echo -e "${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "${C_YELLOW}⚠️ SAVE THIS V2RAY PUBLIC KEY! You'll need it for V2RAY clients.${C_RESET}"
+    echo -e "${C_YELLOW}⚠️ SAVE THIS V2RAY PUBLIC KEY!${C_RESET}"
     safe_read "" dummy
 }
 
@@ -2446,8 +2395,6 @@ uninstall_script() {
     
     echo -e "\n${C_BLUE}--- 💥 Starting Uninstallation ---${C_RESET}"
     
-    # Stop all services
-    echo -e "\n${C_BLUE}🛑 Stopping all services...${C_RESET}"
     systemctl stop dnstt.service dnstt-5300.service 2>/dev/null
     systemctl stop dns2tcp-53.service dns2tcp-5300.service 2>/dev/null
     systemctl stop v2ray-dnstt.service 2>/dev/null
@@ -2459,7 +2406,6 @@ uninstall_script() {
     systemctl stop zivpn.service 2>/dev/null
     systemctl stop voltron-traffic.service voltron-limiter.service 2>/dev/null
     
-    # Disable all services
     systemctl disable dnstt.service dnstt-5300.service 2>/dev/null
     systemctl disable dns2tcp-53.service dns2tcp-5300.service 2>/dev/null
     systemctl disable v2ray-dnstt.service 2>/dev/null
@@ -2468,7 +2414,6 @@ uninstall_script() {
     systemctl disable voltronproxy.service 2>/dev/null
     systemctl disable voltron-traffic.service voltron-limiter.service 2>/dev/null
     
-    # Remove service files
     echo -e "\n${C_BLUE}🗑️ Removing service files...${C_RESET}"
     rm -f "$DNSTT_SERVICE" "$DNSTT5300_SERVICE"
     rm -f "$DNS2TCP53_SERVICE" "$DNS2TCP5300_SERVICE"
@@ -2479,7 +2424,6 @@ uninstall_script() {
     rm -f "$ZIVPN_SERVICE"
     rm -f "$TRAFFIC_SERVICE" "$LIMITER_SERVICE"
     
-    # Remove binaries
     echo -e "\n${C_BLUE}🗑️ Removing binaries...${C_RESET}"
     rm -f "$DNSTT_BIN"
     rm -f "$V2RAY_BIN"
@@ -2489,13 +2433,11 @@ uninstall_script() {
     rm -f "$ZIVPN_BIN"
     rm -f "$LIMITER_SCRIPT" "$TRAFFIC_SCRIPT"
     
-    # Remove build directories
     echo -e "\n${C_BLUE}🗑️ Removing build directories...${C_RESET}"
     rm -rf "$BADVPN_BUILD_DIR"
     rm -rf "$UDP_CUSTOM_DIR"
     rm -rf "$ZIVPN_DIR"
     
-    # Delete DNS records from Cloudflare
     echo -e "\n${C_BLUE}🗑️ Cleaning up DNS records...${C_RESET}"
     if [ -f "$DNSTT_INFO_FILE" ]; then
         source "$DNSTT_INFO_FILE"
@@ -2514,23 +2456,19 @@ uninstall_script() {
         [ -n "$TUN2_RECORD_ID" ] && delete_cloudflare_record "$TUN2_RECORD_ID"
     fi
     
-    # Remove config directory
     echo -e "\n${C_BLUE}🗑️ Removing configuration and user data...${C_RESET}"
     rm -rf "$DB_DIR"
     
-    # Restore resolv.conf
     echo -e "\n${C_BLUE}🌐 Restoring DNS resolver...${C_RESET}"
     chattr -i /etc/resolv.conf 2>/dev/null
     rm -f /etc/resolv.conf
     echo "nameserver 8.8.8.8" > /etc/resolv.conf
     echo "nameserver 1.1.1.1" >> /etc/resolv.conf
     
-    # Remove script
     echo -e "\n${C_BLUE}🗑️ Removing script...${C_RESET}"
     rm -f /usr/local/bin/menu
     rm -f "$0"
     
-    # Reload systemd
     echo -e "\n${C_BLUE}🔄 Reloading systemd...${C_RESET}"
     systemctl daemon-reload
     
