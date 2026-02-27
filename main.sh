@@ -42,6 +42,7 @@ SSL_CERT_FILE="$SSL_CERT_DIR/voltrontech.pem"
 
 # DNS Protocols Directories
 DNSTT_KEYS_DIR="$DB_DIR/dnstt"
+V2RAY_KEYS_DIR="$DB_DIR/v2ray-keys"
 DNS2TCP_KEYS_DIR="$DB_DIR/dns2tcp"
 V2RAY_DIR="$DB_DIR/v2ray-dnstt"
 V2RAY_USERS_DB="$V2RAY_DIR/users/users.db"
@@ -103,7 +104,7 @@ UNINSTALL_MODE="interactive"
 # ========== CREATE DIRECTORIES ==========
 create_directories() {
     echo -e "${C_BLUE}📁 Creating directories...${C_RESET}"
-    mkdir -p $DB_DIR $DNSTT_KEYS_DIR $DNS2TCP_KEYS_DIR $V2RAY_DIR $BACKUP_DIR $LOGS_DIR $CONFIG_DIR $SSL_CERT_DIR
+    mkdir -p $DB_DIR $DNSTT_KEYS_DIR $V2RAY_KEYS_DIR $DNS2TCP_KEYS_DIR $V2RAY_DIR $BACKUP_DIR $LOGS_DIR $CONFIG_DIR $SSL_CERT_DIR
     mkdir -p $V2RAY_DIR/dnstt $V2RAY_DIR/v2ray $V2RAY_DIR/users
     mkdir -p $UDP_CUSTOM_DIR $ZIVPN_DIR
     touch $DB_FILE
@@ -794,35 +795,47 @@ download_dnstt_binary() {
     local arch=$(uname -m)
     local success=0
     
+    echo -e "${C_BLUE}📥 Downloading DNSTT binary for $arch...${C_RESET}"
+    
     if [[ "$arch" == "x86_64" ]]; then
-        curl -L -o /tmp/dnstt.tar.gz "https://github.com/xtaci/kcptun/releases/download/v20240101/kcptun-linux-amd64-20240101.tar.gz"
+        curl -L -o /tmp/dnstt.tar.gz "https://github.com/xtaci/kcptun/releases/download/v20240101/kcptun-linux-amd64-20240101.tar.gz" || \
+        wget -O /tmp/dnstt.tar.gz "https://github.com/xtaci/kcptun/releases/download/v20240101/kcptun-linux-amd64-20240101.tar.gz"
+        
         if [ -f /tmp/dnstt.tar.gz ] && [ -s /tmp/dnstt.tar.gz ]; then
             cd /tmp
             tar -xzf dnstt.tar.gz
             if [ -f /tmp/server_linux_amd64 ]; then
                 cp /tmp/server_linux_amd64 "$DNSTT_BIN"
                 success=1
+                echo -e "${C_GREEN}✅ DNSTT binary downloaded successfully${C_RESET}"
             fi
             rm -f /tmp/dnstt.tar.gz
         fi
     elif [[ "$arch" == "aarch64" ]]; then
-        curl -L -o /tmp/dnstt.tar.gz "https://github.com/xtaci/kcptun/releases/download/v20240101/kcptun-linux-arm64-20240101.tar.gz"
+        curl -L -o /tmp/dnstt.tar.gz "https://github.com/xtaci/kcptun/releases/download/v20240101/kcptun-linux-arm64-20240101.tar.gz" || \
+        wget -O /tmp/dnstt.tar.gz "https://github.com/xtaci/kcptun/releases/download/v20240101/kcptun-linux-arm64-20240101.tar.gz"
+        
         if [ -f /tmp/dnstt.tar.gz ] && [ -s /tmp/dnstt.tar.gz ]; then
             cd /tmp
             tar -xzf dnstt.tar.gz
             if [ -f /tmp/server_linux_arm64 ]; then
                 cp /tmp/server_linux_arm64 "$DNSTT_BIN"
                 success=1
+                echo -e "${C_GREEN}✅ DNSTT binary downloaded successfully${C_RESET}"
             fi
             rm -f /tmp/dnstt.tar.gz
         fi
+    fi
+    
+    if [ $success -eq 0 ]; then
+        echo -e "${C_RED}❌ Failed to download DNSTT binary${C_RESET}"
     fi
     
     chmod +x "$DNSTT_BIN" 2>/dev/null
     return $success
 }
 
-# ========== FIXED: DNSTT (SSH) - Public Key Generator ya Falcon ==========
+# ========== DNSTT (SSH) - FALCON PUBLIC KEY GENERATOR ==========
 install_dnstt() {
     clear
     show_banner
@@ -849,25 +862,20 @@ install_dnstt() {
         return
     fi
     
-    # ========== FALCON PUBLIC KEY GENERATOR ==========
-    echo -e "${C_BLUE}[3/6] Generating keys using DNSTT binary (Falcon method)...${C_RESET}"
+    # ========== FALCON PUBLIC KEY GENERATOR (DNSTT SSH) ==========
+    echo -e "${C_BLUE}[3/6] 🔐 Generating cryptographic keys for DNSTT SSH...${C_RESET}"
     mkdir -p "$DNSTT_KEYS_DIR"
+    "$DNSTT_BIN" -gen-key -privkey-file "$DNSTT_KEYS_DIR/server.key" -pubkey-file "$DNSTT_KEYS_DIR/server.pub"
     
-    if "$DNSTT_BIN" -gen-key -privkey-file "$DNSTT_KEYS_DIR/server.key" -pubkey-file "$DNSTT_KEYS_DIR/server.pub" 2>/dev/null; then
-        if [ -f "$DNSTT_KEYS_DIR/server.pub" ]; then
-            PUBLIC_KEY=$(cat "$DNSTT_KEYS_DIR/server.pub" | tr -d '\n' | tr -d ' ')
-            echo -e "${C_GREEN}✅ Keys generated successfully!${C_RESET}"
-            echo -e "${C_YELLOW}Public Key: ${PUBLIC_KEY}${C_RESET}"
-        else
-            echo -e "${C_RED}❌ Key file not found after generation${C_RESET}"
-            safe_read "" dummy
-            return
-        fi
-    else
-        echo -e "${C_RED}❌ Failed to generate keys using DNSTT binary${C_RESET}"
+    if [[ ! -f "$DNSTT_KEYS_DIR/server.key" ]]; then 
+        echo -e "${C_RED}❌ Failed to generate DNSTT SSH keys.${C_RESET}"
         safe_read "" dummy
         return
     fi
+    
+    SSH_PUBLIC_KEY=$(cat "$DNSTT_KEYS_DIR/server.pub")
+    echo -e "${C_GREEN}✅ DNSTT SSH keys generated successfully!${C_RESET}"
+    echo -e "${C_YELLOW}SSH Public Key: ${SSH_PUBLIC_KEY}${C_RESET}"
     
     # Get MTU
     echo -e "${C_BLUE}[4/6] Selecting MTU...${C_RESET}"
@@ -947,7 +955,7 @@ EOF
     # Save info with public key
     cat > "$DNSTT_INFO_FILE" <<EOF
 TUNNEL_DOMAIN="$domain"
-PUBLIC_KEY="$PUBLIC_KEY"
+SSH_PUBLIC_KEY="$SSH_PUBLIC_KEY"
 MTU="$MTU"
 NS_RECORD_ID="$ns_record_id"
 TUNNEL_RECORD_ID="$tunnel_record_id"
@@ -957,13 +965,13 @@ EOF
     echo -e "${C_GREEN}           ✅ DNSTT (SSH) INSTALLED SUCCESSFULLY!${C_RESET}"
     echo -e "${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
     echo -e "  ${C_CYAN}Tunnel Domain:${C_RESET} ${C_YELLOW}$domain${C_RESET}"
-    echo -e "  ${C_CYAN}Public Key:${C_RESET}    ${C_YELLOW}$PUBLIC_KEY${C_RESET}"
+    echo -e "  ${C_CYAN}SSH Public Key:${C_RESET} ${C_YELLOW}$SSH_PUBLIC_KEY${C_RESET}"
     echo -e "  ${C_CYAN}MTU:${C_RESET}           ${C_YELLOW}$MTU${C_RESET}"
     if [ $MTU -eq 1800 ]; then
         echo -e "  ${C_CYAN}Status:${C_RESET}        ${C_GREEN}SPECIAL MODE - ISP sees 512!${C_RESET}"
     fi
     echo -e "${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "${C_YELLOW}⚠️ SAVE THIS PUBLIC KEY! You'll need it for clients.${C_RESET}"
+    echo -e "${C_YELLOW}⚠️ SAVE THIS SSH PUBLIC KEY! You'll need it for SSH clients.${C_RESET}"
     safe_read "" dummy
 }
 
@@ -1002,9 +1010,9 @@ show_dnstt_details() {
     
     source "$DNSTT_INFO_FILE" 2>/dev/null
     
-    if [ -z "$PUBLIC_KEY" ] && [ -f "$DNSTT_KEYS_DIR/server.pub" ]; then
-        PUBLIC_KEY=$(cat "$DNSTT_KEYS_DIR/server.pub" 2>/dev/null)
-        sed -i "s/^PUBLIC_KEY=.*/PUBLIC_KEY=\"$PUBLIC_KEY\"/" "$DNSTT_INFO_FILE" 2>/dev/null
+    if [ -z "$SSH_PUBLIC_KEY" ] && [ -f "$DNSTT_KEYS_DIR/server.pub" ]; then
+        SSH_PUBLIC_KEY=$(cat "$DNSTT_KEYS_DIR/server.pub" 2>/dev/null)
+        sed -i "s/^SSH_PUBLIC_KEY=.*/SSH_PUBLIC_KEY=\"$SSH_PUBLIC_KEY\"/" "$DNSTT_INFO_FILE" 2>/dev/null
     fi
     
     if systemctl is-active dnstt.service &>/dev/null; then
@@ -1016,10 +1024,10 @@ show_dnstt_details() {
     echo -e "  Status:        $status"
     echo -e "  Tunnel Domain: ${C_YELLOW}$TUNNEL_DOMAIN${C_RESET}"
     
-    if [ -n "$PUBLIC_KEY" ]; then
-        echo -e "  Public Key:    ${C_YELLOW}$PUBLIC_KEY${C_RESET}"
+    if [ -n "$SSH_PUBLIC_KEY" ]; then
+        echo -e "  SSH Public Key: ${C_YELLOW}$SSH_PUBLIC_KEY${C_RESET}"
     else
-        echo -e "  ${C_RED}❌ Public Key not found!${C_RESET}"
+        echo -e "  ${C_RED}❌ SSH Public Key not found!${C_RESET}"
     fi
     
     echo -e "  MTU:           ${C_YELLOW}$MTU${C_RESET}"
@@ -1298,7 +1306,7 @@ generate_v2ray_json() {
     esac
 }
 
-# ========== FIXED: V2RAY over DNSTT - Public Key Generator ya Falcon ==========
+# ========== V2RAY over DNSTT - FALCON PUBLIC KEY GENERATOR ==========
 install_v2ray_dnstt() {
     clear
     show_banner
@@ -1312,32 +1320,30 @@ install_v2ray_dnstt() {
         return
     fi
     
-    # ========== FALCON PUBLIC KEY GENERATOR (kwa DNSTT tunnel) ==========
-    echo -e "\n${C_BLUE}[1/6] Generating DNSTT tunnel keys (Falcon method)...${C_RESET}"
-    mkdir -p "$DNSTT_KEYS_DIR"
-    
-    if "$DNSTT_BIN" -gen-key -privkey-file "$DNSTT_KEYS_DIR/server.key" -pubkey-file "$DNSTT_KEYS_DIR/server.pub" 2>/dev/null; then
-        if [ -f "$DNSTT_KEYS_DIR/server.pub" ]; then
-            DNSTT_PUBLIC_KEY=$(cat "$DNSTT_KEYS_DIR/server.pub" | tr -d '\n' | tr -d ' ')
-            echo -e "${C_GREEN}✅ DNSTT tunnel keys generated successfully!${C_RESET}"
-            echo -e "${C_YELLOW}DNSTT Public Key: ${DNSTT_PUBLIC_KEY}${C_RESET}"
-        else
-            echo -e "${C_RED}❌ DNSTT key file not found after generation${C_RESET}"
-            safe_read "" dummy
-            return
-        fi
-    else
-        echo -e "${C_RED}❌ Failed to generate DNSTT tunnel keys${C_RESET}"
+    # Check if DNSTT binary exists
+    if [ ! -f "$DNSTT_BIN" ]; then
+        echo -e "\n${C_RED}❌ DNSTT binary not found! Please install DNSTT first.${C_RESET}"
         safe_read "" dummy
         return
     fi
     
-    # Get MTU
-    echo -e "\n${C_BLUE}[2/6] Selecting MTU for V2RAY tunnel...${C_RESET}"
-    mtu_selection_during_install
+    # ========== FALCON PUBLIC KEY GENERATOR (V2RAY DNSTT) ==========
+    echo -e "\n${C_BLUE}[1/6] 🔐 Generating cryptographic keys for V2RAY tunnel...${C_RESET}"
+    mkdir -p "$V2RAY_KEYS_DIR"
+    "$DNSTT_BIN" -gen-key -privkey-file "$V2RAY_KEYS_DIR/server.key" -pubkey-file "$V2RAY_KEYS_DIR/server.pub"
+    
+    if [[ ! -f "$V2RAY_KEYS_DIR/server.key" ]]; then 
+        echo -e "${C_RED}❌ Failed to generate V2RAY tunnel keys.${C_RESET}"
+        safe_read "" dummy
+        return
+    fi
+    
+    V2RAY_PUBLIC_KEY=$(cat "$V2RAY_KEYS_DIR/server.pub")
+    echo -e "${C_GREEN}✅ V2RAY tunnel keys generated successfully!${C_RESET}"
+    echo -e "${C_YELLOW}V2RAY Public Key: ${V2RAY_PUBLIC_KEY}${C_RESET}"
     
     # DNS Configuration for V2RAY domain
-    echo -e "\n${C_BLUE}[3/6] DNS Configuration for V2RAY domain:${C_RESET}"
+    echo -e "\n${C_BLUE}[2/6] DNS Configuration for V2RAY domain:${C_RESET}"
     echo "1) Auto-generate with Cloudflare"
     echo "2) Manual"
     read -p "Choice [1]: " dns_choice
@@ -1370,15 +1376,20 @@ install_v2ray_dnstt() {
         read -p "Enter V2RAY tunnel domain: " domain
     fi
     
+    # Get MTU
+    echo -e "\n${C_BLUE}[3/6] Selecting MTU for V2RAY tunnel...${C_RESET}"
+    mtu_selection_during_install
+    
     # Install Xray
     echo -e "\n${C_BLUE}[4/6] Installing Xray (V2RAY core)...${C_RESET}"
     bash -c 'curl -sL https://raw.githubusercontent.com/XTLS/Xray-install/main/install-release.sh | bash -s -- install'
     
     # Create V2Ray directories
+    echo -e "\n${C_BLUE}[5/6] Creating V2Ray directories...${C_RESET}"
     mkdir -p "$V2RAY_DIR"/{v2ray,users}
     
     # Create V2Ray config
-    echo -e "${C_BLUE}[5/6] Creating V2Ray configuration...${C_RESET}"
+    echo -e "${C_BLUE}[6/6] Creating V2Ray configuration...${C_RESET}"
     cat > "$V2RAY_CONFIG" <<EOF
 {
     "log": {"loglevel": "warning"},
@@ -1407,7 +1418,6 @@ install_v2ray_dnstt() {
 EOF
 
     # Create V2Ray service
-    echo -e "${C_BLUE}[6/6] Creating V2Ray service...${C_RESET}"
     cat > "$V2RAY_SERVICE" <<EOF
 [Unit]
 Description=V2RAY over DNSTT
@@ -1431,7 +1441,7 @@ EOF
     # Save V2RAY info
     cat > "$V2RAY_INFO_FILE" <<EOF
 TUNNEL_DOMAIN="$domain"
-DNSTT_PUBLIC_KEY="$DNSTT_PUBLIC_KEY"
+V2RAY_PUBLIC_KEY="$V2RAY_PUBLIC_KEY"
 VMESS_PORT="$V2RAY_PORT"
 VLESS_PORT="$((V2RAY_PORT+1))"
 TROJAN_PORT="$((V2RAY_PORT+2))"
@@ -1444,13 +1454,13 @@ EOF
     echo -e "${C_GREEN}           ✅ V2RAY over DNSTT INSTALLED SUCCESSFULLY!${C_RESET}"
     echo -e "${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
     echo -e "  ${C_CYAN}V2RAY Tunnel Domain:${C_RESET} ${C_YELLOW}$domain${C_RESET}"
-    echo -e "  ${C_CYAN}DNSTT Public Key:${C_RESET}    ${C_YELLOW}$DNSTT_PUBLIC_KEY${C_RESET}"
+    echo -e "  ${C_CYAN}V2RAY Public Key:${C_RESET}   ${C_YELLOW}$V2RAY_PUBLIC_KEY${C_RESET}"
     echo -e "  ${C_CYAN}VMess Port:${C_RESET}          ${C_YELLOW}$V2RAY_PORT${C_RESET}"
     echo -e "  ${C_CYAN}VLESS Port:${C_RESET}          ${C_YELLOW}$((V2RAY_PORT+1))${C_RESET}"
     echo -e "  ${C_CYAN}Trojan Port:${C_RESET}         ${C_YELLOW}$((V2RAY_PORT+2))${C_RESET}"
     echo -e "  ${C_CYAN}MTU:${C_RESET}                 ${C_YELLOW}$MTU${C_RESET}"
     echo -e "${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "${C_YELLOW}⚠️ SAVE THIS DNSTT PUBLIC KEY! You'll need it for clients.${C_RESET}"
+    echo -e "${C_YELLOW}⚠️ SAVE THIS V2RAY PUBLIC KEY! You'll need it for V2RAY clients.${C_RESET}"
     safe_read "" dummy
 }
 
@@ -1461,6 +1471,7 @@ uninstall_v2ray_dnstt() {
     systemctl disable v2ray-dnstt.service 2>/dev/null
     rm -f "$V2RAY_SERVICE"
     rm -rf "$V2RAY_DIR"
+    rm -rf "$V2RAY_KEYS_DIR"
     rm -f "$V2RAY_INFO_FILE"
     
     systemctl daemon-reload
@@ -1490,7 +1501,7 @@ show_v2ray_details() {
     
     echo -e "  Status:        $status"
     echo -e "  Tunnel Domain: ${C_YELLOW}$TUNNEL_DOMAIN${C_RESET}"
-    echo -e "  DNSTT Public Key: ${C_YELLOW}$DNSTT_PUBLIC_KEY${C_RESET}"
+    echo -e "  V2RAY Public Key: ${C_YELLOW}$V2RAY_PUBLIC_KEY${C_RESET}"
     echo -e "  VMess Port:    ${C_YELLOW}$VMESS_PORT${C_RESET}"
     echo -e "  VLESS Port:    ${C_YELLOW}$VLESS_PORT${C_RESET}"
     echo -e "  Trojan Port:   ${C_YELLOW}$TROJAN_PORT${C_RESET}"
@@ -2415,93 +2426,117 @@ dt_proxy_menu() {
     done
 }
 
-# ========== UNINSTALL SCRIPT (Kutoka FirewallFalcon) ==========
+# ========== UNINSTALL SCRIPT ==========
 uninstall_script() {
     clear
     show_banner
     echo -e "${C_RED}═══════════════════════════════════════════════════════════════${C_RESET}"
     echo -e "${C_RED}           💥 UNINSTALL SCRIPT & ALL DATA${C_RESET}"
     echo -e "${C_RED}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "${C_YELLOW}This will PERMANENTLY remove this script and all its components, including:"
-    echo -e " - The main menu command"
-    echo -e " - All configuration and user data ($DB_DIR)"
-    echo -e " - All installed services (DNSTT, DNS2TCP, V2RAY, badvpn, etc.)"
+    echo -e "${C_YELLOW}This will PERMANENTLY remove this script and all its components."
     echo -e "\n${C_RED}This action is irreversible.${C_RESET}"
     echo ""
     
-    read -p "👉 Type 'YES' to confirm and proceed with uninstallation: " confirm
+    read -p "👉 Type 'YES' to confirm: " confirm
     if [[ "$confirm" != "YES" ]]; then
         echo -e "\n${C_GREEN}✅ Uninstallation cancelled.${C_RESET}"
         safe_read "" dummy
         return
     fi
     
-    export UNINSTALL_MODE="silent"
+    echo -e "\n${C_BLUE}--- 💥 Starting Uninstallation ---${C_RESET}"
     
-    echo -e "\n${C_BLUE}--- 💥 Starting Uninstallation 💥 ---${C_RESET}"
-    
-    echo -e "\n${C_BLUE}🗑️ Uninstalling DNSTT...${C_RESET}"
-    uninstall_dnstt 2>/dev/null
-    
-    echo -e "\n${C_BLUE}🗑️ Uninstalling DNS2TCP...${C_RESET}"
-    uninstall_dns2tcp 2>/dev/null
-    
-    echo -e "\n${C_BLUE}🗑️ Uninstalling V2RAY over DNSTT...${C_RESET}"
-    uninstall_v2ray_dnstt 2>/dev/null
-    
-    echo -e "\n${C_BLUE}🗑️ Uninstalling badvpn...${C_RESET}"
-    uninstall_badvpn 2>/dev/null
-    
-    echo -e "\n${C_BLUE}🗑️ Uninstalling udp-custom...${C_RESET}"
-    uninstall_udp_custom 2>/dev/null
-    
-    echo -e "\n${C_BLUE}🗑️ Uninstalling SSL Tunnel...${C_RESET}"
-    uninstall_ssl_tunnel 2>/dev/null
-    
-    echo -e "\n${C_BLUE}🗑️ Uninstalling VOLTRON Proxy...${C_RESET}"
-    uninstall_voltron_proxy 2>/dev/null
-    
-    echo -e "\n${C_BLUE}🗑️ Uninstalling Nginx Proxy...${C_RESET}"
-    uninstall_nginx_proxy 2>/dev/null
-    
-    echo -e "\n${C_BLUE}🗑️ Uninstalling ZiVPN...${C_RESET}"
-    uninstall_zivpn 2>/dev/null
-    
-    echo -e "\n${C_BLUE}🗑️ Uninstalling X-UI Panel...${C_RESET}"
-    uninstall_xui_panel 2>/dev/null
-    
-    echo -e "\n${C_BLUE}🗑️ Uninstalling DT Proxy...${C_RESET}"
-    uninstall_dt_proxy 2>/dev/null
-    
-    echo -e "\n${C_BLUE}🛑 Stopping monitoring services...${C_RESET}"
+    # Stop all services
+    echo -e "\n${C_BLUE}🛑 Stopping all services...${C_RESET}"
+    systemctl stop dnstt.service dnstt-5300.service 2>/dev/null
+    systemctl stop dns2tcp-53.service dns2tcp-5300.service 2>/dev/null
+    systemctl stop v2ray-dnstt.service 2>/dev/null
+    systemctl stop badvpn.service 2>/dev/null
+    systemctl stop udp-custom.service 2>/dev/null
+    systemctl stop haproxy 2>/dev/null
+    systemctl stop voltronproxy.service 2>/dev/null
+    systemctl stop nginx 2>/dev/null
+    systemctl stop zivpn.service 2>/dev/null
     systemctl stop voltron-traffic.service voltron-limiter.service 2>/dev/null
-    systemctl disable voltron-traffic.service voltron-limiter.service 2>/dev/null
-    rm -f "$TRAFFIC_SERVICE" "$LIMITER_SERVICE"
-    rm -f "$TRAFFIC_SCRIPT" "$LIMITER_SCRIPT"
     
+    # Disable all services
+    systemctl disable dnstt.service dnstt-5300.service 2>/dev/null
+    systemctl disable dns2tcp-53.service dns2tcp-5300.service 2>/dev/null
+    systemctl disable v2ray-dnstt.service 2>/dev/null
+    systemctl disable badvpn.service 2>/dev/null
+    systemctl disable udp-custom.service 2>/dev/null
+    systemctl disable voltronproxy.service 2>/dev/null
+    systemctl disable voltron-traffic.service voltron-limiter.service 2>/dev/null
+    
+    # Remove service files
+    echo -e "\n${C_BLUE}🗑️ Removing service files...${C_RESET}"
+    rm -f "$DNSTT_SERVICE" "$DNSTT5300_SERVICE"
+    rm -f "$DNS2TCP53_SERVICE" "$DNS2TCP5300_SERVICE"
+    rm -f "$V2RAY_SERVICE"
+    rm -f "$BADVPN_SERVICE"
+    rm -f "$UDP_CUSTOM_SERVICE"
+    rm -f "$VOLTRONPROXY_SERVICE"
+    rm -f "$ZIVPN_SERVICE"
+    rm -f "$TRAFFIC_SERVICE" "$LIMITER_SERVICE"
+    
+    # Remove binaries
+    echo -e "\n${C_BLUE}🗑️ Removing binaries...${C_RESET}"
+    rm -f "$DNSTT_BIN"
+    rm -f "$V2RAY_BIN"
+    rm -f "$BADVPN_BIN"
+    rm -f "$UDP_CUSTOM_BIN"
+    rm -f "$VOLTRONPROXY_BIN"
+    rm -f "$ZIVPN_BIN"
+    rm -f "$LIMITER_SCRIPT" "$TRAFFIC_SCRIPT"
+    
+    # Remove build directories
+    echo -e "\n${C_BLUE}🗑️ Removing build directories...${C_RESET}"
+    rm -rf "$BADVPN_BUILD_DIR"
+    rm -rf "$UDP_CUSTOM_DIR"
+    rm -rf "$ZIVPN_DIR"
+    
+    # Delete DNS records from Cloudflare
+    echo -e "\n${C_BLUE}🗑️ Cleaning up DNS records...${C_RESET}"
+    if [ -f "$DNSTT_INFO_FILE" ]; then
+        source "$DNSTT_INFO_FILE"
+        [ -n "$TUNNEL_RECORD_ID" ] && delete_cloudflare_record "$TUNNEL_RECORD_ID"
+        [ -n "$NS_RECORD_ID" ] && delete_cloudflare_record "$NS_RECORD_ID"
+    fi
+    if [ -f "$DNS2TCP_INFO_FILE" ]; then
+        source "$DNS2TCP_INFO_FILE"
+        [ -n "$TUNNEL_RECORD_ID" ] && delete_cloudflare_record "$TUNNEL_RECORD_ID"
+        [ -n "$NS_RECORD_ID" ] && delete_cloudflare_record "$NS_RECORD_ID"
+    fi
+    if [ -f "$DNS_INFO_FILE" ]; then
+        source "$DNS_INFO_FILE"
+        [ -n "$NS_RECORD_ID" ] && delete_cloudflare_record "$NS_RECORD_ID"
+        [ -n "$TUN_RECORD_ID" ] && delete_cloudflare_record "$TUN_RECORD_ID"
+        [ -n "$TUN2_RECORD_ID" ] && delete_cloudflare_record "$TUN2_RECORD_ID"
+    fi
+    
+    # Remove config directory
+    echo -e "\n${C_BLUE}🗑️ Removing configuration and user data...${C_RESET}"
+    rm -rf "$DB_DIR"
+    
+    # Restore resolv.conf
     echo -e "\n${C_BLUE}🌐 Restoring DNS resolver...${C_RESET}"
     chattr -i /etc/resolv.conf 2>/dev/null
     rm -f /etc/resolv.conf
     echo "nameserver 8.8.8.8" > /etc/resolv.conf
     echo "nameserver 1.1.1.1" >> /etc/resolv.conf
     
-    echo -e "\n${C_BLUE}🗑️ Removing configuration and user data...${C_RESET}"
-    rm -rf "$DB_DIR"
-    
+    # Remove script
     echo -e "\n${C_BLUE}🗑️ Removing script...${C_RESET}"
     rm -f /usr/local/bin/menu
     rm -f "$0"
     
+    # Reload systemd
     echo -e "\n${C_BLUE}🔄 Reloading systemd...${C_RESET}"
     systemctl daemon-reload
-    
-    echo -e "\n${C_BLUE}🧹 Clearing memory cache...${C_RESET}"
-    sync && echo 3 > /proc/sys/vm/drop_caches 2>/dev/null
     
     echo -e "\n${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
     echo -e "${C_GREEN}      ✅ SCRIPT UNINSTALLED SUCCESSFULLY!${C_RESET}"
     echo -e "${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "\nAll associated files and services have been removed."
     echo -e "\nPress any key to exit..."
     read -n 1
     exit 0
