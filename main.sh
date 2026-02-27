@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ========== VOLTRON TECH ULTIMATE SCRIPT ==========
-# Version: 3.1 (FIXED: Public Key Generator + Cloudflare)
+# Version: 3.1 (FALCON PUBLIC KEY GENERATOR FOR DNSTT & V2RAY)
 # Description: SSH • DNSTT • DNS2TCP • V2RAY over DNSTT • MTU 1800 ULTIMATE
 # Author: Voltron Tech
 
@@ -247,13 +247,11 @@ check_service() {
     fi
 }
 
-# ========== FIXED: CLOUDFLARE DNS FUNCTIONS ==========
+# ========== CLOUDFLARE DNS FUNCTIONS ==========
 create_cloudflare_record() {
     local type=$1
     local name=$2
     local content=$3
-    
-    echo -e "${C_BLUE}Creating $type record: $name.$DOMAIN → $content${C_RESET}"
     
     local response=$(curl -s -X POST "https://api.cloudflare.com/client/v4/zones/$CLOUDFLARE_ZONE_ID/dns_records" \
         -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
@@ -267,23 +265,16 @@ create_cloudflare_record() {
         }")
     
     if echo "$response" | grep -q '"success":true'; then
-        local record_id=$(echo "$response" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
-        echo -e "${C_GREEN}✅ Record created successfully! ID: $record_id${C_RESET}"
-        echo "$record_id"
+        echo "$response" | grep -o '"id":"[^"]*"' | cut -d'"' -f4
         return 0
-    else
-        echo -e "${C_RED}❌ Failed to create DNS record${C_RESET}"
-        echo -e "${C_YELLOW}Response: $response${C_RESET}"
-        return 1
     fi
+    return 1
 }
 
 delete_cloudflare_record() {
     local record_id=$1
-    echo -e "${C_BLUE}Deleting Cloudflare record: $record_id${C_RESET}"
     curl -s -X DELETE "https://api.cloudflare.com/client/v4/zones/$CLOUDFLARE_ZONE_ID/dns_records/$record_id" \
         -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" > /dev/null
-    echo -e "${C_GREEN}✅ Record deleted${C_RESET}"
 }
 
 _is_valid_ipv4() {
@@ -365,6 +356,7 @@ EOF
         
         echo -e "      • Interface: ${C_CYAN}$iface${C_RESET}"
         echo -e "      • MTU set: ${C_CYAN}1800${C_RESET}"
+        echo -e "      • Queue length: ${C_CYAN}50000${C_RESET}"
     fi
 
     # DNSTT SERVICE OPTIMIZATION
@@ -830,12 +822,12 @@ download_dnstt_binary() {
     return $success
 }
 
-# ========== FIXED: DNSTT INSTALLATION (Public Key + Cloudflare) ==========
+# ========== FIXED: DNSTT (SSH) - Public Key Generator ya Falcon ==========
 install_dnstt() {
     clear
     show_banner
     echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "${C_BOLD}${C_PURPLE}           📡 DNSTT INSTALLATION${C_RESET}"
+    echo -e "${C_BOLD}${C_PURPLE}           📡 DNSTT INSTALLATION (SSH)${C_RESET}"
     echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
     
     if [ -f "$DNSTT_SERVICE" ]; then
@@ -857,20 +849,22 @@ install_dnstt() {
         return
     fi
     
-    # ========== FIXED: Generate keys using openssl (FALCON METHOD) ==========
-    echo -e "${C_BLUE}[3/6] Generating keys using OpenSSL...${C_RESET}"
+    # ========== FALCON PUBLIC KEY GENERATOR ==========
+    echo -e "${C_BLUE}[3/6] Generating keys using DNSTT binary (Falcon method)...${C_RESET}"
     mkdir -p "$DNSTT_KEYS_DIR"
     
-    openssl rand -base64 32 > "$DNSTT_KEYS_DIR/server.key"
-    openssl rand -base64 32 > "$DNSTT_KEYS_DIR/server.pub"
-    
-    if [ -f "$DNSTT_KEYS_DIR/server.pub" ]; then
-        PUBLIC_KEY=$(cat "$DNSTT_KEYS_DIR/server.pub" 2>/dev/null | tr -d '\n')
-        echo -e "${C_GREEN}✅ Keys generated successfully!${C_RESET}"
-        echo -e "${C_YELLOW}Public Key: ${PUBLIC_KEY}${C_RESET}"
+    if "$DNSTT_BIN" -gen-key -privkey-file "$DNSTT_KEYS_DIR/server.key" -pubkey-file "$DNSTT_KEYS_DIR/server.pub" 2>/dev/null; then
+        if [ -f "$DNSTT_KEYS_DIR/server.pub" ]; then
+            PUBLIC_KEY=$(cat "$DNSTT_KEYS_DIR/server.pub" | tr -d '\n' | tr -d ' ')
+            echo -e "${C_GREEN}✅ Keys generated successfully!${C_RESET}"
+            echo -e "${C_YELLOW}Public Key: ${PUBLIC_KEY}${C_RESET}"
+        else
+            echo -e "${C_RED}❌ Key file not found after generation${C_RESET}"
+            safe_read "" dummy
+            return
+        fi
     else
-        PUBLIC_KEY="ERROR: Key file not found"
-        echo -e "${C_RED}❌ Failed to generate keys${C_RESET}"
+        echo -e "${C_RED}❌ Failed to generate keys using DNSTT binary${C_RESET}"
         safe_read "" dummy
         return
     fi
@@ -879,7 +873,7 @@ install_dnstt() {
     echo -e "${C_BLUE}[4/6] Selecting MTU...${C_RESET}"
     mtu_selection_during_install
     
-    # ========== FIXED: DNS Configuration with Cloudflare Validation ==========
+    # DNS Configuration
     echo -e "\n${C_BLUE}[5/6] DNS Configuration:${C_RESET}"
     echo "1) Auto-generate with Cloudflare"
     echo "2) Manual"
@@ -891,55 +885,26 @@ install_dnstt() {
     local tunnel_record_id=""
     
     if [ "$dns_choice" == "1" ]; then
-        # Validate Cloudflare credentials
-        echo -e "${C_BLUE}Validating Cloudflare credentials...${C_RESET}"
-        local test_response=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/$CLOUDFLARE_ZONE_ID" \
-            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-            -H "Content-Type: application/json")
+        local rand=$(head /dev/urandom | tr -dc a-z0-9 | head -c 8)
+        local ns="ns-$rand"
+        local tun="tun-$rand"
         
-        if ! echo "$test_response" | grep -q '"success":true'; then
-            echo -e "${C_RED}❌ Invalid Cloudflare credentials or zone ID${C_RESET}"
-            echo -e "${C_YELLOW}Please check your CLOUDFLARE_EMAIL, CLOUDFLARE_ZONE_ID, and CLOUDFLARE_API_TOKEN${C_RESET}"
-            echo -e "${C_YELLOW}Switching to manual mode...${C_RESET}"
-            dns_choice="2"
+        echo -e "${C_BLUE}Creating Cloudflare records...${C_RESET}"
+        local ip=$(curl -s ifconfig.me)
+        ns_record_id=$(create_cloudflare_record "A" "$ns" "$ip")
+        
+        if [ -n "$ns_record_id" ]; then
+            tunnel_record_id=$(create_cloudflare_record "NS" "$tun" "$ns.$DOMAIN")
+            domain="$tun.$DOMAIN"
+            echo -e "${C_GREEN}✅ Domain created: $domain${C_RESET}"
         else
-            echo -e "${C_GREEN}✅ Cloudflare credentials validated${C_RESET}"
-            
-            local rand=$(head /dev/urandom | tr -dc a-z0-9 | head -c 8)
-            local ns="ns-$rand"
-            local tun="tun-$rand"
-            
-            echo -e "${C_BLUE}Creating A record for nameserver...${C_RESET}"
-            local ip=$(curl -s ifconfig.me)
-            ns_record_id=$(create_cloudflare_record "A" "$ns" "$ip")
-            
-            if [ -n "$ns_record_id" ]; then
-                echo -e "${C_BLUE}Creating NS record for tunnel...${C_RESET}"
-                tunnel_record_id=$(create_cloudflare_record "NS" "$tun" "$ns.$DOMAIN")
-                
-                if [ -n "$tunnel_record_id" ]; then
-                    domain="$tun.$DOMAIN"
-                    echo -e "${C_GREEN}✅ Domain created successfully: $domain${C_RESET}"
-                else
-                    echo -e "${C_YELLOW}⚠️ Failed to create NS record. Deleting A record...${C_RESET}"
-                    delete_cloudflare_record "$ns_record_id"
-                    echo -e "${C_YELLOW}Switching to manual mode...${C_RESET}"
-                    dns_choice="2"
-                fi
-            else
-                echo -e "${C_YELLOW}⚠️ Failed to create A record. Switching to manual mode...${C_RESET}"
-                dns_choice="2"
-            fi
+            echo -e "${C_YELLOW}⚠️ Cloudflare failed. Using manual mode.${C_RESET}"
+            dns_choice="2"
         fi
     fi
     
     if [ "$dns_choice" == "2" ] || [ -z "$domain" ]; then
-        read -p "Enter tunnel domain (e.g., tunnel.yourdomain.com): " domain
-        while [[ -z "$domain" ]]; do
-            echo -e "${C_RED}❌ Domain cannot be empty${C_RESET}"
-            read -p "Enter tunnel domain: " domain
-        done
-        echo -e "${C_GREEN}✅ Using manual domain: $domain${C_RESET}"
+        read -p "Enter tunnel domain: " domain
     fi
     
     # Create services
@@ -947,7 +912,7 @@ install_dnstt() {
     
     cat > "$DNSTT_SERVICE" <<EOF
 [Unit]
-Description=DNSTT Server
+Description=DNSTT Server (SSH)
 After=network.target
 
 [Service]
@@ -962,7 +927,7 @@ EOF
 
     cat > "$DNSTT5300_SERVICE" <<EOF
 [Unit]
-Description=DNSTT Server (Port 5300)
+Description=DNSTT Server (Port 5300) (SSH)
 After=network.target
 
 [Service]
@@ -979,6 +944,7 @@ EOF
     systemctl enable dnstt.service dnstt-5300.service
     systemctl start dnstt.service dnstt-5300.service
     
+    # Save info with public key
     cat > "$DNSTT_INFO_FILE" <<EOF
 TUNNEL_DOMAIN="$domain"
 PUBLIC_KEY="$PUBLIC_KEY"
@@ -988,7 +954,7 @@ TUNNEL_RECORD_ID="$tunnel_record_id"
 EOF
 
     echo -e "\n${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "${C_GREEN}           ✅ DNSTT INSTALLED SUCCESSFULLY!${C_RESET}"
+    echo -e "${C_GREEN}           ✅ DNSTT (SSH) INSTALLED SUCCESSFULLY!${C_RESET}"
     echo -e "${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
     echo -e "  ${C_CYAN}Tunnel Domain:${C_RESET} ${C_YELLOW}$domain${C_RESET}"
     echo -e "  ${C_CYAN}Public Key:${C_RESET}    ${C_YELLOW}$PUBLIC_KEY${C_RESET}"
@@ -1025,7 +991,7 @@ uninstall_dnstt() {
 show_dnstt_details() {
     clear
     echo -e "${C_BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
-    echo -e "${C_GREEN}           📡 DNSTT DETAILS${C_RESET}"
+    echo -e "${C_GREEN}           📡 DNSTT DETAILS (SSH)${C_RESET}"
     echo -e "${C_BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
     
     if [ ! -f "$DNSTT_INFO_FILE" ]; then
@@ -1054,25 +1020,11 @@ show_dnstt_details() {
         echo -e "  Public Key:    ${C_YELLOW}$PUBLIC_KEY${C_RESET}"
     else
         echo -e "  ${C_RED}❌ Public Key not found!${C_RESET}"
-        echo -e "  ${C_YELLOW}Try reinstalling DNSTT${C_RESET}"
     fi
     
     echo -e "  MTU:           ${C_YELLOW}$MTU${C_RESET}"
     if [ $MTU -eq 1800 ]; then
         echo -e "  Note:          ${C_GREEN}SPECIAL MODE - ISP sees 512!${C_RESET}"
-    fi
-    
-    echo -e "\n  Services:"
-    if systemctl is-active dnstt.service &>/dev/null; then
-        echo -e "    • dnstt.service: ${C_GREEN}active${C_RESET}"
-    else
-        echo -e "    • dnstt.service: ${C_RED}inactive${C_RESET}"
-    fi
-    
-    if systemctl is-active dnstt-5300.service &>/dev/null; then
-        echo -e "    • dnstt-5300.service: ${C_GREEN}active${C_RESET}"
-    else
-        echo -e "    • dnstt-5300.service: ${C_RED}inactive${C_RESET}"
     fi
     
     safe_read "" dummy
@@ -1092,10 +1044,12 @@ install_dns2tcp() {
         return
     fi
     
+    # Install dependencies
     echo -e "\n${C_BLUE}[1/6] Installing dependencies...${C_RESET}"
     $PKG_UPDATE
     $PKG_INSTALL dns2tcp screen lsof
     
+    # Configure systemd-resolved
     echo -e "${C_BLUE}[2/6] Configuring systemd-resolved...${C_RESET}"
     cp /etc/systemd/resolved.conf /etc/systemd/resolved.conf.backup 2>/dev/null
     cat > /etc/systemd/resolved.conf <<EOF
@@ -1105,17 +1059,21 @@ DNSStubListener=no
 EOF
     systemctl restart systemd-resolved
     
+    # Create directories
     echo -e "${C_BLUE}[3/6] Creating directories...${C_RESET}"
     mkdir -p /root/dns2tcp
     mkdir -p /var/empty/dns2tcp
     
+    # Create user
     if ! id "ashtunnel" &>/dev/null; then
         useradd -r -s /bin/false -d /var/empty/dns2tcp ashtunnel
     fi
     
+    # Get MTU
     echo -e "${C_BLUE}[4/6] Selecting MTU...${C_RESET}"
     mtu_selection_during_install
     
+    # DNS Configuration
     echo -e "\n${C_BLUE}[5/6] DNS Configuration:${C_RESET}"
     echo "1) Auto-generate with Cloudflare"
     echo "2) Manual"
@@ -1178,6 +1136,7 @@ key = $key
 resources = ssh:127.0.0.1:$target_port
 EOF
 
+    # Create services
     echo -e "${C_BLUE}[6/6] Creating services...${C_RESET}"
     
     cat > "$DNS2TCP53_SERVICE" <<EOF
@@ -1236,11 +1195,6 @@ EOF
     echo -e "  ${C_CYAN}Key:${C_RESET}           ${C_YELLOW}$key${C_RESET}"
     echo -e "  ${C_CYAN}Target Port:${C_RESET}   ${C_YELLOW}$target_port${C_RESET}"
     echo -e "  ${C_CYAN}MTU:${C_RESET}           ${C_YELLOW}$MTU${C_RESET}"
-    if [ $MTU -eq 1800 ]; then
-        echo -e "  ${C_CYAN}Status:${C_RESET}        ${C_GREEN}SPECIAL MODE - ISP sees 512!${C_RESET}"
-    fi
-    echo -e "${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "${C_YELLOW}⚠️ SAVE THIS KEY! You'll need it for clients.${C_RESET}"
     safe_read "" dummy
 }
 
@@ -1293,13 +1247,6 @@ show_dns2tcp_details() {
     echo -e "  Key:           ${C_YELLOW}$KEY${C_RESET}"
     echo -e "  Target Port:   ${C_YELLOW}$TARGET_PORT${C_RESET}"
     echo -e "  MTU:           ${C_YELLOW}$MTU${C_RESET}"
-    if [ $MTU -eq 1800 ]; then
-        echo -e "  Note:          ${C_GREEN}SPECIAL MODE - ISP sees 512!${C_RESET}"
-    fi
-    
-    echo -e "\n  Services:"
-    systemctl is-active dns2tcp-53.service &>/dev/null && echo -e "    • dns2tcp-53.service: ${C_GREEN}active${C_RESET}" || echo -e "    • dns2tcp-53.service: ${C_RED}inactive${C_RESET}"
-    systemctl is-active dns2tcp-5300.service &>/dev/null && echo -e "    • dns2tcp-5300.service: ${C_GREEN}active${C_RESET}" || echo -e "    • dns2tcp-5300.service: ${C_RED}inactive${C_RESET}"
     
     safe_read "" dummy
 }
@@ -1351,6 +1298,7 @@ generate_v2ray_json() {
     esac
 }
 
+# ========== FIXED: V2RAY over DNSTT - Public Key Generator ya Falcon ==========
 install_v2ray_dnstt() {
     clear
     show_banner
@@ -1364,21 +1312,73 @@ install_v2ray_dnstt() {
         return
     fi
     
-    if [ ! -f "$DNSTT_SERVICE" ]; then
-        echo -e "\n${C_YELLOW}⚠️ DNSTT not found. Installing DNSTT first...${C_RESET}"
-        install_dnstt
+    # ========== FALCON PUBLIC KEY GENERATOR (kwa DNSTT tunnel) ==========
+    echo -e "\n${C_BLUE}[1/6] Generating DNSTT tunnel keys (Falcon method)...${C_RESET}"
+    mkdir -p "$DNSTT_KEYS_DIR"
+    
+    if "$DNSTT_BIN" -gen-key -privkey-file "$DNSTT_KEYS_DIR/server.key" -pubkey-file "$DNSTT_KEYS_DIR/server.pub" 2>/dev/null; then
+        if [ -f "$DNSTT_KEYS_DIR/server.pub" ]; then
+            DNSTT_PUBLIC_KEY=$(cat "$DNSTT_KEYS_DIR/server.pub" | tr -d '\n' | tr -d ' ')
+            echo -e "${C_GREEN}✅ DNSTT tunnel keys generated successfully!${C_RESET}"
+            echo -e "${C_YELLOW}DNSTT Public Key: ${DNSTT_PUBLIC_KEY}${C_RESET}"
+        else
+            echo -e "${C_RED}❌ DNSTT key file not found after generation${C_RESET}"
+            safe_read "" dummy
+            return
+        fi
+    else
+        echo -e "${C_RED}❌ Failed to generate DNSTT tunnel keys${C_RESET}"
+        safe_read "" dummy
+        return
     fi
     
-    echo -e "\n${C_BLUE}[1/4] Installing Xray...${C_RESET}"
-    bash -c 'curl -sL https://raw.githubusercontent.com/XTLS/Xray-install/main/install-release.sh | bash -s -- install'
-    
-    echo -e "${C_BLUE}[2/4] Creating directories...${C_RESET}"
-    mkdir -p "$V2RAY_DIR"/{v2ray,users}
-    
-    echo -e "${C_BLUE}[3/4] Selecting MTU...${C_RESET}"
+    # Get MTU
+    echo -e "\n${C_BLUE}[2/6] Selecting MTU for V2RAY tunnel...${C_RESET}"
     mtu_selection_during_install
     
-    echo -e "${C_BLUE}[4/4] Creating V2Ray configuration...${C_RESET}"
+    # DNS Configuration for V2RAY domain
+    echo -e "\n${C_BLUE}[3/6] DNS Configuration for V2RAY domain:${C_RESET}"
+    echo "1) Auto-generate with Cloudflare"
+    echo "2) Manual"
+    read -p "Choice [1]: " dns_choice
+    dns_choice=${dns_choice:-1}
+    
+    local domain=""
+    local ns_record_id=""
+    local tunnel_record_id=""
+    
+    if [ "$dns_choice" == "1" ]; then
+        local rand=$(head /dev/urandom | tr -dc a-z0-9 | head -c 8)
+        local ns="v2ns-$rand"
+        local tun="v2tun-$rand"
+        
+        echo -e "${C_BLUE}Creating Cloudflare records for V2RAY...${C_RESET}"
+        local ip=$(curl -s ifconfig.me)
+        ns_record_id=$(create_cloudflare_record "A" "$ns" "$ip")
+        
+        if [ -n "$ns_record_id" ]; then
+            tunnel_record_id=$(create_cloudflare_record "NS" "$tun" "$ns.$DOMAIN")
+            domain="$tun.$DOMAIN"
+            echo -e "${C_GREEN}✅ V2RAY domain created: $domain${C_RESET}"
+        else
+            echo -e "${C_YELLOW}⚠️ Cloudflare failed. Using manual mode.${C_RESET}"
+            dns_choice="2"
+        fi
+    fi
+    
+    if [ "$dns_choice" == "2" ] || [ -z "$domain" ]; then
+        read -p "Enter V2RAY tunnel domain: " domain
+    fi
+    
+    # Install Xray
+    echo -e "\n${C_BLUE}[4/6] Installing Xray (V2RAY core)...${C_RESET}"
+    bash -c 'curl -sL https://raw.githubusercontent.com/XTLS/Xray-install/main/install-release.sh | bash -s -- install'
+    
+    # Create V2Ray directories
+    mkdir -p "$V2RAY_DIR"/{v2ray,users}
+    
+    # Create V2Ray config
+    echo -e "${C_BLUE}[5/6] Creating V2Ray configuration...${C_RESET}"
     cat > "$V2RAY_CONFIG" <<EOF
 {
     "log": {"loglevel": "warning"},
@@ -1406,11 +1406,12 @@ install_v2ray_dnstt() {
 }
 EOF
 
+    # Create V2Ray service
+    echo -e "${C_BLUE}[6/6] Creating V2Ray service...${C_RESET}"
     cat > "$V2RAY_SERVICE" <<EOF
 [Unit]
 Description=V2RAY over DNSTT
-After=network.target dnstt.service
-Wants=dnstt.service
+After=network.target
 
 [Service]
 Type=simple
@@ -1422,29 +1423,34 @@ RestartSec=3
 WantedBy=multi-user.target
 EOF
 
+    # Start V2Ray service
     systemctl daemon-reload
     systemctl enable v2ray-dnstt.service
     systemctl start v2ray-dnstt.service
     
+    # Save V2RAY info
     cat > "$V2RAY_INFO_FILE" <<EOF
+TUNNEL_DOMAIN="$domain"
+DNSTT_PUBLIC_KEY="$DNSTT_PUBLIC_KEY"
 VMESS_PORT="$V2RAY_PORT"
 VLESS_PORT="$((V2RAY_PORT+1))"
 TROJAN_PORT="$((V2RAY_PORT+2))"
 MTU="$MTU"
+NS_RECORD_ID="$ns_record_id"
+TUNNEL_RECORD_ID="$tunnel_record_id"
 EOF
 
     echo -e "\n${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
     echo -e "${C_GREEN}           ✅ V2RAY over DNSTT INSTALLED SUCCESSFULLY!${C_RESET}"
     echo -e "${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "  ${C_CYAN}VMess Port:${C_RESET}   ${C_YELLOW}$V2RAY_PORT${C_RESET}"
-    echo -e "  ${C_CYAN}VLESS Port:${C_RESET}   ${C_YELLOW}$((V2RAY_PORT+1))${C_RESET}"
-    echo -e "  ${C_CYAN}Trojan Port:${C_RESET}  ${C_YELLOW}$((V2RAY_PORT+2))${C_RESET}"
-    echo -e "  ${C_CYAN}MTU:${C_RESET}          ${C_YELLOW}$MTU${C_RESET}"
-    if [ $MTU -eq 1800 ]; then
-        echo -e "  ${C_CYAN}Status:${C_RESET}       ${C_GREEN}SPECIAL MODE - ISP sees 512!${C_RESET}"
-    fi
+    echo -e "  ${C_CYAN}V2RAY Tunnel Domain:${C_RESET} ${C_YELLOW}$domain${C_RESET}"
+    echo -e "  ${C_CYAN}DNSTT Public Key:${C_RESET}    ${C_YELLOW}$DNSTT_PUBLIC_KEY${C_RESET}"
+    echo -e "  ${C_CYAN}VMess Port:${C_RESET}          ${C_YELLOW}$V2RAY_PORT${C_RESET}"
+    echo -e "  ${C_CYAN}VLESS Port:${C_RESET}          ${C_YELLOW}$((V2RAY_PORT+1))${C_RESET}"
+    echo -e "  ${C_CYAN}Trojan Port:${C_RESET}         ${C_YELLOW}$((V2RAY_PORT+2))${C_RESET}"
+    echo -e "  ${C_CYAN}MTU:${C_RESET}                 ${C_YELLOW}$MTU${C_RESET}"
     echo -e "${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "${C_YELLOW}Use V2Ray User Management to add users${C_RESET}"
+    echo -e "${C_YELLOW}⚠️ SAVE THIS DNSTT PUBLIC KEY! You'll need it for clients.${C_RESET}"
     safe_read "" dummy
 }
 
@@ -1483,13 +1489,12 @@ show_v2ray_details() {
     fi
     
     echo -e "  Status:        $status"
+    echo -e "  Tunnel Domain: ${C_YELLOW}$TUNNEL_DOMAIN${C_RESET}"
+    echo -e "  DNSTT Public Key: ${C_YELLOW}$DNSTT_PUBLIC_KEY${C_RESET}"
     echo -e "  VMess Port:    ${C_YELLOW}$VMESS_PORT${C_RESET}"
     echo -e "  VLESS Port:    ${C_YELLOW}$VLESS_PORT${C_RESET}"
     echo -e "  Trojan Port:   ${C_YELLOW}$TROJAN_PORT${C_RESET}"
     echo -e "  MTU:           ${C_YELLOW}$MTU${C_RESET}"
-    if [ $MTU -eq 1800 ]; then
-        echo -e "  Note:          ${C_GREEN}SPECIAL MODE - ISP sees 512!${C_RESET}"
-    fi
     
     local user_count=$(wc -l < "$V2RAY_USERS_DB" 2>/dev/null || echo 0)
     echo -e "  Total Users:   ${C_YELLOW}$user_count${C_RESET}"
@@ -2431,12 +2436,10 @@ uninstall_script() {
         return
     fi
     
-    # Set silent mode for uninstall
     export UNINSTALL_MODE="silent"
     
     echo -e "\n${C_BLUE}--- 💥 Starting Uninstallation 💥 ---${C_RESET}"
     
-    # ========== Uninstall all protocols ==========
     echo -e "\n${C_BLUE}🗑️ Uninstalling DNSTT...${C_RESET}"
     uninstall_dnstt 2>/dev/null
     
@@ -2470,34 +2473,28 @@ uninstall_script() {
     echo -e "\n${C_BLUE}🗑️ Uninstalling DT Proxy...${C_RESET}"
     uninstall_dt_proxy 2>/dev/null
     
-    # ========== Stop monitoring services ==========
     echo -e "\n${C_BLUE}🛑 Stopping monitoring services...${C_RESET}"
     systemctl stop voltron-traffic.service voltron-limiter.service 2>/dev/null
     systemctl disable voltron-traffic.service voltron-limiter.service 2>/dev/null
     rm -f "$TRAFFIC_SERVICE" "$LIMITER_SERVICE"
     rm -f "$TRAFFIC_SCRIPT" "$LIMITER_SCRIPT"
     
-    # ========== Restore resolv.conf ==========
     echo -e "\n${C_BLUE}🌐 Restoring DNS resolver...${C_RESET}"
     chattr -i /etc/resolv.conf 2>/dev/null
     rm -f /etc/resolv.conf
     echo "nameserver 8.8.8.8" > /etc/resolv.conf
     echo "nameserver 1.1.1.1" >> /etc/resolv.conf
     
-    # ========== Remove data directory ==========
     echo -e "\n${C_BLUE}🗑️ Removing configuration and user data...${C_RESET}"
     rm -rf "$DB_DIR"
     
-    # ========== Remove script ==========
     echo -e "\n${C_BLUE}🗑️ Removing script...${C_RESET}"
     rm -f /usr/local/bin/menu
-    rm -f "$0"  # Remove current script
+    rm -f "$0"
     
-    # ========== Reload systemd ==========
     echo -e "\n${C_BLUE}🔄 Reloading systemd...${C_RESET}"
     systemctl daemon-reload
     
-    # ========== Clear cache ==========
     echo -e "\n${C_BLUE}🧹 Clearing memory cache...${C_RESET}"
     sync && echo 3 > /proc/sys/vm/drop_caches 2>/dev/null
     
@@ -2505,7 +2502,6 @@ uninstall_script() {
     echo -e "${C_GREEN}      ✅ SCRIPT UNINSTALLED SUCCESSFULLY!${C_RESET}"
     echo -e "${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
     echo -e "\nAll associated files and services have been removed."
-    echo -e "The 'menu' command will no longer work."
     echo -e "\nPress any key to exit..."
     read -n 1
     exit 0
@@ -2605,7 +2601,6 @@ if [[ $EUID -ne 0 ]]; then
     exit 1
 fi
 
-# Check for --install-setup flag
 if [[ "$1" == "--install-setup" ]]; then
     initial_setup
     exit 0
