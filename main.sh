@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ========== VOLTRON TECH ULTIMATE SCRIPT ==========
-# Version: 3.1 (FIXED: Public Key Generator from Falcon)
+# Version: 3.1 (FIXED: Falcon Public Key Generator)
 # Description: SSH • DNSTT • DNS2TCP • V2RAY over DNSTT • MTU 1800 ULTIMATE
 # Author: Voltron Tech
 
@@ -787,6 +787,9 @@ download_dnstt_binary() {
     
     echo -e "${C_BLUE}📥 Downloading DNSTT binary for $arch...${C_RESET}"
     
+    echo "nameserver 8.8.8.8" > /etc/resolv.conf
+    echo "nameserver 1.1.1.1" >> /etc/resolv.conf
+    
     if [[ "$arch" == "x86_64" ]]; then
         curl -L -o /tmp/dnstt.tar.gz "https://github.com/xtaci/kcptun/releases/download/v20240101/kcptun-linux-amd64-20240101.tar.gz" || \
         wget -O /tmp/dnstt.tar.gz "https://github.com/xtaci/kcptun/releases/download/v20240101/kcptun-linux-amd64-20240101.tar.gz"
@@ -819,13 +822,15 @@ download_dnstt_binary() {
     
     if [ $success -eq 0 ]; then
         echo -e "${C_RED}❌ Failed to download DNSTT binary${C_RESET}"
+        echo -e "${C_YELLOW}⚠️ Please check your internet connection or download manually${C_RESET}"
+        return 1
     fi
     
     chmod +x "$DNSTT_BIN" 2>/dev/null
-    return $success
+    return 0
 }
 
-# ========== PUBLIC KEY GENERATOR (DNSTT SSH) ==========
+# ========== FALCON PUBLIC KEY GENERATOR (DNSTT SSH) ==========
 install_dnstt() {
     clear
     show_banner
@@ -845,25 +850,25 @@ install_dnstt() {
     
     echo -e "${C_BLUE}[2/6] Downloading DNSTT binary...${C_RESET}"
     if ! download_dnstt_binary; then
-        echo -e "\n${C_RED}❌ Failed to download DNSTT binary${C_RESET}"
+        echo -e "\n${C_RED}❌ Cannot proceed without DNSTT binary${C_RESET}"
         safe_read "" dummy
         return
     fi
     
-    # ========== PUBLIC KEY GENERATOR (KUTOKA FALCON) ==========
-    echo -e "${C_BLUE}[3/6] 🔐 Generating cryptographic keys for DNSTT SSH...${C_RESET}"
+    # ========== FALCON PUBLIC KEY GENERATOR ==========
+    echo -e "${C_BLUE}[3/6] 🔐 Generating cryptographic keys...${C_RESET}"
     mkdir -p "$DNSTT_KEYS_DIR"
     "$DNSTT_BIN" -gen-key -privkey-file "$DNSTT_KEYS_DIR/server.key" -pubkey-file "$DNSTT_KEYS_DIR/server.pub"
     
     if [[ ! -f "$DNSTT_KEYS_DIR/server.key" ]]; then 
-        echo -e "${C_RED}❌ Failed to generate DNSTT SSH keys.${C_RESET}"
+        echo -e "${C_RED}❌ Failed to generate keys.${C_RESET}"
         safe_read "" dummy
         return
     fi
     
-    SSH_PUBLIC_KEY=$(cat "$DNSTT_KEYS_DIR/server.pub")
-    echo -e "${C_GREEN}✅ DNSTT SSH keys generated successfully!${C_RESET}"
-    echo -e "${C_YELLOW}SSH Public Key: ${SSH_PUBLIC_KEY}${C_RESET}"
+    PUBLIC_KEY=$(cat "$DNSTT_KEYS_DIR/server.pub")
+    echo -e "${C_GREEN}✅ Keys generated successfully!${C_RESET}"
+    echo -e "${C_YELLOW}Public Key: ${PUBLIC_KEY}${C_RESET}"
     
     echo -e "${C_BLUE}[4/6] Selecting MTU...${C_RESET}"
     mtu_selection_during_install
@@ -939,7 +944,7 @@ EOF
     
     cat > "$DNSTT_INFO_FILE" <<EOF
 TUNNEL_DOMAIN="$domain"
-SSH_PUBLIC_KEY="$SSH_PUBLIC_KEY"
+PUBLIC_KEY="$PUBLIC_KEY"
 MTU="$MTU"
 NS_RECORD_ID="$ns_record_id"
 TUNNEL_RECORD_ID="$tunnel_record_id"
@@ -949,7 +954,7 @@ EOF
     echo -e "${C_GREEN}           ✅ DNSTT (SSH) INSTALLED SUCCESSFULLY!${C_RESET}"
     echo -e "${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
     echo -e "  ${C_CYAN}Tunnel Domain:${C_RESET} ${C_YELLOW}$domain${C_RESET}"
-    echo -e "  ${C_CYAN}SSH Public Key:${C_RESET} ${C_YELLOW}$SSH_PUBLIC_KEY${C_RESET}"
+    echo -e "  ${C_CYAN}Public Key:${C_RESET}    ${C_YELLOW}$PUBLIC_KEY${C_RESET}"
     echo -e "  ${C_CYAN}MTU:${C_RESET}           ${C_YELLOW}$MTU${C_RESET}"
     safe_read "" dummy
 }
@@ -997,7 +1002,7 @@ show_dnstt_details() {
     
     echo -e "  Status:        $status"
     echo -e "  Tunnel Domain: ${C_YELLOW}$TUNNEL_DOMAIN${C_RESET}"
-    echo -e "  SSH Public Key: ${C_YELLOW}$SSH_PUBLIC_KEY${C_RESET}"
+    echo -e "  Public Key:    ${C_YELLOW}$PUBLIC_KEY${C_RESET}"
     echo -e "  MTU:           ${C_YELLOW}$MTU${C_RESET}"
     
     safe_read "" dummy
@@ -1264,7 +1269,7 @@ generate_v2ray_json() {
     esac
 }
 
-# ========== PUBLIC KEY GENERATOR (V2RAY over DNSTT) ==========
+# ========== FALCON PUBLIC KEY GENERATOR (V2RAY over DNSTT) ==========
 install_v2ray_dnstt() {
     clear
     show_banner
@@ -1284,19 +1289,19 @@ install_v2ray_dnstt() {
         return
     fi
     
-    # ========== PUBLIC KEY GENERATOR (V2RAY DNSTT) ==========
-    echo -e "\n${C_BLUE}[1/6] 🔐 Generating cryptographic keys for V2RAY tunnel...${C_RESET}"
+    # ========== FALCON PUBLIC KEY GENERATOR ==========
+    echo -e "\n${C_BLUE}[1/6] 🔐 Generating cryptographic keys...${C_RESET}"
     mkdir -p "$V2RAY_KEYS_DIR"
     "$DNSTT_BIN" -gen-key -privkey-file "$V2RAY_KEYS_DIR/server.key" -pubkey-file "$V2RAY_KEYS_DIR/server.pub"
     
     if [[ ! -f "$V2RAY_KEYS_DIR/server.key" ]]; then 
-        echo -e "${C_RED}❌ Failed to generate V2RAY tunnel keys.${C_RESET}"
+        echo -e "${C_RED}❌ Failed to generate keys.${C_RESET}"
         safe_read "" dummy
         return
     fi
     
     V2RAY_PUBLIC_KEY=$(cat "$V2RAY_KEYS_DIR/server.pub")
-    echo -e "${C_GREEN}✅ V2RAY tunnel keys generated successfully!${C_RESET}"
+    echo -e "${C_GREEN}✅ Keys generated successfully!${C_RESET}"
     echo -e "${C_YELLOW}V2RAY Public Key: ${V2RAY_PUBLIC_KEY}${C_RESET}"
     
     echo -e "\n${C_BLUE}[2/6] DNS Configuration for V2RAY domain:${C_RESET}"
