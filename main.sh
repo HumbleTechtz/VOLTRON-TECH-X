@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ========== VOLTRON TECH ULTIMATE SCRIPT ==========
-# Version: 3.1 (FALCON BINARY + PUBLIC KEY GENERATOR)
+# Version: 3.1 (FULLY FIXED: All menus + DNS2TCP + V2RAY Localhost)
 # Description: SSH • DNSTT • DNS2TCP • V2RAY over DNSTT • MTU 1800 ULTIMATE
 # Author: Voltron Tech
 
@@ -39,6 +39,7 @@ DB_FILE="$DB_DIR/users.db"
 INSTALL_FLAG_FILE="$DB_DIR/.install"
 SSL_CERT_DIR="$DB_DIR/ssl"
 SSL_CERT_FILE="$SSL_CERT_DIR/voltrontech.pem"
+SSH_BANNER_FILE="/etc/voltrontech/banner"
 
 # DNS Protocols Directories
 DNSTT_KEYS_DIR="$DB_DIR/dnstt"
@@ -107,6 +108,7 @@ create_directories() {
     mkdir -p $DB_DIR $DNSTT_KEYS_DIR $V2RAY_KEYS_DIR $DNS2TCP_KEYS_DIR $V2RAY_DIR $BACKUP_DIR $LOGS_DIR $CONFIG_DIR $SSL_CERT_DIR
     mkdir -p $V2RAY_DIR/dnstt $V2RAY_DIR/v2ray $V2RAY_DIR/users
     mkdir -p $UDP_CUSTOM_DIR $ZIVPN_DIR
+    mkdir -p $(dirname "$SSH_BANNER_FILE")
     touch $DB_FILE
     touch $V2RAY_USERS_DB
     echo "{}" > $DB_DIR/cloudflare_records.json 2>/dev/null
@@ -591,47 +593,54 @@ EOF
     echo -e "${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
 }
 
-# ========== SSH USER MANAGEMENT ==========
-create_user() {
+# ========== SSH USER MANAGEMENT (FALCON STYLE) ==========
+
+_create_user() {
     clear
     show_banner
     echo -e "${C_BOLD}${C_PURPLE}--- ✨ Create New SSH User ---${C_RESET}"
     
     local username
-    safe_read "👉 Enter username: " username
+    read -p "👉 Enter username (or '0' to cancel): " username
+    if [[ "$username" == "0" ]]; then
+        echo -e "\n${C_YELLOW}❌ User creation cancelled.${C_RESET}"
+        return
+    fi
+    
     if [[ -z "$username" ]]; then
-        echo -e "\n${C_RED}❌ Username cannot be empty.${C_RESET}"
-        safe_read "" dummy
+        echo -e "\n${C_RED}❌ Error: Username cannot be empty.${C_RESET}"
         return
     fi
     
     if id "$username" &>/dev/null || grep -q "^$username:" "$DB_FILE"; then
-        echo -e "\n${C_RED}❌ User already exists.${C_RESET}"
-        safe_read "" dummy
+        echo -e "\n${C_RED}❌ Error: User '$username' already exists.${C_RESET}"
         return
     fi
     
-    local password
-    safe_read "🔑 Enter password: " password
+    local password=""
+    while true; do
+        read -p "🔑 Enter new password: " password
+        if [[ -z "$password" ]]; then
+            echo -e "${C_RED}❌ Password cannot be empty. Please try again.${C_RESET}"
+        else
+            break
+        fi
+    done
     
-    local days
-    safe_read "🗓️ Expiry (days): " days
+    read -p "🗓️ Enter account duration (in days): " days
     if ! [[ "$days" =~ ^[0-9]+$ ]]; then
         echo -e "\n${C_RED}❌ Invalid number.${C_RESET}"
-        safe_read "" dummy
         return
     fi
     
-    local limit
-    safe_read "📶 Connection limit: " limit
+    read -p "📶 Enter simultaneous connection limit: " limit
     if ! [[ "$limit" =~ ^[0-9]+$ ]]; then
         echo -e "\n${C_RED}❌ Invalid number.${C_RESET}"
-        safe_read "" dummy
         return
     fi
     
-    local traffic_limit
-    safe_read "📊 Traffic limit (GB) [0=unlimited]: " traffic_limit
+    # ========== TRAFFIC LIMIT ==========
+    read -p "📊 Traffic limit (GB) [0=unlimited]: " traffic_limit
     traffic_limit=${traffic_limit:-0}
     
     local expire_date=$(date -d "+$days days" +%Y-%m-%d)
@@ -641,20 +650,24 @@ create_user() {
     chage -E "$expire_date" "$username"
     echo "$username:$password:$expire_date:$limit:$traffic_limit:0" >> "$DB_FILE"
     
-    echo -e "\n${C_GREEN}✅ User '$username' created successfully!${C_RESET}"
-    echo -e "  Expires: $expire_date"
-    echo -e "  Limit: $limit connections"
-    echo -e "  Traffic: $traffic_limit GB"
+    clear
+    show_banner
+    echo -e "${C_GREEN}✅ User '$username' created successfully!${C_RESET}\n"
+    echo -e "  - 👤 Username:          ${C_YELLOW}$username${C_RESET}"
+    echo -e "  - 🔑 Password:          ${C_YELLOW}$password${C_RESET}"
+    echo -e "  - 🗓️ Expires on:        ${C_YELLOW}$expire_date${C_RESET}"
+    echo -e "  - 📶 Connection Limit:  ${C_YELLOW}$limit${C_RESET}"
+    echo -e "  - 📊 Traffic Limit:     ${C_YELLOW}$traffic_limit GB${C_RESET}"
     safe_read "" dummy
 }
 
-delete_user() {
+_delete_user() {
     clear
     show_banner
     echo -e "${C_BOLD}${C_PURPLE}--- 🗑️ Delete User ---${C_RESET}"
     
     local username
-    safe_read "👉 Username: " username
+    read -p "👉 Username: " username
     
     if ! id "$username" &>/dev/null; then
         echo -e "\n${C_RED}❌ User not found.${C_RESET}"
@@ -663,7 +676,7 @@ delete_user() {
     fi
     
     local confirm
-    safe_read "Confirm delete? (y/n): " confirm
+    read -p "Confirm delete? (y/n): " confirm
     [[ "$confirm" != "y" ]] && return
     
     killall -u "$username" 2>/dev/null
@@ -674,7 +687,150 @@ delete_user() {
     safe_read "" dummy
 }
 
-list_users() {
+_edit_user() {
+    clear
+    show_banner
+    echo -e "${C_BOLD}${C_PURPLE}--- ✏️ Edit User ---${C_RESET}"
+    
+    local username
+    read -p "👉 Username: " username
+    
+    if ! id "$username" &>/dev/null; then
+        echo -e "\n${C_RED}❌ User not found.${C_RESET}"
+        safe_read "" dummy
+        return
+    fi
+    
+    local line=$(grep "^$username:" "$DB_FILE")
+    if [ -z "$line" ]; then
+        echo -e "\n${C_RED}❌ User not in database.${C_RESET}"
+        safe_read "" dummy
+        return
+    fi
+    
+    local current_pass=$(echo "$line" | cut -d: -f2)
+    local current_expiry=$(echo "$line" | cut -d: -f3)
+    local current_limit=$(echo "$line" | cut -d: -f4)
+    local current_traffic_limit=$(echo "$line" | cut -d: -f5)
+    local current_traffic_used=$(echo "$line" | cut -d: -f6)
+    
+    while true; do
+        clear
+        show_banner
+        echo -e "${C_BOLD}${C_PURPLE}--- Editing User: ${C_YELLOW}$username${C_PURPLE} ---${C_RESET}"
+        echo -e "\nCurrent Details:"
+        echo -e "  Expiry:        $current_expiry"
+        echo -e "  Connection:    $current_limit"
+        echo -e "  Traffic Limit: $current_traffic_limit GB"
+        echo -e "  Traffic Used:  $current_traffic_used GB"
+        echo -e "\nSelect a detail to edit:\n"
+        echo -e "  ${C_GREEN}1)${C_RESET} 🔑 Change Password"
+        echo -e "  ${C_GREEN}2)${C_RESET} 🗓️ Change Expiration"
+        echo -e "  ${C_GREEN}3)${C_RESET} 📶 Change Connection Limit"
+        echo -e "  ${C_GREEN}4)${C_RESET} 📊 Change Traffic Limit"
+        echo -e "\n  ${C_RED}0)${C_RESET} ✅ Finish Editing"
+        echo
+        read -p "👉 Enter your choice: " edit_choice
+        
+        case $edit_choice in
+            1)
+                local new_pass=""
+                while true; do
+                    read -p "Enter new password: " new_pass
+                    if [[ -z "$new_pass" ]]; then
+                        echo -e "${C_RED}❌ Password cannot be empty.${C_RESET}"
+                    else
+                        break
+                    fi
+                done
+                echo "$username:$new_pass" | chpasswd
+                sed -i "s/^$username:.*/$username:$new_pass:$current_expiry:$current_limit:$current_traffic_limit:$current_traffic_used/" "$DB_FILE"
+                echo -e "\n${C_GREEN}✅ Password changed.${C_RESET}"
+                ;;
+            2)
+                read -p "Enter new duration (days from today): " days
+                if [[ "$days" =~ ^[0-9]+$ ]]; then
+                    local new_expiry=$(date -d "+$days days" +%Y-%m-%d)
+                    chage -E "$new_expiry" "$username"
+                    sed -i "s/^$username:.*/$username:$current_pass:$new_expiry:$current_limit:$current_traffic_limit:$current_traffic_used/" "$DB_FILE"
+                    current_expiry="$new_expiry"
+                    echo -e "\n${C_GREEN}✅ Expiration updated to $new_expiry${C_RESET}"
+                else
+                    echo -e "\n${C_RED}❌ Invalid number.${C_RESET}"
+                fi
+                ;;
+            3)
+                read -p "Enter new connection limit: " new_limit
+                if [[ "$new_limit" =~ ^[0-9]+$ ]]; then
+                    sed -i "s/^$username:.*/$username:$current_pass:$current_expiry:$new_limit:$current_traffic_limit:$current_traffic_used/" "$DB_FILE"
+                    current_limit="$new_limit"
+                    echo -e "\n${C_GREEN}✅ Connection limit updated to $new_limit${C_RESET}"
+                else
+                    echo -e "\n${C_RED}❌ Invalid number.${C_RESET}"
+                fi
+                ;;
+            4)
+                read -p "Enter new traffic limit (GB) [0=unlimited]: " new_traffic
+                if [[ "$new_traffic" =~ ^[0-9]+$ ]]; then
+                    sed -i "s/^$username:.*/$username:$current_pass:$current_expiry:$current_limit:$new_traffic:$current_traffic_used/" "$DB_FILE"
+                    current_traffic_limit="$new_traffic"
+                    echo -e "\n${C_GREEN}✅ Traffic limit updated to $new_traffic GB${C_RESET}"
+                else
+                    echo -e "\n${C_RED}❌ Invalid number.${C_RESET}"
+                fi
+                ;;
+            0)
+                return
+                ;;
+            *)
+                echo -e "\n${C_RED}❌ Invalid option.${C_RESET}"
+                ;;
+        esac
+        echo -e "\nPress ${C_YELLOW}[Enter]${C_RESET} to continue..."
+        read -r
+    done
+}
+
+_lock_user() {
+    clear
+    show_banner
+    echo -e "${C_BOLD}${C_PURPLE}--- 🔒 Lock User ---${C_RESET}"
+    
+    local username
+    read -p "👉 Username: " username
+    
+    if ! id "$username" &>/dev/null; then
+        echo -e "\n${C_RED}❌ User not found.${C_RESET}"
+        safe_read "" dummy
+        return
+    fi
+    
+    usermod -L "$username"
+    killall -u "$username" -9 &>/dev/null
+    echo -e "\n${C_GREEN}✅ User locked.${C_RESET}"
+    safe_read "" dummy
+}
+
+_unlock_user() {
+    clear
+    show_banner
+    echo -e "${C_BOLD}${C_PURPLE}--- 🔓 Unlock User ---${C_RESET}"
+    
+    local username
+    read -p "👉 Username: " username
+    
+    if ! id "$username" &>/dev/null; then
+        echo -e "\n${C_RED}❌ User not found.${C_RESET}"
+        safe_read "" dummy
+        return
+    fi
+    
+    usermod -U "$username"
+    echo -e "\n${C_GREEN}✅ User unlocked.${C_RESET}"
+    safe_read "" dummy
+}
+
+_list_users() {
     clear
     show_banner
     echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
@@ -687,80 +843,109 @@ list_users() {
         return
     fi
     
-    printf "${C_BOLD}%-15s | %-12s | %-8s | %-20s | %-10s${C_RESET}\n" "USERNAME" "EXPIRY" "LIMIT" "TRAFFIC" "STATUS"
-    echo -e "${C_CYAN}─────────────────────────────────────────────────────────────────${C_RESET}"
+    printf "${C_BOLD}%-15s | %-12s | %-8s | %-25s | %-10s${C_RESET}\n" "USERNAME" "EXPIRY" "LIMIT" "TRAFFIC" "STATUS"
+    echo -e "${C_CYAN}──────────────────────────────────────────────────────────────────────────${C_RESET}"
     
     while IFS=: read -r user pass expiry limit traffic_limit traffic_used; do
         [[ -z "$user" ]] && continue
         
-        online=$(pgrep -u "$user" sshd 2>/dev/null | wc -l)
-        
-        if [[ -z "$traffic_limit" ]] || [[ "$traffic_limit" == "0" ]]; then
-            traffic_disp="${traffic_used}GB/∞"
-        else
-            percent=$(echo "scale=1; $traffic_used * 100 / $traffic_limit" | bc 2>/dev/null || echo "0")
-            traffic_disp="${traffic_used}/$traffic_limit GB ($percent%)"
+        local online=0
+        if id "$user" &>/dev/null; then
+            online=$(pgrep -u "$user" sshd 2>/dev/null | wc -l)
         fi
+        
+        local traffic_limit_num=${traffic_limit:-0}
+        local traffic_used_num=${traffic_used:-0}
+        
+        local traffic_disp=""
+        if [[ "$traffic_limit_num" == "0" ]]; then
+            traffic_disp="${traffic_used_num} GB / ∞"
+        else
+            if command -v bc &>/dev/null; then
+                local percent=$(echo "scale=1; $traffic_used_num * 100 / $traffic_limit_num" | bc 2>/dev/null || echo "0")
+                traffic_disp="${traffic_used_num} / ${traffic_limit_num} GB (${percent}%)"
+            else
+                traffic_disp="${traffic_used_num} / ${traffic_limit_num} GB"
+            fi
+        fi
+        
+        local status_text=""
+        local status_color=""
         
         if ! id "$user" &>/dev/null; then
-            status="${C_RED}NO USER${C_RESET}"
+            status_text="NO USER"
+            status_color="${C_RED}"
         elif passwd -S "$user" 2>/dev/null | grep -q " L "; then
-            status="${C_YELLOW}LOCKED${C_RESET}"
-        elif [[ "$(date -d "$expiry" +%s 2>/dev/null)" -lt "$(date +%s)" ]]; then
-            status="${C_RED}EXPIRED${C_RESET}"
-        elif [ "$traffic_limit" != "0" ] && [ $(echo "$traffic_used >= $traffic_limit" | bc 2>/dev/null) -eq 1 ]; then
-            status="${C_RED}LIMIT${C_RESET}"
+            status_text="LOCKED"
+            status_color="${C_YELLOW}"
         else
-            status="${C_GREEN}ACTIVE${C_RESET}"
+            local expiry_ts=$(date -d "$expiry" +%s 2>/dev/null || echo 0)
+            local current_ts=$(date +%s)
+            
+            if [[ $expiry_ts -lt $current_ts && $expiry_ts -ne 0 ]]; then
+                status_text="EXPIRED"
+                status_color="${C_RED}"
+            elif [[ "$traffic_limit_num" -gt 0 ]] && [[ "$traffic_used_num" -ge "$traffic_limit_num" ]]; then
+                status_text="LIMIT"
+                status_color="${C_RED}"
+            else
+                status_text="ACTIVE"
+                status_color="${C_GREEN}"
+            fi
         fi
         
-        printf "%-15s | %-12s | %-8s | %-20s | %s\n" \
-            "$user" "$expiry" "$online/$limit" "$traffic_disp" "$status"
+        printf "%-15s | %-12s | %-8s | %-25s | ${status_color}%-10s${C_RESET}\n" \
+            "$user" "$expiry" "$online/$limit" "$traffic_disp" "$status_text"
+            
     done < "$DB_FILE"
     
+    echo -e "${C_CYAN}──────────────────────────────────────────────────────────────────────────${C_RESET}"
     echo ""
     safe_read "" dummy
 }
 
-lock_user() {
-    local username
-    safe_read "👉 Username: " username
-    usermod -L "$username"
-    echo -e "\n${C_GREEN}✅ User locked${C_RESET}"
-    safe_read "" dummy
-}
-
-unlock_user() {
-    local username
-    safe_read "👉 Username: " username
-    usermod -U "$username"
-    echo -e "\n${C_GREEN}✅ User unlocked${C_RESET}"
-    safe_read "" dummy
-}
-
-renew_user() {
-    local username
-    safe_read "👉 Username: " username
+_renew_user() {
+    clear
+    show_banner
+    echo -e "${C_BOLD}${C_PURPLE}--- 🔄 Renew User ---${C_RESET}"
     
-    local days
-    safe_read "📆 Additional days: " days
+    local username
+    read -p "👉 Username: " username
     
-    local new_expiry=$(date -d "+$days days" +%Y-%m-%d)
-    chage -E "$new_expiry" "$username"
+    if ! id "$username" &>/dev/null; then
+        echo -e "\n${C_RED}❌ User not found.${C_RESET}"
+        safe_read "" dummy
+        return
+    fi
     
     local line=$(grep "^$username:" "$DB_FILE")
+    if [ -z "$line" ]; then
+        echo -e "\n${C_RED}❌ User not in database.${C_RESET}"
+        safe_read "" dummy
+        return
+    fi
+    
+    read -p "📆 Additional days: " days
+    if ! [[ "$days" =~ ^[0-9]+$ ]]; then
+        echo -e "\n${C_RED}❌ Invalid number.${C_RESET}"
+        safe_read "" dummy
+        return
+    fi
+    
     local pass=$(echo "$line" | cut -d: -f2)
     local limit=$(echo "$line" | cut -d: -f4)
     local traffic_limit=$(echo "$line" | cut -d: -f5)
     local traffic_used=$(echo "$line" | cut -d: -f6)
     
+    local new_expiry=$(date -d "+$days days" +%Y-%m-%d)
+    chage -E "$new_expiry" "$username"
     sed -i "s/^$username:.*/$username:$pass:$new_expiry:$limit:$traffic_limit:$traffic_used/" "$DB_FILE"
     
     echo -e "\n${C_GREEN}✅ User renewed until $new_expiry${C_RESET}"
     safe_read "" dummy
 }
 
-cleanup_expired() {
+_cleanup_expired() {
     echo -e "\n${C_BLUE}🧹 Cleaning up expired users...${C_RESET}"
     local current_ts=$(date +%s)
     local count=0
@@ -778,6 +963,121 @@ cleanup_expired() {
     
     echo -e "${C_GREEN}✅ Removed $count expired users${C_RESET}"
     safe_read "" dummy
+}
+
+# ========== SSH BANNER MANAGEMENT ==========
+_set_ssh_banner() {
+    clear
+    show_banner
+    echo -e "${C_BOLD}${C_PURPLE}--- 📋 Set SSH Banner ---${C_RESET}"
+    echo -e "${C_YELLOW}⚠️  Paste your banner below. Press ${C_YELLOW}[Ctrl+D]${C_RESET} when finished"
+    echo -e "${C_CYAN}═══════════════════════════════════════════════════════════════${C_RESET}"
+    
+    local temp_banner="/tmp/ssh_banner_temp.txt"
+    cat > "$temp_banner"
+    
+    if [ ! -s "$temp_banner" ]; then
+        echo -e "\n${C_RED}❌ Banner cannot be empty!${C_RESET}"
+        rm -f "$temp_banner"
+        safe_read "" dummy
+        return
+    fi
+    
+    cp "$temp_banner" "$SSH_BANNER_FILE"
+    chmod 644 "$SSH_BANNER_FILE"
+    rm -f "$temp_banner"
+    
+    echo -e "\n${C_GREEN}✅ Banner saved successfully!${C_RESET}"
+    
+    _enable_banner_in_sshd_config
+    _restart_ssh
+    
+    safe_read "" dummy
+}
+
+_view_ssh_banner() {
+    clear
+    show_banner
+    echo -e "${C_BOLD}${C_PURPLE}--- 👁️ Current SSH Banner ---${C_RESET}"
+    
+    if [ -f "$SSH_BANNER_FILE" ]; then
+        echo -e "\n${C_CYAN}--- BEGIN BANNER ---${C_RESET}"
+        cat "$SSH_BANNER_FILE"
+        echo -e "\n${C_CYAN}---- END BANNER ----${C_RESET}"
+    else
+        echo -e "\n${C_YELLOW}No banner file found.${C_RESET}"
+    fi
+    safe_read "" dummy
+}
+
+_remove_ssh_banner() {
+    clear
+    show_banner
+    echo -e "${C_BOLD}${C_PURPLE}--- 🗑️ Remove SSH Banner ---${C_RESET}"
+    
+    read -p "Are you sure? (y/n): " confirm
+    [[ "$confirm" != "y" ]] && return
+    
+    rm -f "$SSH_BANNER_FILE"
+    sed -i.bak -E "s/^( *Banner\s+$SSH_BANNER_FILE)/#\1/" /etc/ssh/sshd_config
+    
+    echo -e "\n${C_GREEN}✅ Banner removed.${C_RESET}"
+    _restart_ssh
+    safe_read "" dummy
+}
+
+_enable_banner_in_sshd_config() {
+    echo -e "\n${C_BLUE}⚙️ Configuring sshd_config...${C_RESET}"
+    cp /etc/ssh/sshd_config /etc/ssh/sshd_config.bak.$(date +%Y%m%d_%H%M%S)
+    sed -i '/^Banner/d' /etc/ssh/sshd_config
+    echo -e "\n# SSH Banner\nBanner $SSH_BANNER_FILE" >> /etc/ssh/sshd_config
+    echo -e "${C_GREEN}✅ sshd_config updated.${C_RESET}"
+}
+
+_restart_ssh() {
+    echo -e "\n${C_BLUE}🔄 Restarting SSH service...${C_RESET}"
+    local ssh_service=""
+    if systemctl list-units --full -all | grep -q "sshd.service"; then
+        ssh_service="sshd"
+    elif systemctl list-units --full -all | grep -q "ssh.service"; then
+        ssh_service="ssh"
+    else
+        echo -e "${C_RED}❌ SSH service not found.${C_RESET}"
+        return 1
+    fi
+    systemctl restart "$ssh_service"
+    echo -e "${C_GREEN}✅ SSH service restarted.${C_RESET}"
+}
+
+ssh_banner_menu() {
+    while true; do
+        clear
+        show_banner
+        
+        local banner_status=""
+        if grep -q -E "^\s*Banner\s+$SSH_BANNER_FILE" /etc/ssh/sshd_config && [ -f "$SSH_BANNER_FILE" ]; then
+            banner_status="${C_GREEN}(Active)${C_RESET}"
+        else
+            banner_status="${C_DIM}(Inactive)${C_RESET}"
+        fi
+        
+        echo -e "\n   ${C_TITLE}════════════════════[ ${C_BOLD}🎨 SSH Banner Management ${banner_status} ${C_RESET}${C_TITLE}]════════════════════${C_RESET}"
+        echo -e "     ${C_GREEN}1)${C_RESET} 📋 Set Banner"
+        echo -e "     ${C_GREEN}2)${C_RESET} 👁️ View Banner"
+        echo -e "     ${C_RED}3)${C_RESET} 🗑️ Remove Banner"
+        echo -e "   ${C_DIM}~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~${C_RESET}"
+        echo -e "     ${C_YELLOW}0)${C_RESET} ↩️ Return"
+        echo
+        read -p "$(echo -e ${C_PROMPT}"👉 Select option: "${C_RESET})" choice
+        
+        case $choice in
+            1) _set_ssh_banner ;;
+            2) _view_ssh_banner ;;
+            3) _remove_ssh_banner ;;
+            0) return ;;
+            *) echo -e "\n${C_RED}❌ Invalid option.${C_RESET}" && sleep 2 ;;
+        esac
+    done
 }
 
 # ========== FALCON DNSTT BINARY DOWNLOAD ==========
@@ -823,7 +1123,7 @@ download_dnstt_binary() {
     return 0
 }
 
-# ========== FALCON PUBLIC KEY GENERATOR (DNSTT SSH) ==========
+# ========== DNSTT INSTALLATION ==========
 install_dnstt() {
     clear
     show_banner
@@ -848,7 +1148,6 @@ install_dnstt() {
         return
     fi
     
-    # ========== PUBLIC KEY GENERATOR (FALCON) ==========
     echo -e "${C_BLUE}[3/6] 🔐 Generating cryptographic keys...${C_RESET}"
     mkdir -p "$DNSTT_KEYS_DIR"
     "$DNSTT_BIN" -gen-key -privkey-file "$DNSTT_KEYS_DIR/server.key" -pubkey-file "$DNSTT_KEYS_DIR/server.pub"
@@ -987,6 +1286,7 @@ show_dnstt_details() {
     
     source "$DNSTT_INFO_FILE" 2>/dev/null
     
+    local status=""
     if systemctl is-active dnstt.service &>/dev/null; then
         status="${C_GREEN}● RUNNING${C_RESET}"
     else
@@ -1001,7 +1301,7 @@ show_dnstt_details() {
     safe_read "" dummy
 }
 
-# ========== DNS2TCP FUNCTIONS ==========
+# ========== DNS2TCP INSTALLATION ==========
 install_dns2tcp() {
     clear
     show_banner
@@ -1015,20 +1315,38 @@ install_dns2tcp() {
         return
     fi
     
-    echo -e "\n${C_BLUE}[1/6] Installing dependencies...${C_RESET}"
+    echo -e "\n${C_BLUE}[1/7] Installing dependencies...${C_RESET}"
     $PKG_UPDATE
-    $PKG_INSTALL dns2tcp screen lsof
+    $PKG_INSTALL dns2tcp screen lsof net-tools
     
-    echo -e "${C_BLUE}[2/6] Configuring systemd-resolved...${C_RESET}"
-    cp /etc/systemd/resolved.conf /etc/systemd/resolved.conf.backup 2>/dev/null
-    cat > /etc/systemd/resolved.conf <<EOF
-[Resolve]
-DNS=1.1.1.1
-DNSStubListener=no
-EOF
-    systemctl restart systemd-resolved
+    echo -e "\n${C_BLUE}[2/7] Freeing port 53 and 5300...${C_RESET}"
     
-    echo -e "${C_BLUE}[3/6] Creating directories...${C_RESET}"
+    systemctl stop systemd-resolved 2>/dev/null
+    systemctl disable systemd-resolved 2>/dev/null
+    
+    fuser -k 53/udp 2>/dev/null
+    fuser -k 5300/udp 2>/dev/null
+    fuser -k 53/tcp 2>/dev/null
+    fuser -k 5300/tcp 2>/dev/null
+    
+    echo "nameserver 8.8.8.8" > /etc/resolv.conf
+    echo "nameserver 1.1.1.1" >> /etc/resolv.conf
+    
+    sleep 2
+    if ss -lunp | grep -q ':53\s'; then
+        echo -e "${C_RED}❌ Port 53 still in use! Please check manually.${C_RESET}"
+        ss -lunp | grep ':53\s'
+        safe_read "" dummy
+        return
+    fi
+    
+    echo -e "${C_GREEN}✅ Ports 53 and 5300 are free${C_RESET}"
+    
+    echo -e "\n${C_BLUE}[3/7] Opening firewall ports...${C_RESET}"
+    check_and_open_firewall_port 53 udp
+    check_and_open_firewall_port 5300 udp
+    
+    echo -e "${C_BLUE}[4/7] Creating directories...${C_RESET}"
     mkdir -p /root/dns2tcp
     mkdir -p /var/empty/dns2tcp
     
@@ -1036,10 +1354,10 @@ EOF
         useradd -r -s /bin/false -d /var/empty/dns2tcp ashtunnel
     fi
     
-    echo -e "${C_BLUE}[4/6] Selecting MTU...${C_RESET}"
+    echo -e "${C_BLUE}[5/7] Selecting MTU...${C_RESET}"
     mtu_selection_during_install
     
-    echo -e "\n${C_BLUE}[5/6] DNS Configuration:${C_RESET}"
+    echo -e "\n${C_BLUE}[6/7] DNS Configuration:${C_RESET}"
     echo "1) Auto-generate with Cloudflare"
     echo "2) Manual"
     read -p "Choice [1]: " dns_choice
@@ -1081,6 +1399,8 @@ EOF
         fi
     done
     
+    echo -e "\n${C_BLUE}[7/7] Creating configuration files...${C_RESET}"
+    
     cat > /root/dns2tcp/dns2tcp-53.conf <<EOF
 listen = 0.0.0.0
 port = 53
@@ -1101,19 +1421,23 @@ key = $key
 resources = ssh:127.0.0.1:$target_port
 EOF
 
-    echo -e "${C_BLUE}[6/6] Creating services...${C_RESET}"
+    echo -e "${C_BLUE}Creating systemd services...${C_RESET}"
     
     cat > "$DNS2TCP53_SERVICE" <<EOF
 [Unit]
 Description=DNS2TCP Server (Port 53)
 After=network.target
+Wants=network.target
 
 [Service]
 Type=simple
+User=root
 WorkingDirectory=/root/dns2tcp
 ExecStart=/usr/bin/dns2tcpd -d 1 -F -f /root/dns2tcp/dns2tcp-53.conf
 Restart=always
-RestartSec=3
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
 
 [Install]
 WantedBy=multi-user.target
@@ -1123,13 +1447,17 @@ EOF
 [Unit]
 Description=DNS2TCP Server (Port 5300)
 After=network.target
+Wants=network.target
 
 [Service]
 Type=simple
+User=root
 WorkingDirectory=/root/dns2tcp
 ExecStart=/usr/bin/dns2tcpd -d 1 -F -f /root/dns2tcp/dns2tcp-5300.conf
 Restart=always
-RestartSec=3
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
 
 [Install]
 WantedBy=multi-user.target
@@ -1139,9 +1467,34 @@ EOF
     echo "nameserver 1.1.1.1" > /etc/resolv.conf
     echo "nameserver 8.8.8.8" >> /etc/resolv.conf
     
+    echo -e "\n${C_BLUE}Starting DNS2TCP services...${C_RESET}"
+    
     systemctl daemon-reload
     systemctl enable dns2tcp-53.service dns2tcp-5300.service
-    systemctl start dns2tcp-53.service dns2tcp-5300.service
+    
+    systemctl start dns2tcp-53.service
+    sleep 2
+    systemctl start dns2tcp-5300.service
+    sleep 2
+    
+    local status53=$(systemctl is-active dns2tcp-53.service)
+    local status5300=$(systemctl is-active dns2tcp-5300.service)
+    
+    if [ "$status53" == "active" ]; then
+        echo -e "${C_GREEN}✅ DNS2TCP (port 53) is RUNNING${C_RESET}"
+    else
+        echo -e "${C_RED}❌ DNS2TCP (port 53) FAILED to start${C_RESET}"
+        echo -e "${C_YELLOW}📌 Error log:${C_RESET}"
+        journalctl -u dns2tcp-53.service -n 10 --no-pager
+    fi
+    
+    if [ "$status5300" == "active" ]; then
+        echo -e "${C_GREEN}✅ DNS2TCP (port 5300) is RUNNING${C_RESET}"
+    else
+        echo -e "${C_RED}❌ DNS2TCP (port 5300) FAILED to start${C_RESET}"
+        echo -e "${C_YELLOW}📌 Error log:${C_RESET}"
+        journalctl -u dns2tcp-5300.service -n 10 --no-pager
+    fi
     
     cat > "$DNS2TCP_INFO_FILE" <<EOF
 TUNNEL_DOMAIN="$domain"
@@ -1159,6 +1512,8 @@ EOF
     echo -e "  ${C_CYAN}Key:${C_RESET}           ${C_YELLOW}$key${C_RESET}"
     echo -e "  ${C_CYAN}Target Port:${C_RESET}   ${C_YELLOW}$target_port${C_RESET}"
     echo -e "  ${C_CYAN}MTU:${C_RESET}           ${C_YELLOW}$MTU${C_RESET}"
+    echo -e "  ${C_CYAN}Port 53:${C_RESET}        ${C_YELLOW}$status53${C_RESET}"
+    echo -e "  ${C_CYAN}Port 5300:${C_RESET}      ${C_YELLOW}$status5300${C_RESET}"
     safe_read "" dummy
 }
 
@@ -1200,17 +1555,15 @@ show_dns2tcp_details() {
     
     source "$DNS2TCP_INFO_FILE"
     
-    if systemctl is-active dns2tcp-53.service &>/dev/null; then
-        status="${C_GREEN}● RUNNING${C_RESET}"
-    else
-        status="${C_RED}● STOPPED${C_RESET}"
-    fi
+    local status53=$(systemctl is-active dns2tcp-53.service 2>/dev/null || echo "inactive")
+    local status5300=$(systemctl is-active dns2tcp-5300.service 2>/dev/null || echo "inactive")
     
-    echo -e "  Status:        $status"
-    echo -e "  Tunnel Domain: ${C_YELLOW}$TUNNEL_DOMAIN${C_RESET}"
-    echo -e "  Key:           ${C_YELLOW}$KEY${C_RESET}"
-    echo -e "  Target Port:   ${C_YELLOW}$TARGET_PORT${C_RESET}"
-    echo -e "  MTU:           ${C_YELLOW}$MTU${C_RESET}"
+    echo -e "  ${C_CYAN}Status (53):${C_RESET}   $([ "$status53" == "active" ] && echo "${C_GREEN}● RUNNING${C_RESET}" || echo "${C_RED}● STOPPED${C_RESET}")"
+    echo -e "  ${C_CYAN}Status (5300):${C_RESET} $([ "$status5300" == "active" ] && echo "${C_GREEN}● RUNNING${C_RESET}" || echo "${C_RED}● STOPPED${C_RESET}")"
+    echo -e "  ${C_CYAN}Tunnel Domain:${C_RESET} ${C_YELLOW}$TUNNEL_DOMAIN${C_RESET}"
+    echo -e "  ${C_CYAN}Key:${C_RESET}           ${C_YELLOW}$KEY${C_RESET}"
+    echo -e "  ${C_CYAN}Target Port:${C_RESET}   ${C_YELLOW}$TARGET_PORT${C_RESET}"
+    echo -e "  ${C_CYAN}MTU:${C_RESET}           ${C_YELLOW}$MTU${C_RESET}"
     
     safe_read "" dummy
 }
@@ -1231,8 +1584,8 @@ generate_v2ray_json() {
             local vmess_json='{
   "v": "2",
   "ps": "'$username'",
-  "add": "'$DOMAIN'",
-  "port": "'$V2RAY_PORT'",
+  "add": "127.0.0.1",
+  "port": "8000",
   "id": "'$uuid'",
   "aid": "0",
   "net": "tcp",
@@ -1248,21 +1601,20 @@ generate_v2ray_json() {
             ;;
         vless)
             echo -e "${C_CYAN}VLESS Config:${C_RESET}"
-            echo "  Address: $DOMAIN"
-            echo "  Port: $((V2RAY_PORT+1))"
+            echo "  Address: 127.0.0.1"
+            echo "  Port: 8000"
             echo "  UUID: $uuid"
             echo "  Encryption: none"
             ;;
         trojan)
             echo -e "${C_CYAN}Trojan Config:${C_RESET}"
-            echo "  Address: $DOMAIN"
-            echo "  Port: $((V2RAY_PORT+2))"
+            echo "  Address: 127.0.0.1"
+            echo "  Port: 8000"
             echo "  Password: $password"
             ;;
     esac
 }
 
-# ========== FALCON PUBLIC KEY GENERATOR (V2RAY over DNSTT) ==========
 install_v2ray_dnstt() {
     clear
     show_banner
@@ -1282,7 +1634,6 @@ install_v2ray_dnstt() {
         return
     fi
     
-    # ========== PUBLIC KEY GENERATOR (FALCON) ==========
     echo -e "\n${C_BLUE}[1/6] 🔐 Generating cryptographic keys for V2RAY tunnel...${C_RESET}"
     mkdir -p "$V2RAY_KEYS_DIR"
     "$DNSTT_BIN" -gen-key -privkey-file "$V2RAY_KEYS_DIR/server.key" -pubkey-file "$V2RAY_KEYS_DIR/server.pub"
@@ -1339,31 +1690,46 @@ install_v2ray_dnstt() {
     echo -e "\n${C_BLUE}[5/6] Creating V2Ray directories...${C_RESET}"
     mkdir -p "$V2RAY_DIR"/{v2ray,users}
     
-    echo -e "${C_BLUE}[6/6] Creating V2Ray configuration...${C_RESET}"
+    echo -e "${C_BLUE}[6/6] Creating V2Ray configuration (localhost only)...${C_RESET}"
     cat > "$V2RAY_CONFIG" <<EOF
 {
     "log": {"loglevel": "warning"},
     "inbounds": [
         {
-            "port": $V2RAY_PORT,
+            "port": 1080,
+            "listen": "127.0.0.1",
             "protocol": "vmess",
-            "settings": {"clients": []},
+            "settings": {
+                "clients": []
+            },
             "tag": "vmess"
         },
         {
-            "port": $((V2RAY_PORT+1)),
+            "port": 1081,
+            "listen": "127.0.0.1",
             "protocol": "vless",
-            "settings": {"clients": [], "decryption": "none"},
+            "settings": {
+                "clients": [],
+                "decryption": "none"
+            },
             "tag": "vless"
         },
         {
-            "port": $((V2RAY_PORT+2)),
+            "port": 1082,
+            "listen": "127.0.0.1",
             "protocol": "trojan",
-            "settings": {"clients": []},
+            "settings": {
+                "clients": []
+            },
             "tag": "trojan"
         }
     ],
-    "outbounds": [{"protocol": "freedom", "tag": "direct"}]
+    "outbounds": [
+        {
+            "protocol": "freedom",
+            "tag": "direct"
+        }
+    ]
 }
 EOF
 
@@ -1389,9 +1755,9 @@ EOF
     cat > "$V2RAY_INFO_FILE" <<EOF
 TUNNEL_DOMAIN="$domain"
 V2RAY_PUBLIC_KEY="$V2RAY_PUBLIC_KEY"
-VMESS_PORT="$V2RAY_PORT"
-VLESS_PORT="$((V2RAY_PORT+1))"
-TROJAN_PORT="$((V2RAY_PORT+2))"
+VMESS_PORT="1080"
+VLESS_PORT="1081"
+TROJAN_PORT="1082"
 MTU="$MTU"
 NS_RECORD_ID="$ns_record_id"
 TUNNEL_RECORD_ID="$tunnel_record_id"
@@ -1402,12 +1768,11 @@ EOF
     echo -e "${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
     echo -e "  ${C_CYAN}V2RAY Tunnel Domain:${C_RESET} ${C_YELLOW}$domain${C_RESET}"
     echo -e "  ${C_CYAN}V2RAY Public Key:${C_RESET}   ${C_YELLOW}$V2RAY_PUBLIC_KEY${C_RESET}"
-    echo -e "  ${C_CYAN}VMess Port:${C_RESET}          ${C_YELLOW}$V2RAY_PORT${C_RESET}"
-    echo -e "  ${C_CYAN}VLESS Port:${C_RESET}          ${C_YELLOW}$((V2RAY_PORT+1))${C_RESET}"
-    echo -e "  ${C_CYAN}Trojan Port:${C_RESET}         ${C_YELLOW}$((V2RAY_PORT+2))${C_RESET}"
+    echo -e "  ${C_CYAN}VMess Port:${C_RESET}          ${C_YELLOW}1080${C_RESET} ${C_GREEN}(localhost)${C_RESET}"
+    echo -e "  ${C_CYAN}VLESS Port:${C_RESET}          ${C_YELLOW}1081${C_RESET} ${C_GREEN}(localhost)${C_RESET}"
+    echo -e "  ${C_CYAN}Trojan Port:${C_RESET}         ${C_YELLOW}1082${C_RESET} ${C_GREEN}(localhost)${C_RESET}"
     echo -e "  ${C_CYAN}MTU:${C_RESET}                 ${C_YELLOW}$MTU${C_RESET}"
     echo -e "${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "${C_YELLOW}⚠️ SAVE THIS V2RAY PUBLIC KEY!${C_RESET}"
     safe_read "" dummy
 }
 
@@ -1440,6 +1805,7 @@ show_v2ray_details() {
     
     source "$V2RAY_INFO_FILE"
     
+    local status=""
     if systemctl is-active v2ray-dnstt.service &>/dev/null; then
         status="${C_GREEN}● RUNNING${C_RESET}"
     else
@@ -1448,10 +1814,10 @@ show_v2ray_details() {
     
     echo -e "  Status:        $status"
     echo -e "  Tunnel Domain: ${C_YELLOW}$TUNNEL_DOMAIN${C_RESET}"
-    echo -e "  V2RAY Public Key: ${C_YELLOW}$V2RAY_PUBLIC_KEY${C_RESET}"
-    echo -e "  VMess Port:    ${C_YELLOW}$VMESS_PORT${C_RESET}"
-    echo -e "  VLESS Port:    ${C_YELLOW}$VLESS_PORT${C_RESET}"
-    echo -e "  Trojan Port:   ${C_YELLOW}$TROJAN_PORT${C_RESET}"
+    echo -e "  Public Key:    ${C_YELLOW}$V2RAY_PUBLIC_KEY${C_RESET}"
+    echo -e "  VMess Port:    ${C_YELLOW}1080${C_RESET} (localhost)"
+    echo -e "  VLESS Port:    ${C_YELLOW}1081${C_RESET} (localhost)"
+    echo -e "  Trojan Port:   ${C_YELLOW}1082${C_RESET} (localhost)"
     echo -e "  MTU:           ${C_YELLOW}$MTU${C_RESET}"
     
     local user_count=$(wc -l < "$V2RAY_USERS_DB" 2>/dev/null || echo 0)
@@ -1533,32 +1899,73 @@ list_v2ray_users() {
         return
     fi
     
-    printf "${C_BOLD}%-15s %-8s %-36s %-20s %-12s %-10s${C_RESET}\n" "USERNAME" "PROTO" "UUID" "TRAFFIC" "EXPIRY" "STATUS"
-    echo -e "${C_CYAN}─────────────────────────────────────────────────────────────────────────────────${C_RESET}"
+    printf "${C_BOLD}%-15s %-8s %-36s %-25s %-12s %-10s${C_RESET}\n" "USERNAME" "PROTO" "UUID" "TRAFFIC" "EXPIRY" "STATUS"
+    echo -e "${C_CYAN}──────────────────────────────────────────────────────────────────────────────────────────────${C_RESET}"
     
     while IFS=: read -r user uuid pass proto limit used expiry status; do
         [[ -z "$user" ]] && continue
         
-        if [ "$limit" == "0" ]; then
-            traffic_disp="${used}GB/∞"
+        local limit_num=${limit:-0}
+        local used_num=${used:-0}
+        
+        local traffic_disp=""
+        if [ "$limit_num" == "0" ]; then
+            traffic_disp="${used_num}GB/∞"
         else
-            percent=$(echo "scale=1; $used * 100 / $limit" | bc 2>/dev/null || echo "0")
-            traffic_disp="${used}/$limit GB ($percent%)"
+            if command -v bc &>/dev/null; then
+                local percent=$(echo "scale=1; $used_num * 100 / $limit_num" | bc 2>/dev/null || echo "0")
+                traffic_disp="${used_num}/${limit_num} GB (${percent}%)"
+            else
+                traffic_disp="${used_num}/${limit_num} GB"
+            fi
         fi
         
-        short_uuid="${uuid:0:8}...${uuid: -8}"
+        local short_uuid=""
+        if [ ${#uuid} -ge 16 ]; then
+            short_uuid="${uuid:0:8}...${uuid: -8}"
+        else
+            short_uuid="$uuid"
+        fi
+        
+        local status_color=""
+        local status_text=""
         
         case $status in
-            active)  status_disp="${C_GREEN}ACTIVE${C_RESET}" ;;
-            locked)  status_disp="${C_YELLOW}LOCKED${C_RESET}" ;;
-            expired) status_disp="${C_RED}EXPIRED${C_RESET}" ;;
-            *)       status_disp="$status" ;;
+            active)
+                local expiry_ts=$(date -d "$expiry" +%s 2>/dev/null || echo 0)
+                local current_ts=$(date +%s)
+                
+                if [[ $expiry_ts -lt $current_ts && $expiry_ts -ne 0 ]]; then
+                    status_text="EXPIRED"
+                    status_color="${C_RED}"
+                elif [ "$limit_num" -gt 0 ] && [ "$used_num" -ge "$limit_num" ]; then
+                    status_text="LIMIT"
+                    status_color="${C_RED}"
+                else
+                    status_text="ACTIVE"
+                    status_color="${C_GREEN}"
+                fi
+                ;;
+            locked)
+                status_text="LOCKED"
+                status_color="${C_YELLOW}"
+                ;;
+            expired)
+                status_text="EXPIRED"
+                status_color="${C_RED}"
+                ;;
+            *)
+                status_text="$status"
+                status_color="${C_WHITE}"
+                ;;
         esac
         
-        printf "%-15s %-8s %-36s %-20s %-12s %s\n" \
-            "$user" "$proto" "$short_uuid" "$traffic_disp" "$expiry" "$status_disp"
+        printf "%-15s %-8s %-36s %-25s %-12s ${status_color}%-10s${C_RESET}\n" \
+            "$user" "$proto" "$short_uuid" "$traffic_disp" "$expiry" "$status_text"
+            
     done < "$V2RAY_USERS_DB"
     
+    echo -e "${C_CYAN}──────────────────────────────────────────────────────────────────────────────────────────────${C_RESET}"
     echo ""
     safe_read "" dummy
 }
@@ -1618,6 +2025,7 @@ edit_v2ray_user() {
     
     echo -e "\n${C_CYAN}Current Details:${C_RESET}"
     echo -e "  Traffic Limit: ${C_YELLOW}$limit GB${C_RESET}"
+    echo -e "  Traffic Used:  ${C_YELLOW}$used GB${C_RESET}"
     echo -e "  Expiry:        ${C_YELLOW}$expiry${C_RESET}"
     echo -e "  Status:        ${C_YELLOW}$status${C_RESET}"
     
@@ -1725,7 +2133,7 @@ v2ray_main_menu() {
         if [ -f "$V2RAY_SERVICE" ]; then
             installed_status="${C_GREEN}(installed)${C_RESET}"
         else
-            installed_status=""
+            installed_status="${C_RED}(not installed)${C_RESET}"
         fi
         
         echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
@@ -1737,10 +2145,11 @@ v2ray_main_menu() {
             echo -e "  ${C_GREEN}1)${C_RESET} Reinstall V2RAY over DNSTT"
             echo -e "  ${C_GREEN}2)${C_RESET} View Details"
             echo -e "  ${C_GREEN}3)${C_RESET} Restart Service"
-            echo -e "  ${C_RED}4)${C_RESET} Uninstall"
+            echo -e "  ${C_GREEN}4)${C_RESET} Stop Service"
+            echo -e "  ${C_RED}5)${C_RESET} Uninstall"
             echo ""
-            echo -e "  ${C_GREEN}5)${C_RESET} 👤 V2Ray User Management"
-            echo -e "  ${C_GREEN}6)${C_RESET} ⚙️ Change MTU"
+            echo -e "  ${C_GREEN}6)${C_RESET} 👤 V2Ray User Management"
+            echo -e "  ${C_GREEN}7)${C_RESET} ⚙️ Change MTU"
         else
             echo -e "  ${C_GREEN}1)${C_RESET} Install V2RAY over DNSTT"
         fi
@@ -1760,12 +2169,29 @@ v2ray_main_menu() {
             esac
         else
             case $choice in
-                1) install_v2ray_dnstt ;;
+                1) 
+                    echo -e "\n${C_YELLOW}⚠️ Reinstalling V2RAY over DNSTT...${C_RESET}"
+                    uninstall_v2ray_dnstt
+                    install_v2ray_dnstt
+                    ;;
                 2) show_v2ray_details ;;
-                3) systemctl restart v2ray-dnstt.service; echo "Restarted"; safe_read "" dummy ;;
-                4) uninstall_v2ray_dnstt ;;
-                5) v2ray_user_menu ;;
-                6) mtu_selection_during_install ;;
+                3) 
+                    systemctl restart v2ray-dnstt.service
+                    echo -e "${C_GREEN}✅ Service restarted${C_RESET}"
+                    safe_read "" dummy
+                    ;;
+                4)
+                    systemctl stop v2ray-dnstt.service
+                    echo -e "${C_YELLOW}🛑 Service stopped${C_RESET}"
+                    safe_read "" dummy
+                    ;;
+                5) 
+                    echo -e "\n${C_RED}⚠️ Uninstalling V2RAY over DNSTT...${C_RESET}"
+                    uninstall_v2ray_dnstt
+                    safe_read "" dummy
+                    ;;
+                6) v2ray_user_menu ;;
+                7) mtu_selection_during_install ;;
                 0) return ;;
                 *) echo -e "\n${C_RED}❌ Invalid option${C_RESET}"; sleep 2 ;;
             esac
@@ -2130,10 +2556,28 @@ install_dt_proxy() {
 }
 
 uninstall_dt_proxy() {
-    rm -f /usr/local/bin/proxy /usr/local/bin/main /usr/local/bin/install_mod
-    rm -f /etc/systemd/system/proxy-*.service 2>/dev/null
+    echo -e "\n${C_BLUE}🗑️ Uninstalling DT Proxy...${C_RESET}"
+    
+    echo -e "${C_BLUE}Stopping proxy services...${C_RESET}"
+    systemctl list-units --type=service --state=running | grep 'proxy-' | awk '{print $1}' | while read service; do
+        systemctl stop "$service" 2>/dev/null
+        systemctl disable "$service" 2>/dev/null
+    done
+    
+    echo -e "${C_BLUE}Removing service files...${C_RESET}"
+    rm -f /etc/systemd/system/proxy-*.service
     systemctl daemon-reload
-    echo -e "${C_GREEN}✅ DT Proxy uninstalled${C_RESET}"
+    
+    echo -e "${C_BLUE}Removing binaries...${C_RESET}"
+    rm -f /usr/local/bin/proxy
+    rm -f /usr/local/bin/main
+    rm -f "$HOME/.proxy_token"
+    rm -f /usr/local/bin/install_mod
+    
+    echo -e "${C_BLUE}Removing log files...${C_RESET}"
+    rm -f /var/log/proxy-*.log
+    
+    echo -e "${C_GREEN}✅ DT Proxy uninstalled successfully${C_RESET}"
     safe_read "" dummy
 }
 
@@ -2143,6 +2587,77 @@ check_dt_proxy_status() {
     else
         echo ""
     fi
+}
+
+# ========== DT PROXY MENU ==========
+dt_proxy_menu() {
+    while true; do
+        clear
+        show_banner
+        
+        local status=""
+        if [ -f "/usr/local/bin/main" ]; then
+            status="${C_GREEN}(installed)${C_RESET}"
+        else
+            status="${C_RED}(not installed)${C_RESET}"
+        fi
+        
+        echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
+        echo -e "${C_BOLD}${C_PURPLE}              🚀 DT PROXY MANAGEMENT ${status}${C_RESET}"
+        echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
+        
+        if [ -f "/usr/local/bin/main" ]; then
+            echo -e "  ${C_GREEN}1)${C_RESET} Reinstall DT Proxy"
+            echo -e "  ${C_GREEN}2)${C_RESET} Launch DT Proxy Menu"
+            echo -e "  ${C_GREEN}3)${C_RESET} Restart DT Proxy Services"
+            echo -e "  ${C_RED}4)${C_RESET} Uninstall DT Proxy"
+        else
+            echo -e "  ${C_GREEN}1)${C_RESET} Install DT Proxy"
+        fi
+        
+        echo -e "  ${C_RED}0)${C_RESET} Return"
+        echo ""
+        
+        local choice
+        safe_read "👉 Select option: " choice
+        
+        if [ ! -f "/usr/local/bin/main" ]; then
+            case $choice in
+                1) 
+                    install_dt_proxy
+                    safe_read "" dummy
+                    ;;
+                0) return ;;
+                *) echo -e "\n${C_RED}❌ Invalid option${C_RESET}"; sleep 2 ;;
+            esac
+        else
+            case $choice in
+                1)
+                    echo -e "\n${C_YELLOW}⚠️ Reinstalling DT Proxy...${C_RESET}"
+                    uninstall_dt_proxy
+                    install_dt_proxy
+                    safe_read "" dummy
+                    ;;
+                2)
+                    clear
+                    /usr/local/bin/main
+                    ;;
+                3)
+                    echo -e "\n${C_BLUE}Restarting DT Proxy services...${C_RESET}"
+                    systemctl restart proxy-*.service 2>/dev/null
+                    echo -e "${C_GREEN}✅ Services restarted${C_RESET}"
+                    safe_read "" dummy
+                    ;;
+                4)
+                    echo -e "\n${C_RED}⚠️ Uninstalling DT Proxy...${C_RESET}"
+                    uninstall_dt_proxy
+                    safe_read "" dummy
+                    ;;
+                0) return ;;
+                *) echo -e "\n${C_RED}❌ Invalid option${C_RESET}"; sleep 2 ;;
+            esac
+        fi
+    done
 }
 
 # ========== BACKUP & RESTORE ==========
@@ -2335,44 +2850,6 @@ protocol_menu() {
     done
 }
 
-# ========== DT PROXY MENU ==========
-dt_proxy_menu() {
-    while true; do
-        clear
-        show_banner
-        local status=""
-        [ -f "/usr/local/bin/main" ] && status="${C_BLUE}(installed)${C_RESET}"
-        
-        echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
-        echo -e "${C_BOLD}${C_PURPLE}              🚀 DT PROXY MANAGEMENT ${status}${C_RESET}"
-        echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
-        echo -e "  ${C_GREEN}1)${C_RESET} Install DT Proxy"
-        echo -e "  ${C_GREEN}2)${C_RESET} Launch DT Proxy Menu"
-        echo -e "  ${C_RED}3)${C_RESET} Uninstall DT Proxy"
-        echo -e "  ${C_RED}0)${C_RESET} Return"
-        echo ""
-        
-        local choice
-        safe_read "👉 Select option: " choice
-        
-        case $choice in
-            1) install_dt_proxy ;;
-            2) 
-                if [ -f "/usr/local/bin/main" ]; then
-                    clear
-                    /usr/local/bin/main
-                else
-                    echo -e "\n${C_RED}❌ DT Proxy is not installed.${C_RESET}"
-                    safe_read "" dummy
-                fi
-                ;;
-            3) uninstall_dt_proxy ;;
-            0) return ;;
-            *) echo -e "\n${C_RED}❌ Invalid option${C_RESET}"; sleep 2 ;;
-        esac
-    done
-}
-
 # ========== UNINSTALL SCRIPT ==========
 uninstall_script() {
     clear
@@ -2393,6 +2870,7 @@ uninstall_script() {
     
     echo -e "\n${C_BLUE}--- 💥 Starting Uninstallation ---${C_RESET}"
     
+    # Stop all services
     systemctl stop dnstt.service dnstt-5300.service 2>/dev/null
     systemctl stop dns2tcp-53.service dns2tcp-5300.service 2>/dev/null
     systemctl stop v2ray-dnstt.service 2>/dev/null
@@ -2404,6 +2882,7 @@ uninstall_script() {
     systemctl stop zivpn.service 2>/dev/null
     systemctl stop voltron-traffic.service voltron-limiter.service 2>/dev/null
     
+    # Disable all services
     systemctl disable dnstt.service dnstt-5300.service 2>/dev/null
     systemctl disable dns2tcp-53.service dns2tcp-5300.service 2>/dev/null
     systemctl disable v2ray-dnstt.service 2>/dev/null
@@ -2412,6 +2891,7 @@ uninstall_script() {
     systemctl disable voltronproxy.service 2>/dev/null
     systemctl disable voltron-traffic.service voltron-limiter.service 2>/dev/null
     
+    # Remove service files
     echo -e "\n${C_BLUE}🗑️ Removing service files...${C_RESET}"
     rm -f "$DNSTT_SERVICE" "$DNSTT5300_SERVICE"
     rm -f "$DNS2TCP53_SERVICE" "$DNS2TCP5300_SERVICE"
@@ -2422,6 +2902,7 @@ uninstall_script() {
     rm -f "$ZIVPN_SERVICE"
     rm -f "$TRAFFIC_SERVICE" "$LIMITER_SERVICE"
     
+    # Remove binaries
     echo -e "\n${C_BLUE}🗑️ Removing binaries...${C_RESET}"
     rm -f "$DNSTT_BIN"
     rm -f "$V2RAY_BIN"
@@ -2431,11 +2912,13 @@ uninstall_script() {
     rm -f "$ZIVPN_BIN"
     rm -f "$LIMITER_SCRIPT" "$TRAFFIC_SCRIPT"
     
+    # Remove build directories
     echo -e "\n${C_BLUE}🗑️ Removing build directories...${C_RESET}"
     rm -rf "$BADVPN_BUILD_DIR"
     rm -rf "$UDP_CUSTOM_DIR"
     rm -rf "$ZIVPN_DIR"
     
+    # Delete DNS records from Cloudflare
     echo -e "\n${C_BLUE}🗑️ Cleaning up DNS records...${C_RESET}"
     if [ -f "$DNSTT_INFO_FILE" ]; then
         source "$DNSTT_INFO_FILE"
@@ -2454,19 +2937,23 @@ uninstall_script() {
         [ -n "$TUN2_RECORD_ID" ] && delete_cloudflare_record "$TUN2_RECORD_ID"
     fi
     
+    # Remove config directory
     echo -e "\n${C_BLUE}🗑️ Removing configuration and user data...${C_RESET}"
     rm -rf "$DB_DIR"
     
+    # Restore resolv.conf
     echo -e "\n${C_BLUE}🌐 Restoring DNS resolver...${C_RESET}"
     chattr -i /etc/resolv.conf 2>/dev/null
     rm -f /etc/resolv.conf
     echo "nameserver 8.8.8.8" > /etc/resolv.conf
     echo "nameserver 1.1.1.1" >> /etc/resolv.conf
     
+    # Remove script
     echo -e "\n${C_BLUE}🗑️ Removing script...${C_RESET}"
     rm -f /usr/local/bin/menu
     rm -f "$0"
     
+    # Reload systemd
     echo -e "\n${C_BLUE}🔄 Reloading systemd...${C_RESET}"
     systemctl daemon-reload
     
@@ -2516,10 +3003,10 @@ main_menu() {
         echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
         echo -e "${C_BOLD}${C_PURPLE}                    👤 USER MANAGEMENT${C_RESET}"
         echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
-        printf "  ${C_GREEN}%2s${C_RESET}) %-25s  ${C_GREEN}%2s${C_RESET}) %-25s\n" "1" "Create New User" "5" "Unlock User Account"
-        printf "  ${C_GREEN}%2s${C_RESET}) %-25s  ${C_GREEN}%2s${C_RESET}) %-25s\n" "2" "Delete User" "6" "List All Managed Users"
-        printf "  ${C_GREEN}%2s${C_RESET}) %-25s  ${C_GREEN}%2s${C_RESET}) %-25s\n" "3" "Edit User Details" "7" "Renew User Account"
-        printf "  ${C_GREEN}%2s${C_RESET}) %-25s\n" "4" "Lock User Account"
+        printf "  ${C_GREEN}%2s${C_RESET}) %-25s  ${C_GREEN}%2s${C_RESET}) %-25s\n" "1" "Create New User" "5" "Unlock User"
+        printf "  ${C_GREEN}%2s${C_RESET}) %-25s  ${C_GREEN}%2s${C_RESET}) %-25s\n" "2" "Delete User" "6" "List Users"
+        printf "  ${C_GREEN}%2s${C_RESET}) %-25s  ${C_GREEN}%2s${C_RESET}) %-25s\n" "3" "Edit User" "7" "Renew User"
+        printf "  ${C_GREEN}%2s${C_RESET}) %-25s\n" "4" "Lock User"
         
         echo ""
         echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
@@ -2541,22 +3028,19 @@ main_menu() {
         safe_read "$(echo -e ${C_PROMPT}"👉 Select an option: "${C_RESET})" choice
         
         case $choice in
-            1) create_user ;;
-            2) delete_user ;;
-            3) edit_user ;;
-            4) lock_user ;;
-            5) unlock_user ;;
-            6) list_users ;;
-            7) renew_user ;;
+            1) _create_user ;;
+            2) _delete_user ;;
+            3) _edit_user ;;
+            4) _lock_user ;;
+            5) _unlock_user ;;
+            6) _list_users ;;
+            7) _renew_user ;;
             8) protocol_menu ;;
             9) backup_user_data ;;
             10) restore_user_data ;;
             11) generate_cloudflare_dns ;;
-            12) 
-                echo "SSH Banner menu - to be implemented"
-                safe_read "" dummy
-                ;;
-            13) cleanup_expired ;;
+            12) ssh_banner_menu ;;
+            13) _cleanup_expired ;;
             14) mtu_selection_during_install ;;
             15) dt_proxy_menu ;;
             99) uninstall_script ;;
