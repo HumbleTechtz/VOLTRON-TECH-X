@@ -1227,49 +1227,35 @@ ssh_banner_menu() {
     done
 }
 
-# ========== FALCON DNSTT BINARY DOWNLOAD (AS PER YOUR SCRIPT) ==========
+# ========== BINARY KUTOKA SCRIPT YAKO (SOURCE TWO ONLY) ==========
 download_dnstt_binary() {
     local arch=$(uname -m)
-    local success=0
+    local download_success=0
     
     echo -e "${C_BLUE}📥 Downloading DNSTT binary for $arch...${C_RESET}"
     
+    # Source: dnstt.network (only)
+    echo -e "${C_BLUE}Downloading from dnstt.network...${C_RESET}"
     if [[ "$arch" == "x86_64" ]]; then
-        curl -L -o /tmp/dnstt.tar.gz "https://github.com/xtaci/kcptun/releases/download/v20240101/kcptun-linux-amd64-20240101.tar.gz" || \
-        wget -O /tmp/dnstt.tar.gz "https://github.com/xtaci/kcptun/releases/download/v20240101/kcptun-linux-amd64-20240101.tar.gz"
-        
-        if [ -f /tmp/dnstt.tar.gz ] && [ -s /tmp/dnstt.tar.gz ]; then
-            cd /tmp
-            tar -xzf dnstt.tar.gz
-            if [ -f /tmp/server_linux_amd64 ]; then
-                cp /tmp/server_linux_amd64 "$DNSTT_BIN"
-                success=1
-                echo -e "${C_GREEN}✅ DNSTT binary downloaded successfully${C_RESET}"
-            fi
-            rm -f /tmp/dnstt.tar.gz
-        fi
+        curl -L -o "$DNSTT_BIN" "https://dnstt.network/dnstt-server-linux-amd64"
     elif [[ "$arch" == "aarch64" ]]; then
-        curl -L -o /tmp/dnstt.tar.gz "https://github.com/xtaci/kcptun/releases/download/v20240101/kcptun-linux-arm64-20240101.tar.gz" || \
-        wget -O /tmp/dnstt.tar.gz "https://github.com/xtaci/kcptun/releases/download/v20240101/kcptun-linux-arm64-20240101.tar.gz"
-        
-        if [ -f /tmp/dnstt.tar.gz ] && [ -s /tmp/dnstt.tar.gz ]; then
-            cd /tmp
-            tar -xzf dnstt.tar.gz
-            if [ -f /tmp/server_linux_arm64 ]; then
-                cp /tmp/server_linux_arm64 "$DNSTT_BIN"
-                success=1
-                echo -e "${C_GREEN}✅ DNSTT binary downloaded successfully${C_RESET}"
-            fi
-            rm -f /tmp/dnstt.tar.gz
-        fi
-    fi
-    
-    if [ $success -eq 0 ]; then
-        echo -e "${C_RED}❌ Failed to download DNSTT binary${C_RESET}"
+        curl -L -o "$DNSTT_BIN" "https://dnstt.network/dnstt-server-linux-arm64"
+    else
+        echo -e "${C_RED}❌ Unsupported architecture: $arch${C_RESET}"
         return 1
     fi
     
-    chmod +x "$DNSTT_BIN" 2>/dev/null
+    if [ -f "$DNSTT_BIN" ] && [ -s "$DNSTT_BIN" ]; then
+        chmod +x "$DNSTT_BIN"
+        download_success=1
+        echo -e "${C_GREEN}✅ DNSTT binary downloaded successfully from dnstt.network${C_RESET}"
+    fi
+    
+    if [ $download_success -eq 0 ]; then
+        echo -e "${C_RED}❌ Failed to download DNSTT binary from dnstt.network${C_RESET}"
+        return 1
+    fi
+    
     return 0
 }
 
@@ -1293,7 +1279,7 @@ install_dnstt() {
     
     echo -e "${C_BLUE}[2/6] Downloading DNSTT binary...${C_RESET}"
     if ! download_dnstt_binary; then
-        echo -e "\n${C_RED}❌ Failed to download DNSTT binary${C_RESET}"
+        echo -e "\n${C_RED}❌ Cannot proceed without DNSTT binary${C_RESET}"
         safe_read "" dummy
         return
     fi
