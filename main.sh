@@ -66,8 +66,6 @@ FEC_DIR="$DB_DIR/fec"
 
 # Service Files
 DNSTT_SERVICE="/etc/systemd/system/dnstt.service"
-DNSTT5300_SERVICE="/etc/systemd/system/dnstt-5300.service"
-DNS2TCP53_SERVICE="/etc/systemd/system/dns2tcp-53.service"
 DNS2TCP5300_SERVICE="/etc/systemd/system/dns2tcp-5300.service"
 V2RAY_SERVICE="/etc/systemd/system/v2ray-dnstt.service"
 BADVPN_SERVICE="/etc/systemd/system/badvpn.service"
@@ -94,7 +92,6 @@ LOSS_PROTECT_SCRIPT="/usr/local/bin/voltron-loss-protect"
 
 # Ports
 DNS_PORT=53
-DNS2_PORT=5300
 V2RAY_PORT=8787
 BADVPN_PORT=7300
 UDP_CUSTOM_PORT=36712
@@ -406,17 +403,15 @@ EOF
     
     if [ -f "$DNSTT_SERVICE" ]; then
         sed -i "s/-mtu [0-9]\+/-mtu $actual_mtu/g" "$DNSTT_SERVICE"
-        sed -i "s/-mtu [0-9]\+/-mtu $actual_mtu/g" "$DNSTT5300_SERVICE" 2>/dev/null
         systemctl daemon-reload
-        systemctl restart dnstt.service dnstt-5300.service 2>/dev/null
+        systemctl restart dnstt.service 2>/dev/null
         echo -e "      • DNSTT services using ACTUAL MTU: $actual_mtu (ISP sees 512)"
     fi
 
-    if [ -f "$DNS2TCP53_SERVICE" ]; then
-        sed -i "s/MTU [0-9]\+/MTU $actual_mtu/g" "$DNS2TCP53_SERVICE"
-        sed -i "s/MTU [0-9]\+/MTU $actual_mtu/g" "$DNS2TCP5300_SERVICE" 2>/dev/null
+    if [ -f "$DNS2TCP5300_SERVICE" ]; then
+        sed -i "s/MTU [0-9]\+/MTU $actual_mtu/g" "$DNS2TCP5300_SERVICE"
         systemctl daemon-reload
-        systemctl restart dns2tcp-53.service dns2tcp-5300.service 2>/dev/null
+        systemctl restart dns2tcp-5300.service 2>/dev/null
         echo -e "      • DNS2TCP services using ACTUAL MTU: $actual_mtu (ISP sees 512)"
     fi
 
@@ -1352,24 +1347,9 @@ RestartSec=3
 WantedBy=multi-user.target
 EOF
 
-    cat > "$DNSTT5300_SERVICE" <<EOF
-[Unit]
-Description=DNSTT Server (Port 5300) (SSH)
-After=network.target
-
-[Service]
-Type=simple
-ExecStart=$DNSTT_BIN -udp :$DNS2_PORT -mtu $MTU -privkey-file $DNSTT_KEYS_DIR/server.key $domain 127.0.0.1:22
-Restart=always
-RestartSec=3
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
     systemctl daemon-reload
-    systemctl enable dnstt.service dnstt-5300.service
-    systemctl start dnstt.service dnstt-5300.service
+    systemctl enable dnstt.service
+    systemctl start dnstt.service
     
     cat > "$DNSTT_INFO_FILE" <<EOF
 TUNNEL_DOMAIN="$domain"
@@ -1391,9 +1371,9 @@ EOF
 uninstall_dnstt() {
     echo -e "\n${C_BLUE}🗑️ Uninstalling DNSTT...${C_RESET}"
     
-    systemctl stop dnstt.service dnstt-5300.service 2>/dev/null
-    systemctl disable dnstt.service dnstt-5300.service 2>/dev/null
-    rm -f "$DNSTT_SERVICE" "$DNSTT5300_SERVICE"
+    systemctl stop dnstt.service 2>/dev/null
+    systemctl disable dnstt.service 2>/dev/null
+    rm -f "$DNSTT_SERVICE"
     rm -f "$DNSTT_BIN"
     rm -rf "$DNSTT_KEYS_DIR"
     rm -f "$DNSTT_INFO_FILE"
@@ -1438,16 +1418,16 @@ show_dnstt_details() {
     safe_read "" dummy
 }
 
-# ========== DNS2TCP INSTALLATION (PORT 53 ONLY - FIXED) ==========
+# ========== DNS2TCP INSTALLATION (PORT 5300 ONLY) ==========
 install_dns2tcp() {
     clear
     show_banner
     echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "${C_BOLD}${C_PURPLE}           📡 DNS2TCP INSTALLATION (PORT 53 ONLY)${C_RESET}"
+    echo -e "${C_BOLD}${C_PURPLE}           📡 DNS2TCP INSTALLATION (PORT 5300 ONLY)${C_RESET}"
     echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
     
-    if [ -f "$DNS2TCP53_SERVICE" ] && systemctl is-active dns2tcp-53.service &>/dev/null; then
-        echo -e "\n${C_YELLOW}ℹ️ DNS2TCP is already installed and running.${C_RESET}"
+    if [ -f "$DNS2TCP5300_SERVICE" ] && systemctl is-active dns2tcp-5300.service &>/dev/null; then
+        echo -e "\n${C_YELLOW}ℹ️ DNS2TCP is already installed and running on port 5300.${C_RESET}"
         safe_read "" dummy
         return
     fi
@@ -1456,45 +1436,14 @@ install_dns2tcp() {
     $PKG_UPDATE
     $PKG_INSTALL dns2tcp screen lsof net-tools
     
-    # ========== FORCE RELEASE PORT 53 ==========
-    echo -e "\n${C_BLUE}[2/7] 🔥 FORCE RELEASING PORT 53...${C_RESET}"
+    echo -e "\n${C_BLUE}[2/7] Checking port 5300...${C_RESET}"
+    fuser -k 5300/udp 2>/dev/null
+    fuser -k 5300/tcp 2>/dev/null
+    sleep 2
     
-    systemctl stop systemd-resolved 2>/dev/null
-    systemctl disable systemd-resolved 2>/dev/null
-    systemctl mask systemd-resolved 2>/dev/null
-    
-    fuser -k 53/udp 2>/dev/null
-    fuser -k 53/tcp 2>/dev/null
-    killall -9 systemd-resolved 2>/dev/null
-    
-    chattr -i /etc/resolv.conf 2>/dev/null
-    rm -f /etc/resolv.conf
-    echo "nameserver 8.8.8.8" > /etc/resolv.conf
-    echo "nameserver 1.1.1.1" >> /etc/resolv.conf
-    chattr +i /etc/resolv.conf 2>/dev/null
-    
-    sleep 3
-    if ss -lunp | grep -q ':53\s'; then
-        echo -e "${C_RED}❌ Port 53 still in use! Trying harder...${C_RESET}"
-        local pid=$(ss -lunp | grep ':53\s' | grep -oP 'pid=\K\d+' | head -1)
-        if [ -n "$pid" ]; then
-            kill -9 $pid 2>/dev/null
-            sleep 2
-        fi
-    fi
-    
-    if ss -lunp | grep -q ':53\s'; then
-        echo -e "${C_RED}❌ Port 53 still in use! Please check manually.${C_RESET}"
-        safe_read "" dummy
-        return
-    fi
-    
-    echo -e "${C_GREEN}✅ Port 53 is now free!${C_RESET}"
-    
-    # ========== OPEN FIREWALL ==========
-    echo -e "\n${C_BLUE}[3/7] Opening firewall port 53...${C_RESET}"
-    check_and_open_firewall_port 53 udp
-    check_and_open_firewall_port 53 tcp
+    echo -e "${C_BLUE}[3/7] Opening firewall port 5300...${C_RESET}"
+    check_and_open_firewall_port 5300 udp
+    check_and_open_firewall_port 5300 tcp
     
     echo -e "${C_BLUE}[4/7] Creating directories...${C_RESET}"
     mkdir -p /root/dns2tcp
@@ -1549,12 +1498,11 @@ install_dns2tcp() {
         fi
     done
     
-    # ========== CREATE CONFIG FILE (PORT 53 ONLY) ==========
-    echo -e "\n${C_BLUE}[7/7] Creating configuration file for port 53...${C_RESET}"
+    echo -e "\n${C_BLUE}[7/7] Creating configuration file for port 5300...${C_RESET}"
     
-    cat > /root/dns2tcp/dns2tcp-53.conf <<EOF
+    cat > /root/dns2tcp/dns2tcp-5300.conf <<EOF
 listen = 0.0.0.0
-port = 53
+port = 5300
 user = ashtunnel
 chroot = /var/empty/dns2tcp/
 domain = $domain
@@ -1562,12 +1510,11 @@ key = $key
 resources = ssh:127.0.0.1:$target_port
 EOF
 
-    # ========== CREATE SYSTEMD SERVICE (IMPROVED) ==========
-    echo -e "${C_BLUE}Creating systemd service for port 53...${C_RESET}"
+    echo -e "${C_BLUE}Creating systemd service for port 5300...${C_RESET}"
     
-    cat > "$DNS2TCP53_SERVICE" <<EOF
+    cat > "$DNS2TCP5300_SERVICE" <<EOF
 [Unit]
-Description=DNS2TCP Server (Port 53)
+Description=DNS2TCP Server (Port 5300)
 After=network.target
 Wants=network.target
 
@@ -1575,8 +1522,8 @@ Wants=network.target
 Type=simple
 User=root
 WorkingDirectory=/root/dns2tcp
-ExecStartPre=/bin/bash -c 'while ss -lunp | grep -q :53; do echo "Waiting for port 53..."; sleep 1; done'
-ExecStart=/usr/bin/dns2tcpd -d 1 -F -f /root/dns2tcp/dns2tcp-53.conf
+ExecStartPre=/bin/bash -c 'while ss -lunp | grep -q :5300; do echo "Waiting for port 5300..."; sleep 1; done'
+ExecStart=/usr/bin/dns2tcpd -d 1 -F -f /root/dns2tcp/dns2tcp-5300.conf
 Restart=always
 RestartSec=3
 StandardOutput=journal
@@ -1587,28 +1534,23 @@ LimitNOFILE=65536
 WantedBy=multi-user.target
 EOF
 
-    # ========== DO NOT CREATE SERVICE FOR PORT 5300 ==========
-    
-    cp /etc/resolv.conf /etc/resolv.conf.backup 2>/dev/null
-    
-    echo -e "\n${C_BLUE}Starting DNS2TCP service (port 53)...${C_RESET}"
+    echo -e "\n${C_BLUE}Starting DNS2TCP service (port 5300)...${C_RESET}"
     
     systemctl daemon-reload
-    systemctl enable dns2tcp-53.service
-    systemctl start dns2tcp-53.service
+    systemctl enable dns2tcp-5300.service
+    systemctl start dns2tcp-5300.service
     sleep 3
     
-    local status53=$(systemctl is-active dns2tcp-53.service)
+    local status5300=$(systemctl is-active dns2tcp-5300.service)
     
     echo -e "\n${C_BLUE}📊 DNS2TCP STATUS:${C_RESET}"
     
-    if [ "$status53" == "active" ]; then
-        echo -e "  ${C_GREEN}✅ Port 53: RUNNING${C_RESET}"
-        echo -e "  ${C_GREEN}✅ Service: ENABLED${C_RESET}"
+    if [ "$status5300" == "active" ]; then
+        echo -e "  ${C_GREEN}✅ Port 5300: RUNNING${C_RESET}"
     else
-        echo -e "  ${C_RED}❌ Port 53: FAILED ($status53)${C_RESET}"
+        echo -e "  ${C_RED}❌ Port 5300: FAILED ($status5300)${C_RESET}"
         echo -e "\n${C_YELLOW}📌 Error log:${C_RESET}"
-        journalctl -u dns2tcp-53.service -n 20 --no-pager
+        journalctl -u dns2tcp-5300.service -n 20 --no-pager
     fi
     
     cat > "$DNS2TCP_INFO_FILE" <<EOF
@@ -1621,22 +1563,22 @@ TUNNEL_RECORD_ID="$tunnel_record_id"
 EOF
 
     echo -e "\n${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "${C_GREEN}           ✅ DNS2TCP INSTALLED SUCCESSFULLY!${C_RESET}"
+    echo -e "${C_GREEN}           ✅ DNS2TCP INSTALLED SUCCESSFULLY ON PORT 5300!${C_RESET}"
     echo -e "${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
     echo -e "  ${C_CYAN}Tunnel Domain:${C_RESET} ${C_YELLOW}$domain${C_RESET}"
     echo -e "  ${C_CYAN}Key:${C_RESET}           ${C_YELLOW}$key${C_RESET}"
     echo -e "  ${C_CYAN}Target Port:${C_RESET}   ${C_YELLOW}$target_port${C_RESET}"
     echo -e "  ${C_CYAN}MTU:${C_RESET}           ${C_YELLOW}$MTU${C_RESET}"
-    echo -e "  ${C_CYAN}Port 53:${C_RESET}        ${C_GREEN}$status53${C_RESET}"
+    echo -e "  ${C_CYAN}Port:${C_RESET}           ${C_YELLOW}5300${C_RESET}"
     safe_read "" dummy
 }
 
 uninstall_dns2tcp() {
     echo -e "\n${C_BLUE}🗑️ Uninstalling DNS2TCP...${C_RESET}"
     
-    systemctl stop dns2tcp-53.service dns2tcp-5300.service 2>/dev/null
-    systemctl disable dns2tcp-53.service dns2tcp-5300.service 2>/dev/null
-    rm -f "$DNS2TCP53_SERVICE" "$DNS2TCP5300_SERVICE"
+    systemctl stop dns2tcp-5300.service 2>/dev/null
+    systemctl disable dns2tcp-5300.service 2>/dev/null
+    rm -f "$DNS2TCP5300_SERVICE"
     rm -rf /root/dns2tcp
     rm -f "$DNS2TCP_INFO_FILE"
     
@@ -1659,7 +1601,7 @@ uninstall_dns2tcp() {
 show_dns2tcp_details() {
     clear
     echo -e "${C_BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
-    echo -e "${C_GREEN}           📡 DNS2TCP DETAILS${C_RESET}"
+    echo -e "${C_GREEN}           📡 DNS2TCP DETAILS (PORT 5300)${C_RESET}"
     echo -e "${C_BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
     
     if [ ! -f "$DNS2TCP_INFO_FILE" ]; then
@@ -1670,13 +1612,14 @@ show_dns2tcp_details() {
     
     source "$DNS2TCP_INFO_FILE"
     
-    local status53=$(systemctl is-active dns2tcp-53.service 2>/dev/null || echo "inactive")
+    local status5300=$(systemctl is-active dns2tcp-5300.service 2>/dev/null || echo "inactive")
     
-    echo -e "  ${C_CYAN}Status (53):${C_RESET}   $([ "$status53" == "active" ] && echo "${C_GREEN}● RUNNING${C_RESET}" || echo "${C_RED}● STOPPED${C_RESET}")"
+    echo -e "  ${C_CYAN}Status (5300):${C_RESET}   $([ "$status5300" == "active" ] && echo "${C_GREEN}● RUNNING${C_RESET}" || echo "${C_RED}● STOPPED${C_RESET}")"
     echo -e "  ${C_CYAN}Tunnel Domain:${C_RESET} ${C_YELLOW}$TUNNEL_DOMAIN${C_RESET}"
     echo -e "  ${C_CYAN}Key:${C_RESET}           ${C_YELLOW}$KEY${C_RESET}"
     echo -e "  ${C_CYAN}Target Port:${C_RESET}   ${C_YELLOW}$TARGET_PORT${C_RESET}"
     echo -e "  ${C_CYAN}MTU:${C_RESET}           ${C_YELLOW}$MTU${C_RESET}"
+    echo -e "  ${C_CYAN}Port:${C_RESET}           ${C_YELLOW}5300${C_RESET}"
     
     safe_read "" dummy
 }
@@ -2881,7 +2824,7 @@ protocol_menu() {
         local udp_status=$(check_service "udp-custom")
         local haproxy_status=$(check_service "haproxy")
         local dnstt_status=$(check_service "dnstt")
-        local dns2tcp_status=$(check_service "dns2tcp-53")
+        local dns2tcp_status=$(check_service "dns2tcp-5300")
         local v2ray_status=$(check_service "v2ray-dnstt")
         local voltronproxy_status=$(check_service "voltronproxy")
         local nginx_status=$(check_service "nginx")
@@ -2896,7 +2839,7 @@ protocol_menu() {
         echo -e "  ${C_GREEN}2)${C_RESET} udp-custom $udp_status"
         echo -e "  ${C_GREEN}3)${C_RESET} SSL Tunnel (HAProxy) $haproxy_status"
         echo -e "  ${C_GREEN}4)${C_RESET} DNSTT (Port 53) $dnstt_status"
-        echo -e "  ${C_GREEN}5)${C_RESET} DNS2TCP (Port 53) $dns2tcp_status"
+        echo -e "  ${C_GREEN}5)${C_RESET} DNS2TCP (Port 5300) $dns2tcp_status"
         echo -e "  ${C_GREEN}6)${C_RESET} V2RAY over DNSTT $v2ray_status"
         echo -e "  ${C_GREEN}7)${C_RESET} VOLTRON Proxy $voltronproxy_status"
         echo -e "  ${C_GREEN}8)${C_RESET} Nginx Proxy $nginx_status"
@@ -3034,8 +2977,8 @@ uninstall_script() {
     
     echo -e "\n${C_BLUE}--- 💥 Starting Uninstallation ---${C_RESET}"
     
-    systemctl stop dnstt.service dnstt-5300.service 2>/dev/null
-    systemctl stop dns2tcp-53.service dns2tcp-5300.service 2>/dev/null
+    systemctl stop dnstt.service 2>/dev/null
+    systemctl stop dns2tcp-5300.service 2>/dev/null
     systemctl stop v2ray-dnstt.service 2>/dev/null
     systemctl stop badvpn.service 2>/dev/null
     systemctl stop udp-custom.service 2>/dev/null
@@ -3045,8 +2988,8 @@ uninstall_script() {
     systemctl stop zivpn.service 2>/dev/null
     systemctl stop voltron-traffic.service voltron-limiter.service 2>/dev/null
     
-    systemctl disable dnstt.service dnstt-5300.service 2>/dev/null
-    systemctl disable dns2tcp-53.service dns2tcp-5300.service 2>/dev/null
+    systemctl disable dnstt.service 2>/dev/null
+    systemctl disable dns2tcp-5300.service 2>/dev/null
     systemctl disable v2ray-dnstt.service 2>/dev/null
     systemctl disable badvpn.service 2>/dev/null
     systemctl disable udp-custom.service 2>/dev/null
@@ -3054,8 +2997,8 @@ uninstall_script() {
     systemctl disable voltron-traffic.service voltron-limiter.service 2>/dev/null
     
     echo -e "\n${C_BLUE}🗑️ Removing service files...${C_RESET}"
-    rm -f "$DNSTT_SERVICE" "$DNSTT5300_SERVICE"
-    rm -f "$DNS2TCP53_SERVICE" "$DNS2TCP5300_SERVICE"
+    rm -f "$DNSTT_SERVICE"
+    rm -f "$DNS2TCP5300_SERVICE"
     rm -f "$V2RAY_SERVICE"
     rm -f "$BADVPN_SERVICE"
     rm -f "$UDP_CUSTOM_SERVICE"
