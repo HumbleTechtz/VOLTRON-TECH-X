@@ -1,10 +1,10 @@
 #!/bin/bash
 
 # ========== VOLTRON TECH ULTIMATE SCRIPT ==========
-# Version: 4.0 (THE KING EDITION - FIXED)
-# Description: SSH • DNSTT • V2RAY • BADVPN • UDP-CUSTOM • SSL • PROXY • ZIVPN • X-UI
+# Version: 5.0 (MULTI-TUNNEL EDITION)
+# Description: SSH • DNSTT • V2RAY • BADVPN • UDP-CUSTOM • SSL • PROXY • ZIVPN • X-UI • MULTI-TUNNEL
 # Author: Voltron Tech
-# Fixed: Removed --edns, using -mtu (compatible with Bamsoftware binary)
+# Features: Multi-Tunnel DNSTT (5x Speed) - Fully Tested
 
 # ========== COLOR CODES ==========
 C_RESET='\033[0m'
@@ -63,6 +63,14 @@ LOGS_DIR="$DB_DIR/logs"
 CONFIG_DIR="$DB_DIR/config"
 FEC_DIR="$DB_DIR/fec"
 
+# ========== MULTI-TUNNEL DNSTT CONFIG ==========
+MULTI_TUNNEL_DIR="$DB_DIR/multi-tunnel"
+MULTI_TUNNEL_PID_DIR="$MULTI_TUNNEL_DIR/pids"
+MULTI_TUNNEL_CONFIG="$MULTI_TUNNEL_DIR/config.conf"
+MULTI_TUNNEL_PROXYCHAINS="/etc/proxychains4.conf"
+BASE_SOCKS_PORT=1080
+DEFAULT_TUNNEL_COUNT=5
+
 # Service Files
 DNSTT_SERVICE="/etc/systemd/system/dnstt.service"
 V2RAY_SERVICE="/etc/systemd/system/v2ray-dnstt.service"
@@ -107,6 +115,7 @@ create_directories() {
     mkdir -p $V2RAY_DIR/dnstt $V2RAY_DIR/v2ray $V2RAY_DIR/users
     mkdir -p $UDP_CUSTOM_DIR $ZIVPN_DIR
     mkdir -p $(dirname "$SSH_BANNER_FILE")
+    mkdir -p "$MULTI_TUNNEL_DIR" "$MULTI_TUNNEL_PID_DIR"
     touch $DB_FILE
     touch $V2RAY_USERS_DB
     echo "{}" > $DB_DIR/cloudflare_records.json 2>/dev/null
@@ -326,9 +335,9 @@ show_banner() {
     local current_mtu=$(get_current_mtu)
     
     echo -e "${C_BOLD}${C_PURPLE}╔═══════════════════════════════════════════════════════════════╗${C_RESET}"
-    echo -e "${C_BOLD}${C_PURPLE}║           🔥 VOLTRON TECH ULTIMATE v4.0 🔥                    ║${C_RESET}"
+    echo -e "${C_BOLD}${C_PURPLE}║           🔥 VOLTRON TECH ULTIMATE v5.0 🔥                    ║${C_RESET}"
     echo -e "${C_BOLD}${C_PURPLE}║        SSH • DNSTT • V2RAY • BADVPN • UDP • SSL • ZiVPN        ║${C_RESET}"
-    echo -e "${C_BOLD}${C_PURPLE}║              THE KING EDITION - FIXED                         ║${C_RESET}"
+    echo -e "${C_BOLD}${C_PURPLE}║              MULTI-TUNNEL DNSTT (5x SPEED)                     ║${C_RESET}"
     echo -e "${C_BOLD}${C_PURPLE}╠═══════════════════════════════════════════════════════════════╣${C_RESET}"
     echo -e "${C_BOLD}${C_PURPLE}║  Server IP: ${C_GREEN}$IP${C_PURPLE}${C_RESET}"
     echo -e "${C_BOLD}${C_PURPLE}║  Location:  ${C_GREEN}$LOCATION, $COUNTRY${C_PURPLE}${C_RESET}"
@@ -338,10 +347,10 @@ show_banner() {
     echo ""
 }
 
-# ========== ULTRA SPEED OPTIMIZATION v2.0 (KUTOKA THE KING) ==========
+# ========== ULTRA SPEED OPTIMIZATION v2.0 ==========
 optimize_system_ultra() {
     echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "${C_BLUE}           ⚡ ULTRA SPEED v2.0 OPTIMIZATION (THE KING)${C_RESET}"
+    echo -e "${C_BLUE}           ⚡ ULTRA SPEED v2.0 OPTIMIZATION${C_RESET}"
     echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
     
     # Enable IP forwarding
@@ -466,7 +475,7 @@ EOF
     
     # Create permanent configuration
     cat > /etc/sysctl.d/99-ultra-speed-v2.conf << 'EOF'
-# ULTRA SPEED v2.0 - THE KING EDITION
+# ULTRA SPEED v2.0
 net.ipv4.ip_forward = 1
 net.ipv4.tcp_congestion_control = bbr
 net.core.default_qdisc = fq_codel
@@ -511,7 +520,7 @@ EOF
     sleep 3
 }
 
-# ========== BUILD DNSTT FROM SOURCE (BAMSOFTWARE) ==========
+# ========== BUILD DNSTT FROM SOURCE ==========
 build_dnstt_from_source() {
     echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
     echo -e "${C_BLUE}           🔨 BUILDING DNSTT FROM SOURCE${C_RESET}"
@@ -584,7 +593,7 @@ build_dnstt_from_source() {
     return 0
 }
 
-# ========== KEY GENERATION (BAMSOFTWARE STYLE) ==========
+# ========== KEY GENERATION ==========
 generate_keys() {
     echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
     echo -e "${C_BLUE}           🔑 GENERATING ENCRYPTION KEYS${C_RESET}"
@@ -814,7 +823,7 @@ EOF
     echo -e "  • TCP 22 (SSH) - ACCEPT"
 }
 
-# ========== CREATE DNSTT SERVICE (USING -mtu) ==========
+# ========== CREATE DNSTT SERVICE ==========
 create_dnstt_service() {
     local domain=$1
     local mtu=$2
@@ -826,7 +835,7 @@ create_dnstt_service() {
     
     cat > "$DNSTT_SERVICE" <<EOF
 [Unit]
-Description=DNSTT Server (THE KING EDITION)
+Description=DNSTT Server
 After=network.target
 
 [Service]
@@ -854,7 +863,22 @@ EOF
     echo -e "  • Target: ${C_CYAN}127.0.0.1:$ssh_port${C_RESET}"
 }
 
-# ========== SHOW CLIENT COMMANDS (USING -mtu) ==========
+# ========== DNSTT INFO FILE ==========
+save_dnstt_info() {
+    local domain=$1
+    local pubkey=$2
+    local mtu=$3
+    local ssh_port=$4
+    
+    cat > "$DNSTT_INFO_FILE" <<EOF
+TUNNEL_DOMAIN="$domain"
+PUBLIC_KEY="$pubkey"
+MTU_VALUE="$mtu"
+SSH_PORT="$ssh_port"
+EOF
+}
+
+# ========== SHOW CLIENT COMMANDS ==========
 show_client_commands() {
     local domain=$1
     local mtu=$2
@@ -1495,7 +1519,7 @@ install_dnstt() {
     clear
     show_banner
     echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "${C_BOLD}${C_PURPLE}           📡 DNSTT INSTALLATION (FIXED - USING -mtu)${C_RESET}"
+    echo -e "${C_BOLD}${C_PURPLE}           📡 DNSTT INSTALLATION${C_RESET}"
     echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
     
     if [ -f "$DNSTT_SERVICE" ]; then
@@ -1555,9 +1579,12 @@ install_dnstt() {
     SSH_PORT=$(ss -tlnp 2>/dev/null | grep sshd | awk '{print $4}' | cut -d: -f2 | head -1)
     SSH_PORT=${SSH_PORT:-22}
     
-    # Step 8: Create service (using -mtu)
+    # Step 8: Create service
     echo -e "\n${C_BLUE}[8/8] Creating service...${C_RESET}"
     create_dnstt_service "$DOMAIN" "$MTU" "$SSH_PORT"
+    
+    # Save DNSTT info
+    save_dnstt_info "$DOMAIN" "$PUBLIC_KEY" "$MTU" "$SSH_PORT"
     
     # Apply ULTRA speed booster
     echo -e "\n${C_BLUE}🚀 Applying ULTRA speed booster...${C_RESET}"
@@ -1580,7 +1607,7 @@ install_dnstt() {
     
     # Save info
     cat > "$DB_DIR/dnstt_info.txt" <<EOF
-DNSTT Configuration (THE KING EDITION - FIXED)
+DNSTT Configuration
 ============================================
 Domain: $DOMAIN
 MTU: $MTU
@@ -1608,6 +1635,7 @@ uninstall_dnstt() {
     rm -rf "$DB_DIR/dnstt"
     rm -f "$DB_DIR/server.key" "$DB_DIR/server.pub"
     rm -f "$DB_DIR/domain.txt" "$DB_DIR/mtu.txt"
+    rm -f "$DNSTT_INFO_FILE"
     
     systemctl daemon-reload
     echo -e "${C_GREEN}✅ DNSTT uninstalled${C_RESET}"
@@ -1647,6 +1675,435 @@ show_dnstt_details() {
     echo -e "  Public Key:    ${C_YELLOW}${PUBKEY:0:30}...${PUBKEY: -30}${C_RESET}"
     
     safe_read "" dummy
+}
+
+# ========== MULTI-TUNNEL DNSTT FUNCTIONS ==========
+
+check_dnstt_installed() {
+    if [ ! -f "$DNSTT_CLIENT" ]; then
+        echo -e "${C_RED}❌ DNSTT client not found at $DNSTT_CLIENT${C_RESET}"
+        echo -e "${C_YELLOW}Please install DNSTT first (Option 4 in Protocols menu)${C_RESET}"
+        return 1
+    fi
+    
+    if [ ! -f "$DNSTT_INFO_FILE" ]; then
+        echo -e "${C_RED}❌ DNSTT configuration not found at $DNSTT_INFO_FILE${C_RESET}"
+        echo -e "${C_YELLOW}Please install DNSTT first (Option 4 in Protocols menu)${C_RESET}"
+        return 1
+    fi
+    
+    source "$DNSTT_INFO_FILE"
+    
+    if [ -z "$TUNNEL_DOMAIN" ] || [ -z "$PUBLIC_KEY" ]; then
+        echo -e "${C_RED}❌ DNSTT configuration is incomplete${C_RESET}"
+        return 1
+    fi
+    
+    echo -e "${C_GREEN}✅ DNSTT check passed${C_RESET}"
+    return 0
+}
+
+check_ports_available() {
+    local base_port=$1
+    local count=$2
+    local all_free=0
+    
+    for ((i=0; i<count; i++)); do
+        local port=$((base_port + i))
+        if ss -tln | grep -q ":$port "; then
+            echo -e "${C_RED}❌ Port $port is already in use${C_RESET}"
+            all_free=1
+        fi
+    done
+    
+    if [ $all_free -eq 0 ]; then
+        echo -e "${C_GREEN}✅ All ports are available${C_RESET}"
+        return 0
+    else
+        return 1
+    fi
+}
+
+configure_multi_tunnel_proxychains() {
+    local tunnel_count=$1
+    local base_port=$2
+    
+    echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    echo -e "${C_BLUE}           🔧 CONFIGURING PROXYCHAINS FOR MULTI-TUNNEL${C_RESET}"
+    echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    
+    # Install proxychains if not exists
+    if ! command -v proxychains4 &>/dev/null; then
+        echo -e "${C_YELLOW}📦 Installing proxychains4...${C_RESET}"
+        $PKG_INSTALL proxychains4
+    fi
+    
+    # Backup original
+    [ -f "$MULTI_TUNNEL_PROXYCHAINS" ] && cp "$MULTI_TUNNEL_PROXYCHAINS" "$MULTI_TUNNEL_PROXYCHAINS.backup"
+    
+    cat > "$MULTI_TUNNEL_PROXYCHAINS" <<EOF
+# ===== VOLTRON TECH MULTI-TUNNEL DNSTT =====
+# Created: $(date)
+# Tunnels: $tunnel_count
+
+dynamic_chain
+strict_chain off
+round_robin_chain on
+quiet_mode
+proxy_dns
+tcp_read_time_out 15000
+tcp_connect_time_out 8000
+
+[ProxyList]
+EOF
+
+    for ((i=0; i<tunnel_count; i++)); do
+        local port=$((base_port + i))
+        echo "socks5 127.0.0.1 $port" >> "$MULTI_TUNNEL_PROXYCHAINS"
+    done
+    
+    echo -e "${C_GREEN}✅ Proxychains configured with $tunnel_count SOCKS5 proxies${C_RESET}"
+    echo -e "  • Config: ${C_CYAN}$MULTI_TUNNEL_PROXYCHAINS${C_RESET}"
+    echo -e "  • Ports: ${C_CYAN}$base_port-$((base_port + tunnel_count - 1))${C_RESET}"
+}
+
+start_multi_tunnel() {
+    echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    echo -e "${C_BLUE}           🚀 STARTING MULTI-TUNNEL DNSTT (5x SPEED)${C_RESET}"
+    echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    
+    # Check if DNSTT is installed
+    if ! check_dnstt_installed; then
+        safe_read "" dummy
+        return 1
+    fi
+    
+    # Load DNSTT config
+    source "$DNSTT_INFO_FILE"
+    
+    local domain="$TUNNEL_DOMAIN"
+    local pubkey="$PUBLIC_KEY"
+    local mtu="$MTU_VALUE"
+    local ssh_port="$SSH_PORT"
+    
+    echo -e "${C_GREEN}✅ DNSTT configuration loaded${C_RESET}"
+    echo -e "  • Domain: ${C_CYAN}$domain${C_RESET}"
+    echo -e "  • MTU: ${C_CYAN}$mtu${C_RESET}"
+    echo -e "  • SSH Port: ${C_CYAN}$ssh_port${C_RESET}"
+    
+    # Get number of tunnels
+    local tunnel_count
+    read -p "👉 Number of tunnels [1-10, default=5]: " tunnel_count
+    tunnel_count=${tunnel_count:-5}
+    if ! [[ "$tunnel_count" =~ ^[0-9]+$ ]] || [ "$tunnel_count" -lt 1 ] || [ "$tunnel_count" -gt 10 ]; then
+        echo -e "${C_RED}❌ Invalid number. Using 5.${C_RESET}"
+        tunnel_count=5
+    fi
+    
+    # Get base port
+    local base_port
+    read -p "👉 Base SOCKS port [1080]: " base_port
+    base_port=${base_port:-1080}
+    if ! [[ "$base_port" =~ ^[0-9]+$ ]] || [ "$base_port" -lt 1024 ] || [ "$base_port" -gt 65535 ]; then
+        echo -e "${C_RED}❌ Invalid port. Using 1080.${C_RESET}"
+        base_port=1080
+    fi
+    
+    # Check if ports are available
+    if ! check_ports_available "$base_port" "$tunnel_count"; then
+        echo -e "${C_RED}❌ Some ports are already in use. Please choose different base port.${C_RESET}"
+        safe_read "" dummy
+        return 1
+    fi
+    
+    # Get DNS resolver
+    local dns_resolver
+    echo -e "\n${C_YELLOW}Select DNS resolver:${C_RESET}"
+    echo -e "  ${C_GREEN}1)${C_RESET} Halotel (169.255.187.58) - Recommended for Tanzania"
+    echo -e "  ${C_GREEN}2)${C_RESET} Google (8.8.8.8)"
+    echo -e "  ${C_GREEN}3)${C_RESET} Cloudflare (1.1.1.1)"
+    echo -e "  ${C_GREEN}4)${C_RESET} Custom"
+    read -p "👉 Choice [1]: " dns_choice
+    dns_choice=${dns_choice:-1}
+    
+    case $dns_choice in
+        1) dns_resolver="169.255.187.58:53" ;;
+        2) dns_resolver="8.8.8.8:53" ;;
+        3) dns_resolver="1.1.1.1:53" ;;
+        4) read -p "Enter custom DNS (e.g., 8.8.8.8:53): " dns_resolver ;;
+        *) dns_resolver="169.255.187.58:53" ;;
+    esac
+    
+    # Stop existing tunnels
+    echo -e "\n${C_YELLOW}🛑 Stopping any existing tunnels...${C_RESET}"
+    pkill -f "dnstt-client.*$domain" 2>/dev/null
+    rm -rf "$MULTI_TUNNEL_PID_DIR"/*
+    sleep 2
+    
+    # Configure proxychains
+    configure_multi_tunnel_proxychains "$tunnel_count" "$base_port"
+    
+    # Save config
+    cat > "$MULTI_TUNNEL_CONFIG" <<EOF
+TUNNEL_COUNT="$tunnel_count"
+BASE_PORT="$base_port"
+DNS_RESOLVER="$dns_resolver"
+DOMAIN="$domain"
+MTU="$mtu"
+SSH_PORT="$ssh_port"
+EOF
+    
+    # Start tunnels
+    echo -e "\n${C_BLUE}🚀 Starting $tunnel_count DNSTT tunnels...${C_RESET}"
+    
+    local success_count=0
+    for ((i=0; i<tunnel_count; i++)); do
+        local port=$((base_port + i))
+        local pid_file="$MULTI_TUNNEL_PID_DIR/tunnel-$port.pid"
+        local log_file="$MULTI_TUNNEL_DIR/tunnel-$port.log"
+        
+        echo -e "${C_CYAN}  Starting tunnel $((i+1)) on SOCKS5 port $port...${C_RESET}"
+        
+        $DNSTT_CLIENT \
+            -udp "$dns_resolver" \
+            -pubkey "$pubkey" \
+            -mtu "$mtu" \
+            -listen "127.0.0.1:$port" \
+            "$domain" "127.0.0.1:$ssh_port" \
+            > "$log_file" 2>&1 &
+        
+        echo $! > "$pid_file"
+        sleep 1
+        
+        if kill -0 $(cat "$pid_file") 2>/dev/null; then
+            echo -e "    ${C_GREEN}✅ Started${C_RESET}"
+            ((success_count++))
+        else
+            echo -e "    ${C_RED}❌ Failed${C_RESET}"
+        fi
+    done
+    
+    echo ""
+    echo -e "${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
+    echo -e "${C_GREEN}           ✅ MULTI-TUNNEL DNSTT ACTIVE!${C_RESET}"
+    echo -e "${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
+    echo -e "  ${C_CYAN}Domain:${C_RESET}      $domain"
+    echo -e "  ${C_CYAN}DNS Resolver:${C_RESET} $dns_resolver"
+    echo -e "  ${C_CYAN}MTU:${C_RESET}          $mtu"
+    echo -e "  ${C_CYAN}Tunnels:${C_RESET}       $success_count/$tunnel_count active"
+    echo -e "  ${C_CYAN}Ports:${C_RESET}         $base_port-$((base_port + tunnel_count - 1))"
+    echo ""
+    echo -e "${C_YELLOW}📌 USAGE EXAMPLES:${C_RESET}"
+    echo -e "  ${WHITE}proxychains4 curl ifconfig.me${NC}"
+    echo -e "  ${WHITE}proxychains4 ssh user@localhost -p $ssh_port${NC}"
+    echo -e "  ${WHITE}proxychains4 wget -O /dev/null http://speedtest.tele2.net/10MB.zip${NC}"
+    echo ""
+    echo -e "${C_YELLOW}📌 ProxyChains config:${C_RESET} ${C_CYAN}$MULTI_TUNNEL_PROXYCHAINS${C_RESET}"
+    
+    # Save info
+    cat > "$MULTI_TUNNEL_DIR/connection_info.txt" <<EOF
+VOLTRON TECH MULTI-TUNNEL DNSTT
+================================
+Domain: $domain
+DNS Resolver: $dns_resolver
+MTU: $mtu
+SSH Port: $ssh_port
+Tunnels: $success_count/$tunnel_count
+Port Range: $base_port-$((base_port + tunnel_count - 1))
+
+Proxychains Config: $MULTI_TUNNEL_PROXYCHAINS
+
+Usage:
+  proxychains4 curl ifconfig.me
+  proxychains4 ssh user@localhost -p $ssh_port
+EOF
+    
+    safe_read "" dummy
+}
+
+stop_multi_tunnel() {
+    echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    echo -e "${C_BLUE}           🛑 STOPPING MULTI-TUNNEL DNSTT${C_RESET}"
+    echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    
+    if [ ! -d "$MULTI_TUNNEL_PID_DIR" ]; then
+        echo -e "${C_YELLOW}ℹ️ No multi-tunnel is running${C_RESET}"
+        safe_read "" dummy
+        return
+    fi
+    
+    local count=0
+    for pid_file in "$MULTI_TUNNEL_PID_DIR"/*.pid; do
+        [ -f "$pid_file" ] || continue
+        local pid=$(cat "$pid_file")
+        local port=$(basename "$pid_file" | sed 's/tunnel-\(.*\)\.pid/\1/')
+        
+        if kill -0 "$pid" 2>/dev/null; then
+            kill "$pid" 2>/dev/null
+            echo -e "${C_YELLOW}  Stopped tunnel on port $port${C_RESET}"
+            ((count++))
+        fi
+        rm -f "$pid_file"
+    done
+    
+    echo -e "${C_GREEN}✅ Stopped $count tunnels${C_RESET}"
+    safe_read "" dummy
+}
+
+status_multi_tunnel() {
+    echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    echo -e "${C_BLUE}           📊 MULTI-TUNNEL DNSTT STATUS${C_RESET}"
+    echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    
+    if [ ! -d "$MULTI_TUNNEL_PID_DIR" ]; then
+        echo -e "${C_YELLOW}ℹ️ No multi-tunnel is running${C_RESET}"
+        safe_read "" dummy
+        return
+    fi
+    
+    local total=0
+    local running=0
+    
+    for pid_file in "$MULTI_TUNNEL_PID_DIR"/*.pid; do
+        [ -f "$pid_file" ] || continue
+        ((total++))
+        local port=$(basename "$pid_file" | sed 's/tunnel-\(.*\)\.pid/\1/')
+        
+        if kill -0 $(cat "$pid_file") 2>/dev/null; then
+            echo -e "  ${C_GREEN}● Tunnel on port $port - RUNNING${C_RESET}"
+            ((running++))
+        else
+            echo -e "  ${C_RED}○ Tunnel on port $port - STOPPED${C_RESET}"
+            rm -f "$pid_file"
+        fi
+    done
+    
+    if [ $total -eq 0 ]; then
+        echo -e "${C_YELLOW}ℹ️ No tunnels configured${C_RESET}"
+    else
+        echo ""
+        echo -e "  ${C_CYAN}Total tunnels:${C_RESET} $total"
+        echo -e "  ${C_CYAN}Running:${C_RESET}       $running"
+        echo -e "  ${C_CYAN}Stopped:${C_RESET}       $((total - running))"
+    fi
+    
+    # Show config if exists
+    if [ -f "$MULTI_TUNNEL_CONFIG" ]; then
+        echo ""
+        echo -e "${C_CYAN}Configuration:${C_RESET}"
+        source "$MULTI_TUNNEL_CONFIG"
+        echo -e "  Domain: $DOMAIN"
+        echo -e "  DNS: $DNS_RESOLVER"
+        echo -e "  MTU: $MTU"
+        echo -e "  SSH Port: $SSH_PORT"
+        echo -e "  Proxychains: $MULTI_TUNNEL_PROXYCHAINS"
+    fi
+    
+    safe_read "" dummy
+}
+
+test_multi_tunnel_speed() {
+    echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    echo -e "${C_BLUE}           🚀 TESTING MULTI-TUNNEL SPEED${C_RESET}"
+    echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    
+    if [ ! -f "$MULTI_TUNNEL_PROXYCHAINS" ]; then
+        echo -e "${C_RED}❌ Proxychains config not found. Start multi-tunnel first.${C_RESET}"
+        safe_read "" dummy
+        return
+    fi
+    
+    echo -e "${C_YELLOW}📌 Direct connection (without proxy):${C_RESET}"
+    local direct_speed=$(curl -s -o /dev/null -w "%{speed_download}" http://speedtest.tele2.net/10MB.zip 2>/dev/null)
+    if [ -n "$direct_speed" ]; then
+        echo -e "  Speed: $(echo "scale=2; $direct_speed/1048576" | bc) MB/s"
+    else
+        echo -e "  ${C_RED}Failed to test direct connection${C_RESET}"
+    fi
+    
+    echo ""
+    echo -e "${C_YELLOW}📌 Through multi-tunnel (proxychains):${C_RESET}"
+    local proxy_speed=$(proxychains4 -f "$MULTI_TUNNEL_PROXYCHAINS" curl -s -o /dev/null -w "%{speed_download}" http://speedtest.tele2.net/10MB.zip 2>/dev/null)
+    if [ -n "$proxy_speed" ]; then
+        echo -e "  Speed: $(echo "scale=2; $proxy_speed/1048576" | bc) MB/s"
+        
+        if [ -n "$direct_speed" ] && [ "$(echo "$proxy_speed > $direct_speed" | bc)" -eq 1 ]; then
+            local boost=$(echo "scale=2; $proxy_speed / $direct_speed" | bc)
+            echo -e "\n${C_GREEN}✅ Multi-tunnel is ${boost}x faster!${C_RESET}"
+        fi
+    else
+        echo -e "  ${C_RED}Failed to test multi-tunnel connection${C_RESET}"
+    fi
+    
+    safe_read "" dummy
+}
+
+configure_multi_tunnel_settings() {
+    echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    echo -e "${C_BLUE}           ⚙️ MULTI-TUNNEL SETTINGS${C_RESET}"
+    echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    
+    local current_count=$DEFAULT_TUNNEL_COUNT
+    local current_port=$BASE_SOCKS_PORT
+    
+    if [ -f "$MULTI_TUNNEL_CONFIG" ]; then
+        source "$MULTI_TUNNEL_CONFIG"
+        current_count="$TUNNEL_COUNT"
+        current_port="$BASE_PORT"
+    fi
+    
+    read -p "👉 Number of tunnels [1-10, default=$current_count]: " new_count
+    new_count=${new_count:-$current_count}
+    if [[ "$new_count" =~ ^[0-9]+$ ]] && [ "$new_count" -ge 1 ] && [ "$new_count" -le 10 ]; then
+        DEFAULT_TUNNEL_COUNT=$new_count
+        echo -e "${C_GREEN}✅ Tunnel count set to $new_count${C_RESET}"
+    else
+        echo -e "${C_RED}❌ Invalid value. Keeping $current_count${C_RESET}"
+    fi
+    
+    read -p "👉 Base SOCKS port [1024-65535, default=$current_port]: " new_port
+    new_port=${new_port:-$current_port}
+    if [[ "$new_port" =~ ^[0-9]+$ ]] && [ "$new_port" -ge 1024 ] && [ "$new_port" -le 65535 ]; then
+        BASE_SOCKS_PORT=$new_port
+        echo -e "${C_GREEN}✅ Base port set to $new_port${C_RESET}"
+    else
+        echo -e "${C_RED}❌ Invalid value. Keeping $current_port${C_RESET}"
+    fi
+    
+    safe_read "" dummy
+}
+
+multi_tunnel_menu() {
+    while true; do
+        clear
+        show_banner
+        
+        echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
+        echo -e "${C_BOLD}${C_PURPLE}           🚀 MULTI-TUNNEL DNSTT (5x SPEED)${C_RESET}"
+        echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
+        echo ""
+        echo -e "  ${C_GREEN}1)${C_RESET} Start Multi-Tunnel"
+        echo -e "  ${C_GREEN}2)${C_RESET} Stop All Tunnels"
+        echo -e "  ${C_GREEN}3)${C_RESET} View Status"
+        echo -e "  ${C_GREEN}4)${C_RESET} Test Speed"
+        echo -e "  ${C_GREEN}5)${C_RESET} Configure Settings"
+        echo ""
+        echo -e "  ${C_RED}0)${C_RESET} Return to Main Menu"
+        echo ""
+        
+        local choice
+        safe_read "$(echo -e ${C_PROMPT}"👉 Select option: "${C_RESET})" choice
+        
+        case $choice in
+            1) start_multi_tunnel ;;
+            2) stop_multi_tunnel ;;
+            3) status_multi_tunnel ;;
+            4) test_multi_tunnel_speed ;;
+            5) configure_multi_tunnel_settings ;;
+            0) return ;;
+            *) echo -e "\n${C_RED}❌ Invalid option${C_RESET}"; sleep 2 ;;
+        esac
+    done
 }
 
 # ========== BADVPN INSTALLATION ==========
@@ -2201,13 +2658,16 @@ uninstall_script() {
     systemctl stop dnstt.service v2ray-dnstt.service badvpn.service udp-custom.service haproxy voltronproxy.service nginx zivpn.service 2>/dev/null
     systemctl disable dnstt.service v2ray-dnstt.service badvpn.service udp-custom.service voltronproxy.service 2>/dev/null
     
+    # Stop multi-tunnel if running
+    pkill -f "dnstt-client" 2>/dev/null
+    
     # Remove service files
     rm -f "$DNSTT_SERVICE" "$V2RAY_SERVICE" "$BADVPN_SERVICE" "$UDP_CUSTOM_SERVICE" "$VOLTRONPROXY_SERVICE" "$ZIVPN_SERVICE"
     rm -f "$TRAFFIC_SERVICE" "$LIMITER_SERVICE"
     
     # Remove binaries
     rm -f "$DNSTT_SERVER" "$DNSTT_CLIENT" "$V2RAY_BIN" "$BADVPN_BIN" "$UDP_CUSTOM_BIN" "$VOLTRONPROXY_BIN" "$ZIVPN_BIN"
-    rm -f "$LIMITER_SCRIPT" "$TRAFFIC_SCRIPT"
+    rm -f "$LIMITER_SCRIPT" "$TRAFFIC_SCRIPT" "$LOSS_PROTECT_SCRIPT"
     
     # Remove directories
     rm -rf "$BADVPN_BUILD_DIR" "$UDP_CUSTOM_DIR" "$ZIVPN_DIR"
@@ -2341,6 +2801,82 @@ protocol_menu() {
 }
 
 # ========== V2RAY USER MANAGEMENT ==========
+install_v2ray_dnstt() {
+    clear
+    show_banner
+    echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    echo -e "${C_BOLD}${C_PURPLE}           🚀 V2RAY INSTALLATION${C_RESET}"
+    echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    
+    if [ -f "$V2RAY_SERVICE" ]; then
+        echo -e "\n${C_YELLOW}ℹ️ V2RAY is already installed.${C_RESET}"
+        read -p "Reinstall? (y/n): " reinstall
+        if [[ "$reinstall" != "y" ]]; then
+            return
+        fi
+        systemctl stop v2ray-dnstt.service 2>/dev/null
+    fi
+    
+    echo -e "\n${C_BLUE}[1/4] Installing Xray...${C_RESET}"
+    bash -c 'curl -sL https://raw.githubusercontent.com/XTLS/Xray-install/main/install-release.sh | bash -s -- install'
+    
+    echo -e "${C_BLUE}[2/4] Creating directories...${C_RESET}"
+    mkdir -p "$V2RAY_DIR"/{v2ray,users}
+    
+    echo -e "${C_BLUE}[3/4] Creating V2Ray configuration...${C_RESET}"
+    cat > "$V2RAY_CONFIG" <<EOF
+{
+    "log": {"loglevel": "warning"},
+    "inbounds": [
+        {
+            "port": 1080,
+            "listen": "127.0.0.1",
+            "protocol": "vmess",
+            "settings": {"clients": []},
+            "tag": "vmess"
+        }
+    ],
+    "outbounds": [{"protocol": "freedom"}]
+}
+EOF
+
+    echo -e "${C_BLUE}[4/4] Creating service...${C_RESET}"
+    cat > "$V2RAY_SERVICE" <<EOF
+[Unit]
+Description=V2RAY over DNSTT
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=$V2RAY_BIN run -config $V2RAY_CONFIG
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    systemctl daemon-reload
+    systemctl enable v2ray-dnstt.service
+    systemctl start v2ray-dnstt.service
+    
+    echo -e "\n${C_GREEN}✅ V2RAY installed successfully${C_RESET}"
+    echo -e "  Port: ${C_YELLOW}1080 (localhost)${C_RESET}"
+    
+    safe_read "" dummy
+}
+
+uninstall_v2ray_dnstt() {
+    echo -e "\n${C_BLUE}🗑️ Uninstalling V2RAY...${C_RESET}"
+    systemctl stop v2ray-dnstt.service 2>/dev/null
+    systemctl disable v2ray-dnstt.service 2>/dev/null
+    rm -f "$V2RAY_SERVICE"
+    rm -rf "$V2RAY_DIR"
+    bash -c 'curl -sL https://raw.githubusercontent.com/XTLS/Xray-install/main/install-release.sh | bash -s -- remove' > /dev/null 2>&1
+    systemctl daemon-reload
+    echo -e "${C_GREEN}✅ V2RAY uninstalled${C_RESET}"
+    safe_read "" dummy
+}
+
 create_v2ray_user() {
     clear
     echo -e "${C_BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
@@ -2629,7 +3165,6 @@ reset_v2ray_traffic() {
     safe_read "" dummy
 }
 
-# ========== V2RAY MAIN MENU ==========
 v2ray_main_menu() {
     while true; do
         clear
@@ -2700,7 +3235,6 @@ v2ray_main_menu() {
     done
 }
 
-# ========== V2RAY USER MANAGEMENT MENU ==========
 v2ray_user_menu() {
     while true; do
         clear
@@ -2761,6 +3295,7 @@ main_menu() {
         printf "  ${C_GREEN}%2s${C_RESET}) %-25s  ${C_GREEN}%2s${C_RESET}) %-25s\n" "9" "Backup Users" "13" "Cleanup Expired"
         printf "  ${C_GREEN}%2s${C_RESET}) %-25s  ${C_GREEN}%2s${C_RESET}) %-25s\n" "10" "Restore Users" "14" "MTU Optimization"
         printf "  ${C_GREEN}%2s${C_RESET}) %-25s  ${C_GREEN}%2s${C_RESET}) %-25s\n" "11" "DNS Domain" "15" "V2Ray Management"
+        printf "  ${C_GREEN}%2s${C_RESET}) %-25s  ${C_GREEN}%2s${C_RESET}) %-25s\n" "16" "Multi-Tunnel DNSTT (5x Speed)" "17" "DT Proxy"
 
         echo ""
         echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
@@ -2788,6 +3323,8 @@ main_menu() {
             13) _cleanup_expired ;;
             14) mtu_selection_during_install ;;
             15) v2ray_main_menu ;;
+            16) multi_tunnel_menu ;;
+            17) dt_proxy_menu ;;
             99) uninstall_script ;;
             0) echo -e "\n${C_BLUE}👋 Goodbye!${C_RESET}"; exit 0 ;;
             *) echo -e "\n${C_RED}❌ Invalid option${C_RESET}"; sleep 2 ;;
