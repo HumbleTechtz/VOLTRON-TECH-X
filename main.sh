@@ -1,10 +1,10 @@
 #!/bin/bash
 
 # ========== VOLTRON TECH ULTIMATE SCRIPT ==========
-# Version: 5.0 (MULTI-TUNNEL EDITION)
-# Description: SSH • DNSTT • V2RAY • BADVPN • UDP-CUSTOM • SSL • PROXY • ZIVPN • X-UI • MULTI-TUNNEL
+# Version: 6.0 (CONNECTION FORCER EDITION)
+# Description: SSH • DNSTT • V2RAY • BADVPN • UDP-CUSTOM • SSL • PROXY • ZIVPN • X-UI
 # Author: Voltron Tech
-# Features: Multi-Tunnel DNSTT (5x Speed) - Fully Tested
+# Features: Connection Forcer - Forces 5 connections per IP automatically!
 
 # ========== COLOR CODES ==========
 C_RESET='\033[0m'
@@ -63,13 +63,11 @@ LOGS_DIR="$DB_DIR/logs"
 CONFIG_DIR="$DB_DIR/config"
 FEC_DIR="$DB_DIR/fec"
 
-# ========== MULTI-TUNNEL DNSTT CONFIG ==========
-MULTI_TUNNEL_DIR="$DB_DIR/multi-tunnel"
-MULTI_TUNNEL_PID_DIR="$MULTI_TUNNEL_DIR/pids"
-MULTI_TUNNEL_CONFIG="$MULTI_TUNNEL_DIR/config.conf"
-MULTI_TUNNEL_PROXYCHAINS="/etc/proxychains4.conf"
-BASE_SOCKS_PORT=1080
-DEFAULT_TUNNEL_COUNT=5
+# ========== CONNECTION FORCER CONFIG ==========
+FORCER_DIR="$DB_DIR/forcer"
+FORCER_CONFIG="$FORCER_DIR/config.conf"
+FORCER_HAPROXY_CFG="/etc/haproxy/haproxy.cfg"
+FORCER_BACKUP_DIR="$FORCER_DIR/backups"
 
 # Service Files
 DNSTT_SERVICE="/etc/systemd/system/dnstt.service"
@@ -115,7 +113,7 @@ create_directories() {
     mkdir -p $V2RAY_DIR/dnstt $V2RAY_DIR/v2ray $V2RAY_DIR/users
     mkdir -p $UDP_CUSTOM_DIR $ZIVPN_DIR
     mkdir -p $(dirname "$SSH_BANNER_FILE")
-    mkdir -p "$MULTI_TUNNEL_DIR" "$MULTI_TUNNEL_PID_DIR"
+    mkdir -p "$FORCER_DIR" "$FORCER_BACKUP_DIR"
     touch $DB_FILE
     touch $V2RAY_USERS_DB
     echo "{}" > $DB_DIR/cloudflare_records.json 2>/dev/null
@@ -335,14 +333,22 @@ show_banner() {
     local current_mtu=$(get_current_mtu)
     
     echo -e "${C_BOLD}${C_PURPLE}╔═══════════════════════════════════════════════════════════════╗${C_RESET}"
-    echo -e "${C_BOLD}${C_PURPLE}║           🔥 VOLTRON TECH ULTIMATE v5.0 🔥                    ║${C_RESET}"
+    echo -e "${C_BOLD}${C_PURPLE}║           🔥 VOLTRON TECH ULTIMATE v6.0 🔥                    ║${C_RESET}"
     echo -e "${C_BOLD}${C_PURPLE}║        SSH • DNSTT • V2RAY • BADVPN • UDP • SSL • ZiVPN        ║${C_RESET}"
-    echo -e "${C_BOLD}${C_PURPLE}║              MULTI-TUNNEL DNSTT (5x SPEED)                     ║${C_RESET}"
+    echo -e "${C_BOLD}${C_PURPLE}║              CONNECTION FORCER (5 connections per IP)          ║${C_RESET}"
     echo -e "${C_BOLD}${C_PURPLE}╠═══════════════════════════════════════════════════════════════╣${C_RESET}"
     echo -e "${C_BOLD}${C_PURPLE}║  Server IP: ${C_GREEN}$IP${C_PURPLE}${C_RESET}"
     echo -e "${C_BOLD}${C_PURPLE}║  Location:  ${C_GREEN}$LOCATION, $COUNTRY${C_PURPLE}${C_RESET}"
     echo -e "${C_BOLD}${C_PURPLE}║  ISP:       ${C_GREEN}$ISP${C_PURPLE}${C_RESET}"
     echo -e "${C_BOLD}${C_PURPLE}║  Current MTU: ${C_GREEN}$current_mtu${C_PURPLE}${C_RESET}"
+    
+    # Show Connection Forcer status
+    if [ -f "$FORCER_CONFIG" ]; then
+        source "$FORCER_CONFIG"
+        echo -e "${C_BOLD}${C_PURPLE}║  Forcer:     ${C_GREEN}ACTIVE (${CONNECTIONS_PER_IP} conn/IP)${C_PURPLE}${C_RESET}"
+    else
+        echo -e "${C_BOLD}${C_PURPLE}║  Forcer:     ${C_YELLOW}INACTIVE (1 conn/IP)${C_PURPLE}${C_RESET}"
+    fi
     echo -e "${C_BOLD}${C_PURPLE}╚═══════════════════════════════════════════════════════════════╝${C_RESET}"
     echo ""
 }
@@ -1253,11 +1259,108 @@ _unlock_user() {
     safe_read "" dummy
 }
 
+# ========== SHOW USER DETAILS WITH IP INFORMATION ==========
+show_user_details() {
+    local username=$1
+    
+    # Get user data from database
+    local line=$(grep "^$username:" "$DB_FILE")
+    local expiry=$(echo "$line" | cut -d: -f3)
+    local limit=$(echo "$line" | cut -d: -f4)
+    local traffic_limit=$(echo "$line" | cut -d: -f5)
+    local traffic_used=$(echo "$line" | cut -d: -f6)
+    
+    # Get current connections
+    local online=$(pgrep -u "$username" sshd 2>/dev/null | wc -l)
+    
+    # Get IP details using ss
+    local ip_details=""
+    if command -v ss &>/dev/null; then
+        ip_details=$(ss -tnp 2>/dev/null | grep "$username" | awk '{print $5}' | cut -d: -f1 | sort | uniq -c | sort -nr)
+    else
+        ip_details=$(netstat -tnp 2>/dev/null | grep "$username" | awk '{print $5}' | cut -d: -f1 | sort | uniq -c | sort -nr)
+    fi
+    
+    local ip_count=$(echo "$ip_details" | wc -l)
+    [ -z "$ip_details" ] && ip_count=0
+    
+    clear
+    echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    echo -e "${C_BOLD}${C_PURPLE}           👤 USER DETAILS: ${C_YELLOW}$username${C_PURPLE}${C_RESET}"
+    echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    echo ""
+    
+    echo -e "${C_CYAN}📊 Summary:${C_RESET}"
+    echo -e "  • Username:     ${C_YELLOW}$username${C_RESET}"
+    echo -e "  • Expiry:       ${C_YELLOW}$expiry${C_RESET}"
+    echo -e "  • Connections:  ${C_YELLOW}$online/$limit${C_RESET}"
+    
+    # Format traffic
+    local traffic_disp=""
+    if [[ "$traffic_limit" == "0" ]] || [[ -z "$traffic_limit" ]]; then
+        traffic_disp="∞"
+    else
+        traffic_disp="$traffic_limit GB"
+    fi
+    echo -e "  • Traffic:      ${C_YELLOW}$traffic_used / $traffic_disp${C_RESET}"
+    
+    # Determine status
+    local status_text=""
+    local status_color=""
+    
+    if ! id "$username" &>/dev/null; then
+        status_text="NO USER"
+        status_color="${C_RED}"
+    elif passwd -S "$username" 2>/dev/null | grep -q " L "; then
+        status_text="LOCKED"
+        status_color="${C_YELLOW}"
+    else
+        local expiry_ts=$(date -d "$expiry" +%s 2>/dev/null || echo 0)
+        local current_ts=$(date +%s)
+        
+        if [[ $expiry_ts -lt $current_ts && $expiry_ts -ne 0 ]]; then
+            status_text="EXPIRED"
+            status_color="${C_RED}"
+        elif [[ "$traffic_limit" != "0" ]] && [ -n "$traffic_limit" ] && [ -n "$traffic_used" ] && [ "$(echo "$traffic_used >= $traffic_limit" | bc 2>/dev/null)" -eq 1 ]; then
+            status_text="LIMIT"
+            status_color="${C_RED}"
+        else
+            status_text="ACTIVE"
+            status_color="${C_GREEN}"
+        fi
+    fi
+    echo -e "  • Status:       $status_text"
+    
+    echo ""
+    echo -e "${C_CYAN}🌐 Active IPs ($ip_count total):${C_RESET}"
+    if [ -n "$ip_details" ]; then
+        echo "$ip_details" | while read count ip; do
+            # Check if connection forcer is enabled and show warning if less than expected
+            if [ -f "$FORCER_CONFIG" ]; then
+                source "$FORCER_CONFIG"
+                if [ $count -lt $CONNECTIONS_PER_IP ]; then
+                    echo -e "  • ${C_YELLOW}$ip${C_RESET} ── ${C_RED}$count connections ⚠️ (should be $CONNECTIONS_PER_IP)${C_RESET}"
+                else
+                    echo -e "  • ${C_YELLOW}$ip${C_RESET} ── ${C_GREEN}$count connections ✓${C_RESET}"
+                fi
+            else
+                echo -e "  • ${C_YELLOW}$ip${C_RESET} ── ${C_GREEN}$count connections${C_RESET}"
+            fi
+        done
+    else
+        echo -e "  ${C_DIM}No active connections${C_RESET}"
+    fi
+    
+    echo ""
+    safe_read "Press Enter to continue..."
+}
+
+# ========== LIST USERS WITH SELECTION ==========
 _list_users() {
     clear
     show_banner
     echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "${C_BOLD}${C_PURPLE}                      📋 SSH USERS LIST${C_RESET}"
+    echo -e "${C_BOLD}${C_PURPLE}                      📋 SSH USERS LIST                        ${C_RESET}"
     echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
     
     if [ ! -s "$DB_FILE" ]; then
@@ -1266,76 +1369,44 @@ _list_users() {
         return
     fi
     
-    printf "${C_BOLD}%-15s | %-12s | %-8s | %-25s | %-10s${C_RESET}\n" "USERNAME" "EXPIRY" "LIMIT" "TRAFFIC" "STATUS"
-    echo -e "${C_CYAN}──────────────────────────────────────────────────────────────────────────${C_RESET}"
+    # Array to store usernames
+    users=()
     
+    # Display users with numbers
     while IFS=: read -r user pass expiry limit traffic_limit traffic_used; do
         [[ -z "$user" ]] && continue
+        users+=("$user")
         
+        # Get current connections
         local online=0
         if id "$user" &>/dev/null; then
             online=$(pgrep -u "$user" sshd 2>/dev/null | wc -l)
         fi
         
-        local traffic_limit_num=0
-        local traffic_used_num=0
-        
-        if [[ -n "$traffic_limit" ]] && [[ "$traffic_limit" != "''" ]] && [[ "$traffic_limit" != "0" ]] && [[ "$traffic_limit" != "null" ]]; then
-            traffic_limit_num=$(echo "$traffic_limit" | sed 's/[^0-9.]//g' | awk '{printf "%.0f", $1}' 2>/dev/null || echo "0")
-        fi
-        
-        if [[ -n "$traffic_used" ]] && [[ "$traffic_used" != "''" ]] && [[ "$traffic_used" != "null" ]]; then
-            if [[ "$traffic_used" == .* ]]; then
-                traffic_used="0$traffic_used"
-            fi
-            traffic_used_num=$(echo "$traffic_used" | sed 's/[^0-9.]//g' | awk '{printf "%.2f", $1}' 2>/dev/null || echo "0")
-        fi
-        
+        # Format traffic display
         local traffic_disp=""
-        if [[ "$traffic_limit_num" == "0" ]]; then
-            traffic_disp="$(printf "%.2f" $traffic_used_num) GB / ∞"
+        if [[ "$traffic_limit" == "0" ]] || [[ -z "$traffic_limit" ]]; then
+            traffic_disp="∞"
         else
-            if command -v bc &>/dev/null; then
-                local percent=$(echo "scale=1; $traffic_used_num * 100 / $traffic_limit_num" | bc 2>/dev/null || echo "0")
-                traffic_disp="$(printf "%.2f" $traffic_used_num) / $traffic_limit_num GB ($percent%)"
-            else
-                traffic_disp="$(printf "%.2f" $traffic_used_num) / $traffic_limit_num GB"
-            fi
+            traffic_disp="$traffic_limit GB"
         fi
         
-        local status_text=""
-        local status_color=""
-        
-        if ! id "$user" &>/dev/null; then
-            status_text="NO USER"
-            status_color="${C_RED}"
-        elif passwd -S "$user" 2>/dev/null | grep -q " L "; then
-            status_text="LOCKED"
-            status_color="${C_YELLOW}"
-        else
-            local expiry_ts=$(date -d "$expiry" +%s 2>/dev/null || echo 0)
-            local current_ts=$(date +%s)
-            
-            if [[ $expiry_ts -lt $current_ts && $expiry_ts -ne 0 ]]; then
-                status_text="EXPIRED"
-                status_color="${C_RED}"
-            elif [[ "$traffic_limit_num" -gt 0 ]] && (( $(echo "$traffic_used_num >= $traffic_limit_num" | bc -l 2>/dev/null) )); then
-                status_text="LIMIT"
-                status_color="${C_RED}"
-            else
-                status_text="ACTIVE"
-                status_color="${C_GREEN}"
-            fi
-        fi
-        
-        printf "%-15s | %-12s | %-8s | %-25s | ${status_color}%-10s${C_RESET}\n" \
-            "$user" "$expiry" "$online/$limit" "$traffic_disp" "$status_text"
+        # Show user with number
+        printf "  ${C_GREEN}%2d)${C_RESET} %-15s │ ${C_YELLOW}%s/%s${C_RESET} connections │ Traffic: ${C_CYAN}%s/%s${C_RESET}\n" \
+            "${#users[@]}" "$user" "$online" "$limit" "$traffic_used" "$traffic_disp"
             
     done < "$DB_FILE"
     
-    echo -e "${C_CYAN}──────────────────────────────────────────────────────────────────────────${C_RESET}"
     echo ""
-    safe_read "" dummy
+    echo -e "  ${C_RED} 0)${C_RESET} Return to main menu"
+    echo ""
+    
+    local choice
+    safe_read "👉 Select user to view details (or 0): " choice
+    
+    if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge 1 ] && [ "$choice" -le "${#users[@]}" ]; then
+        show_user_details "${users[$((choice-1))]}"
+    fi
 }
 
 _renew_user() {
@@ -1514,6 +1585,339 @@ ssh_banner_menu() {
     done
 }
 
+# ========== CONNECTION FORCER FUNCTIONS ==========
+
+# Function ya kuangalia kama HAProxy ipo
+check_haproxy() {
+    if ! command -v haproxy &>/dev/null; then
+        return 1
+    fi
+    return 0
+}
+
+# Function ya kusakilisha HAProxy
+install_haproxy() {
+    echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    echo -e "${C_BLUE}           📦 INSTALLING HAPROXY${C_RESET}"
+    echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    
+    echo -e "${C_GREEN}Installing HAProxy...${C_RESET}"
+    $PKG_INSTALL haproxy
+    
+    if command -v haproxy &>/dev/null; then
+        echo -e "${C_GREEN}✅ HAProxy installed successfully${C_RESET}"
+        return 0
+    else
+        echo -e "${C_RED}❌ Failed to install HAProxy${C_RESET}"
+        return 1
+    fi
+}
+
+# Function ya kuanzisha Connection Forcer
+enable_connection_forcer() {
+    echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    echo -e "${C_BLUE}           🔧 ENABLING CONNECTION FORCER (5 connections per IP)${C_RESET}"
+    echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    
+    # Create directories
+    mkdir -p "$FORCER_DIR" "$FORCER_BACKUP_DIR"
+    
+    # Install HAProxy if needed
+    if ! check_haproxy; then
+        install_haproxy || return 1
+    fi
+    
+    # Backup existing config
+    if [ -f "$FORCER_HAPROXY_CFG" ]; then
+        local backup_file="$FORCER_BACKUP_DIR/haproxy.cfg.backup.$(date +%Y%m%d_%H%M%S)"
+        cp "$FORCER_HAPROXY_CFG" "$backup_file"
+        echo -e "${C_YELLOW}✅ Backed up existing config to $backup_file${C_RESET}"
+    fi
+    
+    # Get number of connections per IP
+    local connections
+    read -p "👉 Number of connections per IP [default=5]: " connections
+    connections=${connections:-5}
+    if ! [[ "$connections" =~ ^[0-9]+$ ]] || [ "$connections" -lt 1 ] || [ "$connections" -gt 20 ]; then
+        echo -e "${C_RED}❌ Invalid number. Using 5.${C_RESET}"
+        connections=5
+    fi
+    
+    # Get SSH port
+    local ssh_port
+    read -p "👉 SSH port [22]: " ssh_port
+    ssh_port=${ssh_port:-22}
+    
+    # Create HAProxy config
+    echo -e "${C_GREEN}Creating HAProxy configuration for $connections connections per IP...${C_RESET}"
+    
+    cat > "$FORCER_HAPROXY_CFG" <<EOF
+global
+    log /dev/log local0
+    log /dev/log local1 notice
+    chroot /var/lib/haproxy
+    stats socket /run/haproxy/admin.sock mode 660
+    user haproxy
+    group haproxy
+    daemon
+    maxconn 10000
+
+defaults
+    log global
+    mode tcp
+    option tcplog
+    option dontlognull
+    retries 3
+    timeout connect 5000
+    timeout client 50000
+    timeout server 50000
+
+# Stats page
+listen stats
+    bind *:8404
+    mode http
+    stats enable
+    stats uri /stats
+    stats refresh 10s
+    stats auth admin:voltron123
+
+# Main SSH frontend - inasikiliza ports nyingi
+frontend ssh-in
+    bind *:$ssh_port
+EOF
+
+    # Generate additional ports for each connection
+    for ((i=1; i<=connections; i++)); do
+        local extra_port=$((ssh_port + i))
+        echo "    bind *:$extra_port" >> "$FORCER_HAPROXY_CFG"
+    done
+    
+    cat >> "$FORCER_HAPROXY_CFG" <<EOF
+    default_backend ssh-servers
+
+# Backend with multiple servers
+backend ssh-servers
+    balance roundrobin
+EOF
+
+    # Add servers (each is the same SSH)
+    for ((i=1; i<=connections; i++)); do
+        echo "    server ssh$i 127.0.0.1:$ssh_port check inter 10s" >> "$FORCER_HAPROXY_CFG"
+    done
+    
+    # Stop SSH from listening on all interfaces (HAProxy itasikiliza)
+    echo -e "${C_YELLOW}⚙️ Configuring SSH to listen only on localhost...${C_RESET}"
+    sed -i "s/^Port $ssh_port/#Port $ssh_port/" /etc/ssh/sshd_config
+    echo "Port 127.0.0.1:$ssh_port" >> /etc/ssh/sshd_config
+    systemctl restart sshd
+    
+    # Open firewall ports
+    for ((i=0; i<=connections; i++)); do
+        local port=$((ssh_port + i))
+        ufw allow $port/tcp 2>/dev/null
+    done
+    ufw allow 8404/tcp 2>/dev/null  # Stats page
+    
+    # Start HAProxy
+    echo -e "${C_YELLOW}🚀 Starting HAProxy...${C_RESET}"
+    systemctl restart haproxy
+    systemctl enable haproxy
+    
+    # Save configuration
+    cat > "$FORCER_CONFIG" <<EOF
+CONNECTIONS_PER_IP="$connections"
+SSH_PORT="$ssh_port"
+ENABLED="yes"
+DATE="$(date)"
+EOF
+    
+    echo ""
+    echo -e "${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
+    echo -e "${C_GREEN}           ✅ CONNECTION FORCER ENABLED!${C_RESET}"
+    echo -e "${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
+    echo -e "  ${C_CYAN}Connections per IP:${C_RESET} $connections"
+    echo -e "  ${C_CYAN}Ports:${C_RESET}              $ssh_port"
+    for ((i=1; i<=connections; i++)); do
+        echo -e "                       $((ssh_port + i))"
+    done
+    echo -e "  ${C_CYAN}Status:${C_RESET}              Active"
+    echo ""
+    echo -e "${C_YELLOW}📌 Clients still connect normally:${C_RESET}"
+    echo -e "  ssh user@your-vps -p $ssh_port"
+    echo -e "  # VPS automatically creates $connections connections!"
+    echo ""
+    echo -e "${C_YELLOW}📌 Stats page:${C_RESET} http://$IP:8404/stats (admin/voltron123)"
+    
+    safe_read "" dummy
+}
+
+# Function ya kuzima Connection Forcer
+disable_connection_forcer() {
+    echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    echo -e "${C_BLUE}           🛑 DISABLING CONNECTION FORCER${C_RESET}"
+    echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    
+    if [ ! -f "$FORCER_CONFIG" ]; then
+        echo -e "${C_YELLOW}ℹ️ Connection Forcer is not enabled${C_RESET}"
+        safe_read "" dummy
+        return
+    fi
+    
+    source "$FORCER_CONFIG"
+    
+    # Stop HAProxy
+    systemctl stop haproxy
+    systemctl disable haproxy
+    
+    # Restore SSH config
+    sed -i "/^Port 127.0.0.1:$SSH_PORT/d" /etc/ssh/sshd_config
+    sed -i "s/^#Port $SSH_PORT/Port $SSH_PORT/" /etc/ssh/sshd_config
+    systemctl restart sshd
+    
+    # Restore backup if exists
+    local latest_backup=$(ls -t "$FORCER_BACKUP_DIR"/* 2>/dev/null | head -1)
+    if [ -n "$latest_backup" ]; then
+        cp "$latest_backup" "$FORCER_HAPROXY_CFG"
+        echo -e "${C_GREEN}✅ Restored previous HAProxy config${C_RESET}"
+    else
+        rm -f "$FORCER_HAPROXY_CFG"
+    fi
+    
+    rm -f "$FORCER_CONFIG"
+    
+    echo -e "${C_GREEN}✅ Connection Forcer disabled${C_RESET}"
+    echo -e "${C_YELLOW}📌 Clients now get normal 1 connection per IP${C_RESET}"
+    
+    safe_read "" dummy
+}
+
+# Function ya kuangalia status ya Connection Forcer
+status_connection_forcer() {
+    echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    echo -e "${C_BLUE}           📊 CONNECTION FORCER STATUS${C_RESET}"
+    echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    
+    if [ ! -f "$FORCER_CONFIG" ]; then
+        echo -e "${C_YELLOW}ℹ️ Connection Forcer is NOT enabled${C_RESET}"
+        echo -e "Clients get normal 1 connection per IP"
+    else
+        source "$FORCER_CONFIG"
+        echo -e "${C_GREEN}✅ Connection Forcer is ENABLED${C_RESET}"
+        echo -e "  ${C_CYAN}Connections per IP:${C_RESET} $CONNECTIONS_PER_IP"
+        echo -e "  ${C_CYAN}SSH Port:${C_RESET}           $SSH_PORT"
+        echo -e "  ${C_CYAN}Active ports:${C_RESET}        $SSH_PORT"
+        for ((i=1; i<=CONNECTIONS_PER_IP; i++)); do
+            echo -e "                    $((SSH_PORT + i))"
+        done
+        echo -e "  ${C_CYAN}Enabled since:${C_RESET}       $DATE"
+        
+        # Check if HAProxy is running
+        if systemctl is-active haproxy &>/dev/null; then
+            echo -e "  ${C_CYAN}HAProxy:${C_RESET}            ${C_GREEN}Running${C_RESET}"
+        else
+            echo -e "  ${C_CYAN}HAProxy:${C_RESET}            ${C_RED}Stopped${C_RESET}"
+        fi
+    fi
+    
+    safe_read "" dummy
+}
+
+# Function ya kuona connection statistics
+stats_connection_forcer() {
+    echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    echo -e "${C_BLUE}           📈 CONNECTION FORCER STATISTICS${C_RESET}"
+    echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    
+    if ! systemctl is-active haproxy &>/dev/null; then
+        echo -e "${C_YELLOW}ℹ️ HAProxy is not running${C_RESET}"
+        safe_read "" dummy
+        return
+    fi
+    
+    # Get expected connections per IP from config
+    local expected=5
+    if [ -f "$FORCER_CONFIG" ]; then
+        source "$FORCER_CONFIG"
+        expected=$CONNECTIONS_PER_IP
+    fi
+    
+    echo -e "${C_GREEN}Current connections per IP:${C_RESET}"
+    echo ""
+    
+    # Get all established SSH connections
+    local connections=$(ss -tnp 2>/dev/null | grep ESTAB | grep -v "127.0.0.1" | awk '{print $5}' | cut -d: -f1 | sort | uniq -c | sort -nr)
+    
+    if [ -z "$connections" ]; then
+        echo -e "${C_YELLOW}No active connections${C_RESET}"
+    else
+        local total_connections=0
+        local total_ips=0
+        local ips_meeting_target=0
+        
+        echo "$connections" | while read count ip; do
+            total_connections=$((total_connections + count))
+            total_ips=$((total_ips + 1))
+            
+            if [ $count -ge $expected ]; then
+                echo -e "  ${C_GREEN}$ip${C_RESET} → ${C_GREEN}$count connections ✓${C_RESET}"
+                ips_meeting_target=$((ips_meeting_target + 1))
+            else
+                echo -e "  ${C_YELLOW}$ip${C_RESET} → ${C_YELLOW}$count connections ⚠️ (should be $expected)${C_RESET}"
+            fi
+        done
+        
+        echo ""
+        echo -e "${C_CYAN}Total unique IPs:${C_RESET} $total_ips"
+        echo -e "${C_CYAN}Total connections:${C_RESET} $total_connections"
+        echo -e "${C_CYAN}IPs meeting target ($expected):${C_RESET} $ips_meeting_target"
+        echo -e "${C_CYAN}Average connections per IP:${C_RESET} $((total_connections / total_ips))"
+    fi
+    
+    safe_read "" dummy
+}
+
+# Connection Forcer Menu
+connection_forcer_menu() {
+    while true; do
+        clear
+        show_banner
+        
+        echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
+        echo -e "${C_BOLD}${C_PURPLE}           🔗 CONNECTION FORCER (5 connections per IP)${C_RESET}"
+        echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
+        echo ""
+        
+        # Show current status
+        if [ -f "$FORCER_CONFIG" ]; then
+            source "$FORCER_CONFIG"
+            echo -e "  ${C_GREEN}✅ Status: ENABLED (${CONNECTIONS_PER_IP} connections per IP)${C_RESET}"
+        else
+            echo -e "  ${C_YELLOW}⚠️ Status: DISABLED (1 connection per IP)${C_RESET}"
+        fi
+        echo ""
+        
+        echo -e "  ${C_GREEN}1)${C_RESET} Enable Connection Forcer"
+        echo -e "  ${C_RED}2)${C_RESET} Disable Connection Forcer"
+        echo -e "  ${C_GREEN}3)${C_RESET} View Status"
+        echo -e "  ${C_GREEN}4)${C_RESET} View Statistics"
+        echo ""
+        echo -e "  ${C_RED}0)${C_RESET} Return to Main Menu"
+        echo ""
+        
+        local choice
+        safe_read "$(echo -e ${C_PROMPT}"👉 Select option: "${C_RESET})" choice
+        
+        case $choice in
+            1) enable_connection_forcer ;;
+            2) disable_connection_forcer ;;
+            3) status_connection_forcer ;;
+            4) stats_connection_forcer ;;
+            0) return ;;
+            *) echo -e "\n${C_RED}❌ Invalid option${C_RESET}"; sleep 2 ;;
+        esac
+    done
+}
+
 # ========== DNSTT INSTALLATION ==========
 install_dnstt() {
     clear
@@ -1675,435 +2079,6 @@ show_dnstt_details() {
     echo -e "  Public Key:    ${C_YELLOW}${PUBKEY:0:30}...${PUBKEY: -30}${C_RESET}"
     
     safe_read "" dummy
-}
-
-# ========== MULTI-TUNNEL DNSTT FUNCTIONS ==========
-
-check_dnstt_installed() {
-    if [ ! -f "$DNSTT_CLIENT" ]; then
-        echo -e "${C_RED}❌ DNSTT client not found at $DNSTT_CLIENT${C_RESET}"
-        echo -e "${C_YELLOW}Please install DNSTT first (Option 4 in Protocols menu)${C_RESET}"
-        return 1
-    fi
-    
-    if [ ! -f "$DNSTT_INFO_FILE" ]; then
-        echo -e "${C_RED}❌ DNSTT configuration not found at $DNSTT_INFO_FILE${C_RESET}"
-        echo -e "${C_YELLOW}Please install DNSTT first (Option 4 in Protocols menu)${C_RESET}"
-        return 1
-    fi
-    
-    source "$DNSTT_INFO_FILE"
-    
-    if [ -z "$TUNNEL_DOMAIN" ] || [ -z "$PUBLIC_KEY" ]; then
-        echo -e "${C_RED}❌ DNSTT configuration is incomplete${C_RESET}"
-        return 1
-    fi
-    
-    echo -e "${C_GREEN}✅ DNSTT check passed${C_RESET}"
-    return 0
-}
-
-check_ports_available() {
-    local base_port=$1
-    local count=$2
-    local all_free=0
-    
-    for ((i=0; i<count; i++)); do
-        local port=$((base_port + i))
-        if ss -tln | grep -q ":$port "; then
-            echo -e "${C_RED}❌ Port $port is already in use${C_RESET}"
-            all_free=1
-        fi
-    done
-    
-    if [ $all_free -eq 0 ]; then
-        echo -e "${C_GREEN}✅ All ports are available${C_RESET}"
-        return 0
-    else
-        return 1
-    fi
-}
-
-configure_multi_tunnel_proxychains() {
-    local tunnel_count=$1
-    local base_port=$2
-    
-    echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "${C_BLUE}           🔧 CONFIGURING PROXYCHAINS FOR MULTI-TUNNEL${C_RESET}"
-    echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
-    
-    # Install proxychains if not exists
-    if ! command -v proxychains4 &>/dev/null; then
-        echo -e "${C_YELLOW}📦 Installing proxychains4...${C_RESET}"
-        $PKG_INSTALL proxychains4
-    fi
-    
-    # Backup original
-    [ -f "$MULTI_TUNNEL_PROXYCHAINS" ] && cp "$MULTI_TUNNEL_PROXYCHAINS" "$MULTI_TUNNEL_PROXYCHAINS.backup"
-    
-    cat > "$MULTI_TUNNEL_PROXYCHAINS" <<EOF
-# ===== VOLTRON TECH MULTI-TUNNEL DNSTT =====
-# Created: $(date)
-# Tunnels: $tunnel_count
-
-dynamic_chain
-strict_chain off
-round_robin_chain on
-quiet_mode
-proxy_dns
-tcp_read_time_out 15000
-tcp_connect_time_out 8000
-
-[ProxyList]
-EOF
-
-    for ((i=0; i<tunnel_count; i++)); do
-        local port=$((base_port + i))
-        echo "socks5 127.0.0.1 $port" >> "$MULTI_TUNNEL_PROXYCHAINS"
-    done
-    
-    echo -e "${C_GREEN}✅ Proxychains configured with $tunnel_count SOCKS5 proxies${C_RESET}"
-    echo -e "  • Config: ${C_CYAN}$MULTI_TUNNEL_PROXYCHAINS${C_RESET}"
-    echo -e "  • Ports: ${C_CYAN}$base_port-$((base_port + tunnel_count - 1))${C_RESET}"
-}
-
-start_multi_tunnel() {
-    echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "${C_BLUE}           🚀 STARTING MULTI-TUNNEL DNSTT (5x SPEED)${C_RESET}"
-    echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
-    
-    # Check if DNSTT is installed
-    if ! check_dnstt_installed; then
-        safe_read "" dummy
-        return 1
-    fi
-    
-    # Load DNSTT config
-    source "$DNSTT_INFO_FILE"
-    
-    local domain="$TUNNEL_DOMAIN"
-    local pubkey="$PUBLIC_KEY"
-    local mtu="$MTU_VALUE"
-    local ssh_port="$SSH_PORT"
-    
-    echo -e "${C_GREEN}✅ DNSTT configuration loaded${C_RESET}"
-    echo -e "  • Domain: ${C_CYAN}$domain${C_RESET}"
-    echo -e "  • MTU: ${C_CYAN}$mtu${C_RESET}"
-    echo -e "  • SSH Port: ${C_CYAN}$ssh_port${C_RESET}"
-    
-    # Get number of tunnels
-    local tunnel_count
-    read -p "👉 Number of tunnels [1-10, default=5]: " tunnel_count
-    tunnel_count=${tunnel_count:-5}
-    if ! [[ "$tunnel_count" =~ ^[0-9]+$ ]] || [ "$tunnel_count" -lt 1 ] || [ "$tunnel_count" -gt 10 ]; then
-        echo -e "${C_RED}❌ Invalid number. Using 5.${C_RESET}"
-        tunnel_count=5
-    fi
-    
-    # Get base port
-    local base_port
-    read -p "👉 Base SOCKS port [1080]: " base_port
-    base_port=${base_port:-1080}
-    if ! [[ "$base_port" =~ ^[0-9]+$ ]] || [ "$base_port" -lt 1024 ] || [ "$base_port" -gt 65535 ]; then
-        echo -e "${C_RED}❌ Invalid port. Using 1080.${C_RESET}"
-        base_port=1080
-    fi
-    
-    # Check if ports are available
-    if ! check_ports_available "$base_port" "$tunnel_count"; then
-        echo -e "${C_RED}❌ Some ports are already in use. Please choose different base port.${C_RESET}"
-        safe_read "" dummy
-        return 1
-    fi
-    
-    # Get DNS resolver
-    local dns_resolver
-    echo -e "\n${C_YELLOW}Select DNS resolver:${C_RESET}"
-    echo -e "  ${C_GREEN}1)${C_RESET} Halotel (169.255.187.58) - Recommended for Tanzania"
-    echo -e "  ${C_GREEN}2)${C_RESET} Google (8.8.8.8)"
-    echo -e "  ${C_GREEN}3)${C_RESET} Cloudflare (1.1.1.1)"
-    echo -e "  ${C_GREEN}4)${C_RESET} Custom"
-    read -p "👉 Choice [1]: " dns_choice
-    dns_choice=${dns_choice:-1}
-    
-    case $dns_choice in
-        1) dns_resolver="169.255.187.58:53" ;;
-        2) dns_resolver="8.8.8.8:53" ;;
-        3) dns_resolver="1.1.1.1:53" ;;
-        4) read -p "Enter custom DNS (e.g., 8.8.8.8:53): " dns_resolver ;;
-        *) dns_resolver="169.255.187.58:53" ;;
-    esac
-    
-    # Stop existing tunnels
-    echo -e "\n${C_YELLOW}🛑 Stopping any existing tunnels...${C_RESET}"
-    pkill -f "dnstt-client.*$domain" 2>/dev/null
-    rm -rf "$MULTI_TUNNEL_PID_DIR"/*
-    sleep 2
-    
-    # Configure proxychains
-    configure_multi_tunnel_proxychains "$tunnel_count" "$base_port"
-    
-    # Save config
-    cat > "$MULTI_TUNNEL_CONFIG" <<EOF
-TUNNEL_COUNT="$tunnel_count"
-BASE_PORT="$base_port"
-DNS_RESOLVER="$dns_resolver"
-DOMAIN="$domain"
-MTU="$mtu"
-SSH_PORT="$ssh_port"
-EOF
-    
-    # Start tunnels
-    echo -e "\n${C_BLUE}🚀 Starting $tunnel_count DNSTT tunnels...${C_RESET}"
-    
-    local success_count=0
-    for ((i=0; i<tunnel_count; i++)); do
-        local port=$((base_port + i))
-        local pid_file="$MULTI_TUNNEL_PID_DIR/tunnel-$port.pid"
-        local log_file="$MULTI_TUNNEL_DIR/tunnel-$port.log"
-        
-        echo -e "${C_CYAN}  Starting tunnel $((i+1)) on SOCKS5 port $port...${C_RESET}"
-        
-        $DNSTT_CLIENT \
-            -udp "$dns_resolver" \
-            -pubkey "$pubkey" \
-            -mtu "$mtu" \
-            -listen "127.0.0.1:$port" \
-            "$domain" "127.0.0.1:$ssh_port" \
-            > "$log_file" 2>&1 &
-        
-        echo $! > "$pid_file"
-        sleep 1
-        
-        if kill -0 $(cat "$pid_file") 2>/dev/null; then
-            echo -e "    ${C_GREEN}✅ Started${C_RESET}"
-            ((success_count++))
-        else
-            echo -e "    ${C_RED}❌ Failed${C_RESET}"
-        fi
-    done
-    
-    echo ""
-    echo -e "${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "${C_GREEN}           ✅ MULTI-TUNNEL DNSTT ACTIVE!${C_RESET}"
-    echo -e "${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "  ${C_CYAN}Domain:${C_RESET}      $domain"
-    echo -e "  ${C_CYAN}DNS Resolver:${C_RESET} $dns_resolver"
-    echo -e "  ${C_CYAN}MTU:${C_RESET}          $mtu"
-    echo -e "  ${C_CYAN}Tunnels:${C_RESET}       $success_count/$tunnel_count active"
-    echo -e "  ${C_CYAN}Ports:${C_RESET}         $base_port-$((base_port + tunnel_count - 1))"
-    echo ""
-    echo -e "${C_YELLOW}📌 USAGE EXAMPLES:${C_RESET}"
-    echo -e "  ${WHITE}proxychains4 curl ifconfig.me${NC}"
-    echo -e "  ${WHITE}proxychains4 ssh user@localhost -p $ssh_port${NC}"
-    echo -e "  ${WHITE}proxychains4 wget -O /dev/null http://speedtest.tele2.net/10MB.zip${NC}"
-    echo ""
-    echo -e "${C_YELLOW}📌 ProxyChains config:${C_RESET} ${C_CYAN}$MULTI_TUNNEL_PROXYCHAINS${C_RESET}"
-    
-    # Save info
-    cat > "$MULTI_TUNNEL_DIR/connection_info.txt" <<EOF
-VOLTRON TECH MULTI-TUNNEL DNSTT
-================================
-Domain: $domain
-DNS Resolver: $dns_resolver
-MTU: $mtu
-SSH Port: $ssh_port
-Tunnels: $success_count/$tunnel_count
-Port Range: $base_port-$((base_port + tunnel_count - 1))
-
-Proxychains Config: $MULTI_TUNNEL_PROXYCHAINS
-
-Usage:
-  proxychains4 curl ifconfig.me
-  proxychains4 ssh user@localhost -p $ssh_port
-EOF
-    
-    safe_read "" dummy
-}
-
-stop_multi_tunnel() {
-    echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "${C_BLUE}           🛑 STOPPING MULTI-TUNNEL DNSTT${C_RESET}"
-    echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
-    
-    if [ ! -d "$MULTI_TUNNEL_PID_DIR" ]; then
-        echo -e "${C_YELLOW}ℹ️ No multi-tunnel is running${C_RESET}"
-        safe_read "" dummy
-        return
-    fi
-    
-    local count=0
-    for pid_file in "$MULTI_TUNNEL_PID_DIR"/*.pid; do
-        [ -f "$pid_file" ] || continue
-        local pid=$(cat "$pid_file")
-        local port=$(basename "$pid_file" | sed 's/tunnel-\(.*\)\.pid/\1/')
-        
-        if kill -0 "$pid" 2>/dev/null; then
-            kill "$pid" 2>/dev/null
-            echo -e "${C_YELLOW}  Stopped tunnel on port $port${C_RESET}"
-            ((count++))
-        fi
-        rm -f "$pid_file"
-    done
-    
-    echo -e "${C_GREEN}✅ Stopped $count tunnels${C_RESET}"
-    safe_read "" dummy
-}
-
-status_multi_tunnel() {
-    echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "${C_BLUE}           📊 MULTI-TUNNEL DNSTT STATUS${C_RESET}"
-    echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
-    
-    if [ ! -d "$MULTI_TUNNEL_PID_DIR" ]; then
-        echo -e "${C_YELLOW}ℹ️ No multi-tunnel is running${C_RESET}"
-        safe_read "" dummy
-        return
-    fi
-    
-    local total=0
-    local running=0
-    
-    for pid_file in "$MULTI_TUNNEL_PID_DIR"/*.pid; do
-        [ -f "$pid_file" ] || continue
-        ((total++))
-        local port=$(basename "$pid_file" | sed 's/tunnel-\(.*\)\.pid/\1/')
-        
-        if kill -0 $(cat "$pid_file") 2>/dev/null; then
-            echo -e "  ${C_GREEN}● Tunnel on port $port - RUNNING${C_RESET}"
-            ((running++))
-        else
-            echo -e "  ${C_RED}○ Tunnel on port $port - STOPPED${C_RESET}"
-            rm -f "$pid_file"
-        fi
-    done
-    
-    if [ $total -eq 0 ]; then
-        echo -e "${C_YELLOW}ℹ️ No tunnels configured${C_RESET}"
-    else
-        echo ""
-        echo -e "  ${C_CYAN}Total tunnels:${C_RESET} $total"
-        echo -e "  ${C_CYAN}Running:${C_RESET}       $running"
-        echo -e "  ${C_CYAN}Stopped:${C_RESET}       $((total - running))"
-    fi
-    
-    # Show config if exists
-    if [ -f "$MULTI_TUNNEL_CONFIG" ]; then
-        echo ""
-        echo -e "${C_CYAN}Configuration:${C_RESET}"
-        source "$MULTI_TUNNEL_CONFIG"
-        echo -e "  Domain: $DOMAIN"
-        echo -e "  DNS: $DNS_RESOLVER"
-        echo -e "  MTU: $MTU"
-        echo -e "  SSH Port: $SSH_PORT"
-        echo -e "  Proxychains: $MULTI_TUNNEL_PROXYCHAINS"
-    fi
-    
-    safe_read "" dummy
-}
-
-test_multi_tunnel_speed() {
-    echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "${C_BLUE}           🚀 TESTING MULTI-TUNNEL SPEED${C_RESET}"
-    echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
-    
-    if [ ! -f "$MULTI_TUNNEL_PROXYCHAINS" ]; then
-        echo -e "${C_RED}❌ Proxychains config not found. Start multi-tunnel first.${C_RESET}"
-        safe_read "" dummy
-        return
-    fi
-    
-    echo -e "${C_YELLOW}📌 Direct connection (without proxy):${C_RESET}"
-    local direct_speed=$(curl -s -o /dev/null -w "%{speed_download}" http://speedtest.tele2.net/10MB.zip 2>/dev/null)
-    if [ -n "$direct_speed" ]; then
-        echo -e "  Speed: $(echo "scale=2; $direct_speed/1048576" | bc) MB/s"
-    else
-        echo -e "  ${C_RED}Failed to test direct connection${C_RESET}"
-    fi
-    
-    echo ""
-    echo -e "${C_YELLOW}📌 Through multi-tunnel (proxychains):${C_RESET}"
-    local proxy_speed=$(proxychains4 -f "$MULTI_TUNNEL_PROXYCHAINS" curl -s -o /dev/null -w "%{speed_download}" http://speedtest.tele2.net/10MB.zip 2>/dev/null)
-    if [ -n "$proxy_speed" ]; then
-        echo -e "  Speed: $(echo "scale=2; $proxy_speed/1048576" | bc) MB/s"
-        
-        if [ -n "$direct_speed" ] && [ "$(echo "$proxy_speed > $direct_speed" | bc)" -eq 1 ]; then
-            local boost=$(echo "scale=2; $proxy_speed / $direct_speed" | bc)
-            echo -e "\n${C_GREEN}✅ Multi-tunnel is ${boost}x faster!${C_RESET}"
-        fi
-    else
-        echo -e "  ${C_RED}Failed to test multi-tunnel connection${C_RESET}"
-    fi
-    
-    safe_read "" dummy
-}
-
-configure_multi_tunnel_settings() {
-    echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "${C_BLUE}           ⚙️ MULTI-TUNNEL SETTINGS${C_RESET}"
-    echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
-    
-    local current_count=$DEFAULT_TUNNEL_COUNT
-    local current_port=$BASE_SOCKS_PORT
-    
-    if [ -f "$MULTI_TUNNEL_CONFIG" ]; then
-        source "$MULTI_TUNNEL_CONFIG"
-        current_count="$TUNNEL_COUNT"
-        current_port="$BASE_PORT"
-    fi
-    
-    read -p "👉 Number of tunnels [1-10, default=$current_count]: " new_count
-    new_count=${new_count:-$current_count}
-    if [[ "$new_count" =~ ^[0-9]+$ ]] && [ "$new_count" -ge 1 ] && [ "$new_count" -le 10 ]; then
-        DEFAULT_TUNNEL_COUNT=$new_count
-        echo -e "${C_GREEN}✅ Tunnel count set to $new_count${C_RESET}"
-    else
-        echo -e "${C_RED}❌ Invalid value. Keeping $current_count${C_RESET}"
-    fi
-    
-    read -p "👉 Base SOCKS port [1024-65535, default=$current_port]: " new_port
-    new_port=${new_port:-$current_port}
-    if [[ "$new_port" =~ ^[0-9]+$ ]] && [ "$new_port" -ge 1024 ] && [ "$new_port" -le 65535 ]; then
-        BASE_SOCKS_PORT=$new_port
-        echo -e "${C_GREEN}✅ Base port set to $new_port${C_RESET}"
-    else
-        echo -e "${C_RED}❌ Invalid value. Keeping $current_port${C_RESET}"
-    fi
-    
-    safe_read "" dummy
-}
-
-multi_tunnel_menu() {
-    while true; do
-        clear
-        show_banner
-        
-        echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
-        echo -e "${C_BOLD}${C_PURPLE}           🚀 MULTI-TUNNEL DNSTT (5x SPEED)${C_RESET}"
-        echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
-        echo ""
-        echo -e "  ${C_GREEN}1)${C_RESET} Start Multi-Tunnel"
-        echo -e "  ${C_GREEN}2)${C_RESET} Stop All Tunnels"
-        echo -e "  ${C_GREEN}3)${C_RESET} View Status"
-        echo -e "  ${C_GREEN}4)${C_RESET} Test Speed"
-        echo -e "  ${C_GREEN}5)${C_RESET} Configure Settings"
-        echo ""
-        echo -e "  ${C_RED}0)${C_RESET} Return to Main Menu"
-        echo ""
-        
-        local choice
-        safe_read "$(echo -e ${C_PROMPT}"👉 Select option: "${C_RESET})" choice
-        
-        case $choice in
-            1) start_multi_tunnel ;;
-            2) stop_multi_tunnel ;;
-            3) status_multi_tunnel ;;
-            4) test_multi_tunnel_speed ;;
-            5) configure_multi_tunnel_settings ;;
-            0) return ;;
-            *) echo -e "\n${C_RED}❌ Invalid option${C_RESET}"; sleep 2 ;;
-        esac
-    done
 }
 
 # ========== BADVPN INSTALLATION ==========
@@ -2654,12 +2629,19 @@ uninstall_script() {
     
     echo -e "\n${C_BLUE}--- 💥 Starting Uninstallation ---${C_RESET}"
     
+    # Disable Connection Forcer if enabled
+    if [ -f "$FORCER_CONFIG" ]; then
+        echo -e "${C_BLUE}Disabling Connection Forcer...${C_RESET}"
+        source "$FORCER_CONFIG"
+        systemctl stop haproxy 2>/dev/null
+        systemctl disable haproxy 2>/dev/null
+        sed -i "/^Port 127.0.0.1:$SSH_PORT/d" /etc/ssh/sshd_config
+        sed -i "s/^#Port $SSH_PORT/Port $SSH_PORT/" /etc/ssh/sshd_config
+    fi
+    
     # Stop all services
     systemctl stop dnstt.service v2ray-dnstt.service badvpn.service udp-custom.service haproxy voltronproxy.service nginx zivpn.service 2>/dev/null
     systemctl disable dnstt.service v2ray-dnstt.service badvpn.service udp-custom.service voltronproxy.service 2>/dev/null
-    
-    # Stop multi-tunnel if running
-    pkill -f "dnstt-client" 2>/dev/null
     
     # Remove service files
     rm -f "$DNSTT_SERVICE" "$V2RAY_SERVICE" "$BADVPN_SERVICE" "$UDP_CUSTOM_SERVICE" "$VOLTRONPROXY_SERVICE" "$ZIVPN_SERVICE"
@@ -2680,6 +2662,9 @@ uninstall_script() {
     rm -f /etc/resolv.conf
     echo "nameserver 8.8.8.8" > /etc/resolv.conf
     echo "nameserver 1.1.1.1" >> /etc/resolv.conf
+    
+    # Restart SSH
+    systemctl restart sshd
     
     # Remove script
     rm -f /usr/local/bin/menu
@@ -3295,7 +3280,7 @@ main_menu() {
         printf "  ${C_GREEN}%2s${C_RESET}) %-25s  ${C_GREEN}%2s${C_RESET}) %-25s\n" "9" "Backup Users" "13" "Cleanup Expired"
         printf "  ${C_GREEN}%2s${C_RESET}) %-25s  ${C_GREEN}%2s${C_RESET}) %-25s\n" "10" "Restore Users" "14" "MTU Optimization"
         printf "  ${C_GREEN}%2s${C_RESET}) %-25s  ${C_GREEN}%2s${C_RESET}) %-25s\n" "11" "DNS Domain" "15" "V2Ray Management"
-        printf "  ${C_GREEN}%2s${C_RESET}) %-25s  ${C_GREEN}%2s${C_RESET}) %-25s\n" "16" "Multi-Tunnel DNSTT (5x Speed)" "17" "DT Proxy"
+        printf "  ${C_GREEN}%2s${C_RESET}) %-25s  ${C_GREEN}%2s${C_RESET}) %-25s\n" "16" "Connection Forcer" "17" "DT Proxy"
 
         echo ""
         echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
@@ -3323,7 +3308,7 @@ main_menu() {
             13) _cleanup_expired ;;
             14) mtu_selection_during_install ;;
             15) v2ray_main_menu ;;
-            16) multi_tunnel_menu ;;
+            16) connection_forcer_menu ;;
             17) dt_proxy_menu ;;
             99) uninstall_script ;;
             0) echo -e "\n${C_BLUE}👋 Goodbye!${C_RESET}"; exit 0 ;;
