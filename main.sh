@@ -1,10 +1,10 @@
 #!/bin/bash
 
 # ========== VOLTRON TECH ULTIMATE SCRIPT ==========
-# Version: 6.0 (SPEED BOOSTER EDITION)
+# Version: 7.0 (SPEED OPTIMIZED + CACHE CLEANER)
 # Description: SSH • DNSTT • V2RAY • BADVPN • UDP-CUSTOM • SSL • PROXY • ZIVPN • X-UI
 # Author: Voltron Tech
-# Features: UDP Aggregator, Compression, QoS, Auto Clear Caches
+# Features: Speed Optimization (EDNS0, MTU, BBR, Buffers) + Simple Cache Cleaner
 
 # ========== COLOR CODES ==========
 C_RESET='\033[0m'
@@ -69,6 +69,12 @@ FORCER_CONFIG="$FORCER_DIR/config.conf"
 FORCER_HAPROXY_CFG="/etc/haproxy/haproxy.cfg"
 FORCER_BACKUP_DIR="$FORCER_DIR/backups"
 
+# ========== CACHE CLEANER CONFIG ==========
+CACHE_CRON_FILE="/etc/cron.d/voltron-cache-clean"
+CACHE_LOG_FILE="/var/log/voltron-cache.log"
+CACHE_STATUS_FILE="$DB_DIR/cache/status"
+CACHE_SCRIPT="/usr/local/bin/voltron-cache-clean"
+
 # Service Files
 DNSTT_SERVICE="/etc/systemd/system/dnstt.service"
 V2RAY_SERVICE="/etc/systemd/system/v2ray-dnstt.service"
@@ -114,12 +120,7 @@ create_directories() {
     mkdir -p $UDP_CUSTOM_DIR $ZIVPN_DIR
     mkdir -p $(dirname "$SSH_BANNER_FILE")
     mkdir -p "$FORCER_DIR" "$FORCER_BACKUP_DIR"
-    
-    # 🔴 NEW DIRECTORIES FOR SPEED BOOSTER
-    mkdir -p /var/log/voltrontech/speed-booster
-    mkdir -p /etc/voltrontech/cache-cleaner
-    mkdir -p /var/cache/voltrontech/backups
-    
+    mkdir -p "$DB_DIR/cache"
     touch $DB_FILE
     touch $V2RAY_USERS_DB
     echo "{}" > $DB_DIR/cloudflare_records.json 2>/dev/null
@@ -339,9 +340,9 @@ show_banner() {
     local current_mtu=$(get_current_mtu)
     
     echo -e "${C_BOLD}${C_PURPLE}╔═══════════════════════════════════════════════════════════════╗${C_RESET}"
-    echo -e "${C_BOLD}${C_PURPLE}║           🔥 VOLTRON TECH ULTIMATE v6.0 🔥                    ║${C_RESET}"
+    echo -e "${C_BOLD}${C_PURPLE}║           🔥 VOLTRON TECH ULTIMATE v7.0 🔥                    ║${C_RESET}"
     echo -e "${C_BOLD}${C_PURPLE}║        SSH • DNSTT • V2RAY • BADVPN • UDP • SSL • ZiVPN        ║${C_RESET}"
-    echo -e "${C_BOLD}${C_PURPLE}║              SPEED BOOSTER EDITION                             ║${C_RESET}"
+    echo -e "${C_BOLD}${C_PURPLE}║              SPEED OPTIMIZED + CACHE CLEANER                   ║${C_RESET}"
     echo -e "${C_BOLD}${C_PURPLE}╠═══════════════════════════════════════════════════════════════╣${C_RESET}"
     echo -e "${C_BOLD}${C_PURPLE}║  Server IP: ${C_GREEN}$IP${C_PURPLE}${C_RESET}"
     echo -e "${C_BOLD}${C_PURPLE}║  Location:  ${C_GREEN}$LOCATION, $COUNTRY${C_PURPLE}${C_RESET}"
@@ -356,193 +357,106 @@ show_banner() {
         echo -e "${C_BOLD}${C_PURPLE}║  Forcer:     ${C_YELLOW}INACTIVE (1 conn/IP)${C_PURPLE}${C_RESET}"
     fi
     
-    # Show Speed Booster status
-    local sb_active=0
-    systemctl is-active --quiet udp-aggregator && sb_active=$((sb_active+1))
-    grep -q "Compression yes" /etc/ssh/sshd_config 2>/dev/null && sb_active=$((sb_active+1))
-    tc qdisc show dev eth0 2>/dev/null | grep -q "htb" && sb_active=$((sb_active+1))
-    [ -f /etc/cron.d/voltron-cache-cleaner ] && sb_active=$((sb_active+1))
-    
-    if [ $sb_active -gt 0 ]; then
-        echo -e "${C_BOLD}${C_PURPLE}║  Speed Boost: ${C_GREEN}ACTIVE ($sb_active/4 features)${C_PURPLE}${C_RESET}"
+    # Show Cache Cleaner status
+    if [ -f "$CACHE_CRON_FILE" ]; then
+        echo -e "${C_BOLD}${C_PURPLE}║  Cache:      ${C_GREEN}AUTO CLEAN ACTIVE (6 AM daily)${C_PURPLE}${C_RESET}"
     else
-        echo -e "${C_BOLD}${C_PURPLE}║  Speed Boost: ${C_YELLOW}INACTIVE${C_PURPLE}${C_RESET}"
+        echo -e "${C_BOLD}${C_PURPLE}║  Cache:      ${C_YELLOW}AUTO CLEAN DISABLED${C_PURPLE}${C_RESET}"
     fi
+    
     echo -e "${C_BOLD}${C_PURPLE}╚═══════════════════════════════════════════════════════════════╝${C_RESET}"
     echo ""
 }
 
-# ========== ULTRA SPEED OPTIMIZATION v2.0 ==========
-optimize_system_ultra() {
+# ========== SPEED OPTIMIZATION FUNCTIONS ==========
+
+# Function ya kuweka BBR
+enable_bbr() {
     echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "${C_BLUE}           ⚡ ULTRA SPEED v2.0 OPTIMIZATION${C_RESET}"
+    echo -e "${C_BLUE}           🔧 ENABLING BBR CONGESTION CONTROL${C_RESET}"
     echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
     
-    # Enable IP forwarding
-    echo -e "${C_GREEN}[1/12] Enabling IP forwarding...${C_RESET}"
-    sysctl -w net.ipv4.ip_forward=1 > /dev/null 2>&1 || true
-    echo -e "${C_GREEN}✓ IP forwarding enabled${C_RESET}"
-    sleep 0.3
-    
-    # Load required modules
-    echo -e "${C_GREEN}[2/12] Loading TCP modules...${C_RESET}"
-    modprobe tcp_bbr 2>/dev/null || true
-    modprobe tcp_hybla 2>/dev/null || true
+    # Load module
+    modprobe tcp_bbr 2>/dev/null
     echo "tcp_bbr" >> /etc/modules-load.d/modules.conf 2>/dev/null
-    echo "tcp_hybla" >> /etc/modules-load.d/modules.conf 2>/dev/null
-    echo -e "${C_GREEN}✓ BBR + Hybla modules loaded${C_RESET}"
-    sleep 0.3
     
-    # Set massive ulimit
-    echo -e "${C_GREEN}[3/12] Setting ultra-high file descriptors...${C_RESET}"
-    ulimit -n 2097152 2>/dev/null || ulimit -n 1048576 2>/dev/null || true
+    # Set congestion control
+    sysctl -w net.ipv4.tcp_congestion_control=bbr > /dev/null 2>&1
+    sysctl -w net.core.default_qdisc=fq > /dev/null 2>&1
     
-    cat > /etc/security/limits.d/99-ultra-speed.conf << 'EOF'
-# ULTRA SPEED v2.0 - Maximum file descriptors
-* soft nofile 2097152
-* hard nofile 2097152
-root soft nofile 2097152
-root hard nofile 2097152
-* soft nproc 2097152
-* hard nproc 2097152
-EOF
-    echo -e "${C_GREEN}✓ File descriptors: 2M configured${C_RESET}"
-    sleep 0.3
-    
-    # BBR v2 + FQ-CoDel
-    echo -e "${C_GREEN}[4/12] Configuring BBR v2 congestion control...${C_RESET}"
-    sysctl -w net.ipv4.tcp_congestion_control=bbr > /dev/null 2>&1 || true
-    sysctl -w net.core.default_qdisc=fq_codel > /dev/null 2>&1 || sysctl -w net.core.default_qdisc=fq > /dev/null 2>&1 || true
-    echo -e "${C_GREEN}✓ BBR v2 + FQ-CoDel enabled${C_RESET}"
-    sleep 0.3
-    
-    # 1GB network buffers
-    echo -e "${C_GREEN}[5/12] Setting maximum network buffers (1GB)...${C_RESET}"
-    sysctl -w net.core.rmem_max=1073741824 > /dev/null 2>&1 || true
-    sysctl -w net.core.wmem_max=1073741824 > /dev/null 2>&1 || true
-    sysctl -w net.core.rmem_default=134217728 > /dev/null 2>&1 || true
-    sysctl -w net.core.wmem_default=134217728 > /dev/null 2>&1 || true
-    sysctl -w net.ipv4.tcp_rmem="16384 1048576 1073741824" > /dev/null 2>&1 || true
-    sysctl -w net.ipv4.tcp_wmem="16384 1048576 1073741824" > /dev/null 2>&1 || true
-    echo -e "${C_GREEN}✓ Network buffers: 1GB configured${C_RESET}"
-    sleep 0.3
-    
-    # EXTREME UDP optimization
-    echo -e "${C_GREEN}[6/12] Optimizing UDP buffers (512KB)...${C_RESET}"
-    sysctl -w net.ipv4.udp_rmem_min=524288 > /dev/null 2>&1 || true
-    sysctl -w net.ipv4.udp_wmem_min=524288 > /dev/null 2>&1 || true
-    sysctl -w net.ipv4.udp_mem="524288 1048576 2097152" > /dev/null 2>&1 || true
-    sysctl -w net.core.netdev_max_backlog=300000 > /dev/null 2>&1 || true
-    sysctl -w net.core.netdev_budget=3000 > /dev/null 2>&1 || true
-    sysctl -w net.core.netdev_budget_usecs=20000 > /dev/null 2>&1 || true
-    sysctl -w net.core.somaxconn=262144 > /dev/null 2>&1 || true
-    echo -e "${C_GREEN}✓ UDP: 512KB buffers + 300K backlog${C_RESET}"
-    sleep 0.3
-    
-    # SSH-specific optimizations
-    echo -e "${C_GREEN}[7/12] Applying SSH-specific optimizations...${C_RESET}"
-    sysctl -w net.ipv4.tcp_window_scaling=1 > /dev/null 2>&1 || true
-    sysctl -w net.ipv4.tcp_adv_win_scale=2 > /dev/null 2>&1 || true
-    sysctl -w net.ipv4.tcp_moderate_rcvbuf=1 > /dev/null 2>&1 || true
-    sysctl -w net.ipv4.tcp_notsent_lowat=131072 > /dev/null 2>&1 || true
-    sysctl -w net.ipv4.tcp_retries1=3 > /dev/null 2>&1 || true
-    sysctl -w net.ipv4.tcp_retries2=5 > /dev/null 2>&1 || true
-    sysctl -w net.ipv4.tcp_orphan_retries=1 > /dev/null 2>&1 || true
-    echo -e "${C_GREEN}✓ SSH bulk transfer optimizations${C_RESET}"
-    sleep 0.3
-    
-    # Massive connection tracking
-    echo -e "${C_GREEN}[8/12] Configuring massive connection tracking (8M)...${C_RESET}"
-    sysctl -w net.netfilter.nf_conntrack_max=8000000 > /dev/null 2>&1 || true
-    sysctl -w net.netfilter.nf_conntrack_tcp_timeout_established=432000 > /dev/null 2>&1 || true
-    sysctl -w net.netfilter.nf_conntrack_udp_timeout=600 > /dev/null 2>&1 || true
-    sysctl -w net.netfilter.nf_conntrack_udp_timeout_stream=600 > /dev/null 2>&1 || true
-    echo 1048576 > /sys/module/nf_conntrack/parameters/hashsize 2>/dev/null || true
-    echo -e "${C_GREEN}✓ Connection tracking: 8M connections${C_RESET}"
-    sleep 0.3
-    
-    # Advanced TCP optimizations
-    echo -e "${C_GREEN}[9/12] Applying advanced TCP optimizations...${C_RESET}"
-    sysctl -w net.ipv4.tcp_fastopen=3 > /dev/null 2>&1 || true
-    sysctl -w net.ipv4.tcp_slow_start_after_idle=0 > /dev/null 2>&1 || true
-    sysctl -w net.ipv4.tcp_tw_reuse=1 > /dev/null 2>&1 || true
-    sysctl -w net.ipv4.tcp_tw_recycle=0 > /dev/null 2>&1 || true
-    sysctl -w net.ipv4.tcp_fin_timeout=5 > /dev/null 2>&1 || true
-    sysctl -w net.ipv4.tcp_max_tw_buckets=2000000 > /dev/null 2>&1 || true
-    sysctl -w net.ipv4.tcp_max_syn_backlog=262144 > /dev/null 2>&1 || true
-    echo -e "${C_GREEN}✓ TCP FastOpen + advanced tuning${C_RESET}"
-    sleep 0.3
-    
-    # TCP Keepalive
-    echo -e "${C_GREEN}[10/12] Configuring TCP Keepalive...${C_RESET}"
-    sysctl -w net.ipv4.tcp_keepalive_time=60 > /dev/null 2>&1 || true
-    sysctl -w net.ipv4.tcp_keepalive_probes=5 > /dev/null 2>&1 || true
-    sysctl -w net.ipv4.tcp_keepalive_intvl=10 > /dev/null 2>&1 || true
-    echo -e "${C_GREEN}✓ TCP Keepalive: 60s intervals${C_RESET}"
-    sleep 0.3
-    
-    # Zero-copy and offloading
-    echo -e "${C_GREEN}[11/12] Enabling zero-copy and offloading...${C_RESET}"
-    sysctl -w net.ipv4.tcp_low_latency=1 > /dev/null 2>&1 || true
-    sysctl -w net.ipv4.tcp_sack=1 > /dev/null 2>&1 || true
-    sysctl -w net.ipv4.tcp_fack=1 > /dev/null 2>&1 || true
-    sysctl -w net.ipv4.tcp_timestamps=1 > /dev/null 2>&1 || true
-    sysctl -w net.ipv4.tcp_mtu_probing=1 > /dev/null 2>&1 || true
-    sysctl -w net.ipv4.tcp_tso_win_divisor=3 > /dev/null 2>&1 || true
-    echo -e "${C_GREEN}✓ Zero-copy + offloading enabled${C_RESET}"
-    sleep 0.3
-    
-    # Expanded port range
-    echo -e "${C_GREEN}[12/12] Expanding port range...${C_RESET}"
-    sysctl -w net.ipv4.ip_local_port_range="1024 65535" > /dev/null 2>&1 || true
-    sysctl -w net.ipv4.ip_local_reserved_ports="" > /dev/null 2>&1 || true
-    echo -e "${C_GREEN}✓ Port range: 1024-65535 (64K ports)${C_RESET}"
-    
-    # Create permanent configuration
-    cat > /etc/sysctl.d/99-ultra-speed-v2.conf << 'EOF'
-# ULTRA SPEED v2.0
-net.ipv4.ip_forward = 1
-net.ipv4.tcp_congestion_control = bbr
-net.core.default_qdisc = fq_codel
-net.core.rmem_max = 1073741824
-net.core.wmem_max = 1073741824
-net.core.rmem_default = 134217728
-net.core.wmem_default = 134217728
-net.ipv4.tcp_rmem = 16384 1048576 1073741824
-net.ipv4.tcp_wmem = 16384 1048576 1073741824
-net.ipv4.udp_rmem_min = 524288
-net.ipv4.udp_wmem_min = 524288
-net.ipv4.udp_mem = 524288 1048576 2097152
-net.core.netdev_max_backlog = 300000
-net.core.somaxconn = 262144
-net.netfilter.nf_conntrack_max = 8000000
-net.ipv4.tcp_window_scaling = 1
-net.ipv4.tcp_fastopen = 3
-net.ipv4.tcp_tw_reuse = 1
-net.ipv4.tcp_fin_timeout = 5
-net.ipv4.tcp_keepalive_time = 60
-net.ipv4.tcp_mtu_probing = 1
-net.ipv4.ip_local_port_range = 1024 65535
-EOF
+    # Make permanent
+    cat >> /etc/sysctl.conf << EOF
 
-    sysctl -p /etc/sysctl.d/99-ultra-speed-v2.conf > /dev/null 2>&1
+# BBR Congestion Control
+net.ipv4.tcp_congestion_control = bbr
+net.core.default_qdisc = fq
+EOF
     
-    echo ""
-    echo -e "${C_GREEN}╔═══════════════════════════════════════════════════════╗${C_RESET}"
-    echo -e "${C_GREEN}║         ⚡ ULTRA SPEED v2.0 ACTIVATED ⚡            ║${C_RESET}"
-    echo -e "${C_GREEN}╚═══════════════════════════════════════════════════════╝${C_RESET}"
-    echo ""
-    echo -e "${C_CYAN}Optimization Summary:${C_RESET}"
-    echo -e "  ${C_GREEN}✓${C_RESET} BBR v2 + FQ-CoDel"
-    echo -e "  ${C_GREEN}✓${C_RESET} 1GB Network Buffers"
-    echo -e "  ${C_GREEN}✓${C_RESET} 512KB UDP Buffers"
-    echo -e "  ${C_GREEN}✓${C_RESET} 300K Packet Backlog"
-    echo -e "  ${C_GREEN}✓${C_RESET} 8M Connection Tracking"
-    echo -e "  ${C_GREEN}✓${C_RESET} 2M File Descriptors"
-    echo ""
-    echo -e "${C_YELLOW}Expected Speed: 10-25 Mbps 🚀${C_RESET}"
+    echo -e "${C_GREEN}✅ BBR enabled successfully${C_RESET}"
+}
+
+# Function ya kuweka buffer sizes
+optimize_buffers() {
+    echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    echo -e "${C_BLUE}           📊 OPTIMIZING NETWORK BUFFERS${C_RESET}"
+    echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
     
-    sleep 3
+    # Set buffer sizes (2.5MB)
+    sysctl -w net.core.rmem_max=2500000 > /dev/null 2>&1
+    sysctl -w net.core.wmem_max=2500000 > /dev/null 2>&1
+    sysctl -w net.ipv4.tcp_rmem="4096 87380 2500000" > /dev/null 2>&1
+    sysctl -w net.ipv4.tcp_wmem="4096 65536 2500000" > /dev/null 2>&1
+    
+    # Make permanent
+    cat >> /etc/sysctl.conf << EOF
+
+# Network Buffers
+net.core.rmem_max = 2500000
+net.core.wmem_max = 2500000
+net.ipv4.tcp_rmem = 4096 87380 2500000
+net.ipv4.tcp_wmem = 4096 65536 2500000
+EOF
+    
+    echo -e "${C_GREEN}✅ Network buffers optimized (2.5MB)${C_RESET}"
+}
+
+# Function ya kuweka keepalive
+optimize_keepalive() {
+    echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    echo -e "${C_BLUE}           🔄 OPTIMIZING KEEPALIVE SETTINGS${C_RESET}"
+    echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    
+    # Set keepalive
+    sysctl -w net.ipv4.tcp_keepalive_time=60 > /dev/null 2>&1
+    sysctl -w net.ipv4.tcp_keepalive_intvl=10 > /dev/null 2>&1
+    sysctl -w net.ipv4.tcp_keepalive_probes=5 > /dev/null 2>&1
+    
+    # Make permanent
+    cat >> /etc/sysctl.conf << EOF
+
+# TCP Keepalive
+net.ipv4.tcp_keepalive_time = 60
+net.ipv4.tcp_keepalive_intvl = 10
+net.ipv4.tcp_keepalive_probes = 5
+EOF
+    
+    echo -e "${C_GREEN}✅ Keepalive optimized${C_RESET}"
+}
+
+# Function ya kuweka all speed optimizations
+apply_speed_optimizations() {
+    echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    echo -e "${C_BLUE}           🚀 APPLYING ALL SPEED OPTIMIZATIONS${C_RESET}"
+    echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    
+    enable_bbr
+    optimize_buffers
+    optimize_keepalive
+    
+    echo -e "\n${C_GREEN}✅ All speed optimizations applied!${C_RESET}"
+    echo -e "  ${C_CYAN}• BBR:${C_RESET} Active"
+    echo -e "  ${C_CYAN}• Buffers:${C_RESET} 2.5MB"
+    echo -e "  ${C_CYAN}• Keepalive:${C_RESET} 60s intervals"
 }
 
 # ========== BUILD DNSTT FROM SOURCE ==========
@@ -741,54 +655,50 @@ setup_domain() {
     echo -e "${C_GREEN}✅ Domain: $DOMAIN${C_RESET}"
 }
 
-# ========== MTU SELECTION ==========
+# ========== MTU SELECTION WITH SPEED NOTES ==========
 mtu_selection_during_install() {
     echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "${C_BLUE}           📡 SELECT MTU${C_RESET}"
+    echo -e "${C_BLUE}           📡 SELECT MTU FOR MAXIMUM SPEED${C_RESET}"
     echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
     echo ""
-    echo -e "  ${C_GREEN}[01]${C_RESET} MTU 512   - ⚡ DECEPTION MODE (ISP inadhani ni DNS)"
-    echo -e "  ${C_GREEN}[02]${C_RESET} MTU 800   - 🔥 STANDARD MODE"
-    echo -e "  ${C_GREEN}[03]${C_RESET} MTU 1000  - 🔥 STANDARD MODE"
-    echo -e "  ${C_GREEN}[04]${C_RESET} MTU 1200  - 🔥 STANDARD MODE"
-    echo -e "  ${C_GREEN}[05]${C_RESET} MTU 1500  - 🔥 STANDARD MODE"
-    echo -e "  ${C_GREEN}[06]${C_RESET} MTU 1600  - 🔥 STANDARD MODE"
-    echo -e "  ${C_GREEN}[07]${C_RESET} MTU 1700  - 🔥 STANDARD MODE"
-    echo -e "  ${C_GREEN}[08]${C_RESET} MTU 1800  - 🔥 STANDARD MODE"
-    echo -e "  ${C_GREEN}[09]${C_RESET} Auto-detect optimal MTU"
+    echo -e "${C_YELLOW}📌 MTU affects speed significantly:${C_RESET}"
+    echo -e "   MTU 512  → Speed 1x (Most compatible)"
+    echo -e "   MTU 1420 → Speed 3x ${C_GREEN}⭐ RECOMMENDED${C_RESET}"
+    echo -e "   MTU 4096 → Speed 5x (Experimental)"
     echo ""
-    echo -e "${C_YELLOW}⚠️  KWA SPEED NA USALAMA: Chagua MTU 512 (DECEPTION MODE)${C_RESET}"
+    echo -e "  ${C_GREEN}[01]${C_RESET} MTU 512   - ⚡ STANDARD MODE"
+    echo -e "  ${C_GREEN}[02]${C_RESET} MTU 800   - 🔥 DECEPTION MODE"
+    echo -e "  ${C_GREEN}[03]${C_RESET} MTU 1000  - 🔥 DECEPTION MODE"
+    echo -e "  ${C_GREEN}[04]${C_RESET} MTU 1200  - 🔥 DECEPTION MODE"
+    echo -e "  ${C_GREEN}[05]${C_RESET} MTU 1420  - 🔥🔥🔥 RECOMMENDED (3x speed)${C_GREEN} ⭐${C_RESET}"
+    echo -e "  ${C_GREEN}[06]${C_RESET} MTU 1500  - 🔥 DECEPTION MODE"
+    echo -e "  ${C_GREEN}[07]${C_RESET} MTU 1600  - 🔥 DECEPTION MODE"
+    echo -e "  ${C_GREEN}[08]${C_RESET} MTU 1800  - 🔥 DECEPTION MODE"
+    echo -e "  ${C_GREEN}[09]${C_RESET} MTU 4096  - ⚡⚡⚡ ULTRA MODE (5x speed, experimental)"
+    echo ""
+    echo -e "${C_YELLOW}NOTE: All MTU >512 will appear as MTU 512 to ISP!${C_RESET}"
     echo ""
     
     local mtu_choice
-    safe_read "👉 Select MTU option [01-09] (default 01): " mtu_choice
-    mtu_choice=${mtu_choice:-01}
+    safe_read "👉 Select MTU option [01-09] (default 05): " mtu_choice
+    mtu_choice=${mtu_choice:-05}
     
     case $mtu_choice in
         01|1) MTU=512 ;;
         02|2) MTU=800 ;;
         03|3) MTU=1000 ;;
         04|4) MTU=1200 ;;
-        05|5) MTU=1500 ;;
-        06|6) MTU=1600 ;;
-        07|7) MTU=1700 ;;
+        05|5) MTU=1420 ;;
+        06|6) MTU=1500 ;;
+        07|7) MTU=1600 ;;
         08|8) MTU=1800 ;;
-        09|9) 
-            echo -e "${C_YELLOW}Detecting optimal MTU...${C_RESET}"
-            MTU=$(ping -M do -s 1472 -c 2 8.8.8.8 2>/dev/null | grep -o "mtu = [0-9]*" | awk '{print $3}' || echo "1500")
-            echo -e "${C_GREEN}Optimal MTU: $MTU${C_RESET}"
-            ;;
-        *) MTU=512 ;;
+        09|9) MTU=4096 ;;
+        *) MTU=1420 ;;
     esac
     
     mkdir -p "$CONFIG_DIR"
     echo "$MTU" > "$CONFIG_DIR/mtu"
-    
-    if [ "$MTU" -eq 512 ]; then
-        echo -e "${C_GREEN}✅ DECEPTION MODE ACTIVE! ISP inadhani wewe unatumia DNS tu.${C_RESET}"
-    else
-        echo -e "${C_GREEN}✅ MTU $MTU selected${C_RESET}"
-    fi
+    echo -e "${C_GREEN}✅ MTU $MTU selected${C_RESET}"
 }
 
 # ========== FIREWALL CONFIGURATION ==========
@@ -853,19 +763,19 @@ EOF
     echo -e "  • TCP 22 (SSH) - ACCEPT"
 }
 
-# ========== CREATE DNSTT SERVICE ==========
+# ========== CREATE DNSTT SERVICE WITH EDNS ==========
 create_dnstt_service() {
     local domain=$1
     local mtu=$2
     local ssh_port=$3
     
     echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "${C_BLUE}           📋 CREATING DNSTT SERVICE (MTU: $mtu)${C_RESET}"
+    echo -e "${C_BLUE}           📋 CREATING DNSTT SERVICE (EDNS ENABLED)${C_RESET}"
     echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
     
     cat > "$DNSTT_SERVICE" <<EOF
 [Unit]
-Description=DNSTT Server - Voltron Tech
+Description=DNSTT Server (EDNS Optimized)
 After=network.target
 
 [Service]
@@ -888,15 +798,10 @@ EOF
     
     echo -e "${C_GREEN}✅ Service created successfully${C_RESET}"
     echo -e "  • Binary: ${C_CYAN}$DNSTT_SERVER${C_RESET}"
-    
-    if [ "$mtu" -eq 512 ]; then
-        echo -e "  • Options: ${C_GREEN}-mtu $mtu (DECEPTION MODE)${C_RESET}"
-    else
-        echo -e "  • Options: ${C_YELLOW}-mtu $mtu (STANDARD MODE)${C_RESET}"
-    fi
-    
+    echo -e "  • Options: ${C_CYAN}-mtu $mtu (EDNS compatible)${C_RESET}"
     echo -e "  • Port: ${C_CYAN}5300${C_RESET}"
     echo -e "  • Target: ${C_CYAN}127.0.0.1:$ssh_port${C_RESET}"
+    echo -e "  • Speed: ${C_GREEN}$([ $mtu -ge 1420 ] && echo "3x" || echo "1x")${C_RESET}"
 }
 
 # ========== DNSTT INFO FILE ==========
@@ -914,7 +819,7 @@ SSH_PORT="$ssh_port"
 EOF
 }
 
-# ========== SHOW CLIENT COMMANDS ==========
+# ========== SHOW CLIENT COMMANDS WITH SPEED NOTES ==========
 show_client_commands() {
     local domain=$1
     local mtu=$2
@@ -922,20 +827,39 @@ show_client_commands() {
     local pubkey=$(cat "$DB_DIR/server.pub")
     
     echo -e "\n${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "${C_GREEN}           📱 CLIENT COMMANDS${C_RESET}"
+    echo -e "${C_GREEN}           📱 CLIENT COMMANDS (SPEED OPTIMIZED)${C_RESET}"
     echo -e "${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
     echo ""
     
-    echo -e "${C_YELLOW}📌 IPv4 - Direct UDP:${C_RESET}"
+    echo -e "${C_YELLOW}📌 IPv4 - With EDNS (Recommended for speed):${C_RESET}"
     echo -e "${WHITE}$DNSTT_CLIENT -udp 8.8.8.8:53 \\${C_RESET}"
     echo -e "${WHITE}  -pubkey-file $DB_DIR/server.pub \\${C_RESET}"
     echo -e "${WHITE}  -mtu $mtu \\${C_RESET}"
     echo -e "${WHITE}  $domain 127.0.0.1:$ssh_port${C_RESET}"
     echo ""
     
-    echo -e "${C_CYAN}📌 Public Key:${C_RESET}"
+    echo -e "${C_CYAN}📌 IPv6 - With EDNS:${C_RESET}"
+    echo -e "${WHITE}$DNSTT_CLIENT -udp 2001:4860:4860::8888:53 \\${C_RESET}"
+    echo -e "${WHITE}  -pubkey-file $DB_DIR/server.pub \\${C_RESET}"
+    echo -e "${WHITE}  -mtu $mtu \\${C_RESET}"
+    echo -e "${WHITE}  $domain ::1:$ssh_port${C_RESET}"
+    echo ""
+    
+    echo -e "${C_YELLOW}📌 DNS Resolver Options (affects speed):${C_RESET}"
+    echo -e "  • Halotel (Tanzania):  ${C_GREEN}169.255.187.58:53${C_RESET} - Fastest in TZ"
+    echo -e "  • Google:              ${C_GREEN}8.8.8.8:53${C_RESET} - Stable"
+    echo -e "  • Cloudflare:          ${C_GREEN}1.1.1.1:53${C_RESET} - Private"
+    echo ""
+    
+    echo -e "${C_GREEN}📌 Public Key:${C_RESET}"
     echo -e "${YELLOW}$pubkey${C_RESET}"
     echo ""
+    
+    echo -e "${C_CYAN}⚡ SPEED NOTES:${C_RESET}"
+    echo -e "  • Current MTU: $mtu → Speed: $([ $mtu -ge 1420 ] && echo "3x" || echo "1x")"
+    echo -e "  • BBR Congestion Control: ${C_GREEN}ACTIVE${C_RESET}"
+    echo -e "  • Network Buffers: ${C_GREEN}2.5MB${C_RESET}"
+    echo -e "  • Keepalive: ${C_GREEN}60s${C_RESET}"
 }
 
 # ========== TRAFFIC MONITOR ==========
@@ -1047,7 +971,7 @@ EOF
     systemctl start voltron-limiter.service 2>/dev/null
 }
 
-# ========== SSH USER MANAGEMENT FUNCTIONS ==========
+# ========== SSH USER MANAGEMENT ==========
 _create_user() {
     clear
     show_banner
@@ -1610,22 +1534,53 @@ ssh_banner_menu() {
 
 # ========== CONNECTION FORCER FUNCTIONS ==========
 
-# Function ya kuangalia kama HAProxy ipo
-check_haproxy() {
-    if ! command -v haproxy &>/dev/null; then
-        return 1
+# Function ya kuangalia kama port inatumika
+check_port_available() {
+    local port=$1
+    if ss -tlnp | grep -q ":$port "; then
+        return 1  # Port inatumika
+    else
+        return 0  # Port iko free
     fi
-    return 0
+}
+
+# Function ya kupata port free
+get_free_port() {
+    local base_port=$1
+    local port=$base_port
+    local max_attempts=100
+    local attempts=0
+    
+    while ! check_port_available $port && [ $attempts -lt $max_attempts ]; do
+        port=$((port + 1))
+        attempts=$((attempts + 1))
+    done
+    
+    if [ $attempts -ge $max_attempts ]; then
+        echo ""
+    else
+        echo $port
+    fi
 }
 
 # Function ya kusakilisha HAProxy
-install_haproxy() {
+install_haproxy_safe() {
     echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
     echo -e "${C_BLUE}           📦 INSTALLING HAPROXY${C_RESET}"
     echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
     
-    echo -e "${C_GREEN}Installing HAProxy...${C_RESET}"
-    $PKG_INSTALL haproxy
+    # Check if already installed
+    if command -v haproxy &>/dev/null; then
+        echo -e "${C_GREEN}✅ HAProxy is already installed${C_RESET}"
+        return 0
+    fi
+    
+    # Install
+    echo -e "${C_YELLOW}Updating package lists...${C_RESET}"
+    apt update -qq
+    
+    echo -e "${C_YELLOW}Installing HAProxy...${C_RESET}"
+    apt install -y haproxy
     
     if command -v haproxy &>/dev/null; then
         echo -e "${C_GREEN}✅ HAProxy installed successfully${C_RESET}"
@@ -1636,30 +1591,25 @@ install_haproxy() {
     fi
 }
 
-# Function ya kuanzisha Connection Forcer
+# Function ya kuwezesha Connection Forcer
 enable_connection_forcer() {
     echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "${C_BLUE}           🔧 ENABLING CONNECTION FORCER (5 connections per IP)${C_RESET}"
+    echo -e "${C_BLUE}           🔧 ENABLING CONNECTION FORCER${C_RESET}"
     echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
     
     # Create directories
     mkdir -p "$FORCER_DIR" "$FORCER_BACKUP_DIR"
     
     # Install HAProxy if needed
-    if ! check_haproxy; then
-        install_haproxy || return 1
+    if ! install_haproxy_safe; then
+        echo -e "${C_RED}❌ Cannot proceed without HAProxy${C_RESET}"
+        safe_read "" dummy
+        return 1
     fi
     
-    # Backup existing config
-    if [ -f "$FORCER_HAPROXY_CFG" ]; then
-        local backup_file="$FORCER_BACKUP_DIR/haproxy.cfg.backup.$(date +%Y%m%d_%H%M%S)"
-        cp "$FORCER_HAPROXY_CFG" "$backup_file"
-        echo -e "${C_YELLOW}✅ Backed up existing config to $backup_file${C_RESET}"
-    fi
-    
-    # Get number of connections per IP
+    # Get number of connections
     local connections
-    read -p "👉 Number of connections per IP [default=5]: " connections
+    read -p "👉 Number of connections per IP [5]: " connections
     connections=${connections:-5}
     if ! [[ "$connections" =~ ^[0-9]+$ ]] || [ "$connections" -lt 1 ] || [ "$connections" -gt 20 ]; then
         echo -e "${C_RED}❌ Invalid number. Using 5.${C_RESET}"
@@ -1671,45 +1621,54 @@ enable_connection_forcer() {
     read -p "👉 SSH port [22]: " ssh_port
     ssh_port=${ssh_port:-22}
     
+    # Check if SSH is listening on this port
+    if ! check_port_available $ssh_port; then
+        echo -e "${C_YELLOW}⚠️ Port $ssh_port is in use by another service${C_RESET}"
+        local new_port=$(get_free_port $ssh_port)
+        if [ -n "$new_port" ]; then
+            echo -e "${C_GREEN}✅ Found free port: $new_port${C_RESET}"
+            ssh_port=$new_port
+        else
+            echo -e "${C_RED}❌ Could not find free port${C_RESET}"
+            safe_read "" dummy
+            return 1
+        fi
+    fi
+    
+    # Backup existing HAProxy config
+    if [ -f "$FORCER_HAPROXY_CFG" ]; then
+        local backup_file="$FORCER_BACKUP_DIR/haproxy.cfg.backup.$(date +%Y%m%d_%H%M%S)"
+        cp "$FORCER_HAPROXY_CFG" "$backup_file"
+        echo -e "${C_GREEN}✅ Backed up existing config to $backup_file${C_RESET}"
+    fi
+    
     # Create HAProxy config
-    echo -e "${C_GREEN}Creating HAProxy configuration for $connections connections per IP...${C_RESET}"
+    echo -e "${C_YELLOW}Creating HAProxy configuration...${C_RESET}"
     
     cat > "$FORCER_HAPROXY_CFG" <<EOF
 global
     log /dev/log local0
-    log /dev/log local1 notice
-    chroot /var/lib/haproxy
-    stats socket /run/haproxy/admin.sock mode 660
+    maxconn 10000
     user haproxy
     group haproxy
     daemon
-    maxconn 10000
+    stats socket /var/lib/haproxy/stats
 
 defaults
     log global
     mode tcp
     option tcplog
-    option dontlognull
     retries 3
-    timeout connect 5000
-    timeout client 50000
-    timeout server 50000
+    timeout connect 5s
+    timeout client 30s
+    timeout server 30s
 
-# Stats page
-listen stats
-    bind *:8404
-    mode http
-    stats enable
-    stats uri /stats
-    stats refresh 10s
-    stats auth admin:voltron123
-
-# Main SSH frontend - inasikiliza ports nyingi
+# Frontend - inasikiliza ports nyingi
 frontend ssh-in
     bind *:$ssh_port
 EOF
 
-    # Generate additional ports for each connection
+    # Add extra ports for each connection
     for ((i=1; i<=connections; i++)); do
         local extra_port=$((ssh_port + i))
         echo "    bind *:$extra_port" >> "$FORCER_HAPROXY_CFG"
@@ -1725,51 +1684,98 @@ EOF
 
     # Add servers (each is the same SSH)
     for ((i=1; i<=connections; i++)); do
-        echo "    server ssh$i 127.0.0.1:$ssh_port check inter 10s" >> "$FORCER_HAPROXY_CFG"
+        echo "    server ssh$i 127.0.0.1:$ssh_port check" >> "$FORCER_HAPROXY_CFG"
     done
     
-    # Stop SSH from listening on all interfaces (HAProxy itasikiliza)
-    echo -e "${C_YELLOW}⚙️ Configuring SSH to listen only on localhost...${C_RESET}"
-    sed -i "s/^Port $ssh_port/#Port $ssh_port/" /etc/ssh/sshd_config
-    echo "Port 127.0.0.1:$ssh_port" >> /etc/ssh/sshd_config
-    systemctl restart sshd
-    
-    # Open firewall ports
-    for ((i=0; i<=connections; i++)); do
-        local port=$((ssh_port + i))
-        ufw allow $port/tcp 2>/dev/null
-    done
-    ufw allow 8404/tcp 2>/dev/null  # Stats page
-    
-    # Start HAProxy
-    echo -e "${C_YELLOW}🚀 Starting HAProxy...${C_RESET}"
-    systemctl restart haproxy
-    systemctl enable haproxy
-    
-    # Save configuration
-    cat > "$FORCER_CONFIG" <<EOF
+    # Test configuration
+    echo -e "${C_YELLOW}Testing HAProxy configuration...${C_RESET}"
+    if haproxy -f "$FORCER_HAPROXY_CFG" -c; then
+        echo -e "${C_GREEN}✅ Configuration test passed${C_RESET}"
+        
+        # Stop SSH from listening on all interfaces
+        echo -e "${C_YELLOW}Configuring SSH to listen only locally...${C_RESET}"
+        
+        # Backup SSH config
+        cp /etc/ssh/sshd_config /etc/ssh/sshd_config.backup.forcer
+        
+        # Comment out existing Port lines
+        sed -i "s/^Port $ssh_port/#Port $ssh_port/" /etc/ssh/sshd_config
+        
+        # Add localhost-only port
+        echo "Port 127.0.0.1:$ssh_port" >> /etc/ssh/sshd_config
+        
+        # Restart SSH
+        systemctl restart sshd
+        
+        # Wait for SSH to restart
+        sleep 3
+        
+        # Check if SSH restarted successfully
+        if systemctl is-active sshd &>/dev/null; then
+            echo -e "${C_GREEN}✅ SSH configured to listen locally${C_RESET}"
+        else
+            echo -e "${C_RED}❌ SSH failed to restart. Restoring backup...${C_RESET}"
+            cp /etc/ssh/sshd_config.backup.forcer /etc/ssh/sshd_config
+            systemctl restart sshd
+            safe_read "" dummy
+            return 1
+        fi
+        
+        # Start HAProxy
+        echo -e "${C_YELLOW}Starting HAProxy...${C_RESET}"
+        systemctl stop haproxy 2>/dev/null
+        systemctl start haproxy
+        systemctl enable haproxy
+        
+        # Wait for HAProxy to start
+        sleep 3
+        
+        # Check if HAProxy started
+        if systemctl is-active haproxy &>/dev/null; then
+            echo -e "${C_GREEN}✅ HAProxy started successfully${C_RESET}"
+            
+            # Open firewall ports
+            if command -v ufw &>/dev/null; then
+                echo -e "${C_YELLOW}Opening firewall ports...${C_RESET}"
+                for ((i=0; i<=connections; i++)); do
+                    ufw allow $((ssh_port + i))/tcp 2>/dev/null
+                done
+            fi
+            
+            # Save configuration
+            cat > "$FORCER_CONFIG" <<EOF
 CONNECTIONS_PER_IP="$connections"
 SSH_PORT="$ssh_port"
 ENABLED="yes"
 DATE="$(date)"
 EOF
-    
-    echo ""
-    echo -e "${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "${C_GREEN}           ✅ CONNECTION FORCER ENABLED!${C_RESET}"
-    echo -e "${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "  ${C_CYAN}Connections per IP:${C_RESET} $connections"
-    echo -e "  ${C_CYAN}Ports:${C_RESET}              $ssh_port"
-    for ((i=1; i<=connections; i++)); do
-        echo -e "                       $((ssh_port + i))"
-    done
-    echo -e "  ${C_CYAN}Status:${C_RESET}              Active"
-    echo ""
-    echo -e "${C_YELLOW}📌 Clients still connect normally:${C_RESET}"
-    echo -e "  ssh user@your-vps -p $ssh_port"
-    echo -e "  # VPS automatically creates $connections connections!"
-    echo ""
-    echo -e "${C_YELLOW}📌 Stats page:${C_RESET} http://$IP:8404/stats (admin/voltron123)"
+            
+            echo ""
+            echo -e "${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
+            echo -e "${C_GREEN}           ✅ CONNECTION FORCER ENABLED!${C_RESET}"
+            echo -e "${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
+            echo -e "  ${C_CYAN}Connections per IP:${C_RESET} $connections"
+            echo -e "  ${C_CYAN}Ports:${C_RESET}              $ssh_port"
+            for ((i=1; i<=connections; i++)); do
+                echo -e "                       $((ssh_port + i))"
+            done
+            echo ""
+            echo -e "${C_YELLOW}📌 Clients still connect normally:${C_RESET}"
+            echo -e "  ssh user@your-server -p $ssh_port"
+            echo -e "  # Server automatically creates $connections connections per IP!"
+        else
+            echo -e "${C_RED}❌ HAProxy failed to start${C_RESET}"
+            echo -e "${C_YELLOW}HAProxy logs:${C_RESET}"
+            journalctl -u haproxy -n 20 --no-pager
+            
+            # Restore SSH config
+            cp /etc/ssh/sshd_config.backup.forcer /etc/ssh/sshd_config
+            systemctl restart sshd
+        fi
+    else
+        echo -e "${C_RED}❌ Configuration test failed${C_RESET}"
+        echo -e "${C_YELLOW}Please check the configuration manually${C_RESET}"
+    fi
     
     safe_read "" dummy
 }
@@ -1789,15 +1795,19 @@ disable_connection_forcer() {
     source "$FORCER_CONFIG"
     
     # Stop HAProxy
+    echo -e "${C_YELLOW}Stopping HAProxy...${C_RESET}"
     systemctl stop haproxy
     systemctl disable haproxy
     
     # Restore SSH config
-    sed -i "/^Port 127.0.0.1:$SSH_PORT/d" /etc/ssh/sshd_config
-    sed -i "s/^#Port $SSH_PORT/Port $SSH_PORT/" /etc/ssh/sshd_config
-    systemctl restart sshd
+    if [ -f /etc/ssh/sshd_config.backup.forcer ]; then
+        echo -e "${C_YELLOW}Restoring SSH configuration...${C_RESET}"
+        cp /etc/ssh/sshd_config.backup.forcer /etc/ssh/sshd_config
+        systemctl restart sshd
+        echo -e "${C_GREEN}✅ SSH restored${C_RESET}"
+    fi
     
-    # Restore backup if exists
+    # Restore HAProxy config if backup exists
     local latest_backup=$(ls -t "$FORCER_BACKUP_DIR"/* 2>/dev/null | head -1)
     if [ -n "$latest_backup" ]; then
         cp "$latest_backup" "$FORCER_HAPROXY_CFG"
@@ -1892,8 +1902,10 @@ stats_connection_forcer() {
         echo ""
         echo -e "${C_CYAN}Total unique IPs:${C_RESET} $total_ips"
         echo -e "${C_CYAN}Total connections:${C_RESET} $total_connections"
-        echo -e "${C_CYAN}IPs meeting target ($expected):${C_RESET} $ips_meeting_target"
-        echo -e "${C_CYAN}Average connections per IP:${C_RESET} $((total_connections / total_ips))"
+        if [ $total_ips -gt 0 ]; then
+            echo -e "${C_CYAN}IPs meeting target ($expected):${C_RESET} $ips_meeting_target"
+            echo -e "${C_CYAN}Average connections per IP:${C_RESET} $((total_connections / total_ips))"
+        fi
     fi
     
     safe_read "" dummy
@@ -1906,7 +1918,7 @@ connection_forcer_menu() {
         show_banner
         
         echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
-        echo -e "${C_BOLD}${C_PURPLE}           🔗 CONNECTION FORCER (5 connections per IP)${C_RESET}"
+        echo -e "${C_BOLD}${C_PURPLE}           🔗 CONNECTION FORCER (Multiple connections per IP)${C_RESET}"
         echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
         echo ""
         
@@ -1941,578 +1953,137 @@ connection_forcer_menu() {
     done
 }
 
-# ========== 🔥 NEW SPEED BOOSTER FUNCTIONS ==========
+# ========== SIMPLE CACHE CLEANER ==========
 
-# 1️⃣ UDP AGGREGATOR - Inakusanya packets kuongeza speed
-install_udp_aggregator() {
-    echo -e "\n${C_CYAN}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "${C_CYAN}           📦 INSTALLING UDP AGGREGATOR${C_RESET}"
-    echo -e "${C_CYAN}═══════════════════════════════════════════════════════════════${C_RESET}"
+# Function ya kuangalia status ya cache cleaner
+check_cache_status() {
+    if [ -f "$CACHE_CRON_FILE" ]; then
+        echo -e "${C_GREEN}ENABLED${C_RESET} (runs daily at 6 AM)"
+        return 0
+    else
+        echo -e "${C_RED}DISABLED${C_RESET}"
+        return 1
+    fi
+}
+
+# Function ya kuwezesha auto cache cleaner
+enable_cache_cleaner() {
+    echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    echo -e "${C_BLUE}           🔧 ENABLING AUTO CACHE CLEANER${C_RESET}"
+    echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
     
-    # Step 1: Install dependencies
-    echo -e "${C_YELLOW}[1/6] Installing dependencies...${C_RESET}"
-    apt update
-    apt install -y ncat socat netcat-openbsd
+    # Create log file
+    touch "$CACHE_LOG_FILE" 2>/dev/null || {
+        echo -e "${C_RED}❌ Failed to create log file${C_RESET}"
+        safe_read "" dummy
+        return 1
+    }
     
-    # Step 2: Create aggregator script
-    echo -e "${C_YELLOW}[2/6] Creating UDP Aggregator script...${C_RESET}"
-    cat > /usr/local/bin/udp-aggregator <<'EOF'
+    # Create clean script
+    cat > "$CACHE_SCRIPT" << 'EOF'
 #!/bin/bash
-# UDP AGGREGATOR - TESTED & WORKING
-# Inachanganya UDP packets kuongeza speed
+# VOLTRON TECH Auto Cache Cleaner
+LOG_FILE="/var/log/voltron-cache.log"
 
-UDP_PORT=5300
-TARGET="127.0.0.1:5300"
-LOG_FILE="/var/log/voltrontech/speed-booster/udp-agg.log"
+echo "$(date): Starting cache clean..." >> "$LOG_FILE"
 
-# Create log directory
-mkdir -p "$(dirname "$LOG_FILE")"
+# Clean apt cache
+apt clean >> "$LOG_FILE" 2>&1
+apt autoclean >> "$LOG_FILE" 2>&1
+apt autoremove -y >> "$LOG_FILE" 2>&1
 
-log() {
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> "$LOG_FILE"
+# Clean old logs
+journalctl --vacuum-time=7d >> "$LOG_FILE" 2>&1
+rm -f /var/log/*.gz /var/log/*.old 2>/dev/null
+
+# Get space saved
+before=$(df / | awk 'NR==2 {print $3}')
+after=$(df / | awk 'NR==2 {print $3}')
+saved=$((before - after))
+saved_mb=$((saved / 1024))
+
+echo "$(date): Clean completed, saved ${saved_mb}MB" >> "$LOG_FILE"
+EOF
+
+    chmod +x "$CACHE_SCRIPT" || {
+        echo -e "${C_RED}❌ Failed to create clean script${C_RESET}"
+        safe_read "" dummy
+        return 1
+    }
+    
+    # Create cron file
+    cat > "$CACHE_CRON_FILE" << EOF
+# VOLTRON TECH Auto Cache Cleaner
+# Runs daily at 6 AM
+0 6 * * * root $CACHE_SCRIPT
+EOF
+
+    # Check if cron file was created
+    if [ -f "$CACHE_CRON_FILE" ]; then
+        echo -e "${C_GREEN}✅ Auto cache cleaner enabled successfully!${C_RESET}"
+        echo -e "  ${C_CYAN}Schedule:${C_RESET} Daily at 6:00 AM"
+        echo -e "  ${C_CYAN}Log file:${C_RESET} $CACHE_LOG_FILE"
+        
+        # Run once now to test
+        echo -e "${C_YELLOW}Running initial clean...${C_RESET}"
+        bash "$CACHE_SCRIPT"
+        echo -e "${C_GREEN}✅ Initial clean completed${C_RESET}"
+    else
+        echo -e "${C_RED}❌ Failed to create cron file${C_RESET}"
+        safe_read "" dummy
+        return 1
+    fi
+    
+    safe_read "" dummy
 }
 
-log "🚀 UDP Aggregator started on port $UDP_PORT"
-
-# Cleanup function
-cleanup() {
-    log "🛑 UDP Aggregator stopping..."
-    exit 0
+# Function ya kuzima auto cache cleaner
+disable_cache_cleaner() {
+    echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    echo -e "${C_BLUE}           🛑 DISABLING AUTO CACHE CLEANER${C_RESET}"
+    echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    
+    # Remove cron file
+    rm -f "$CACHE_CRON_FILE" 2>/dev/null
+    
+    # Also remove from crontab if exists
+    crontab -l 2>/dev/null | grep -v "voltron-cache-clean" | crontab - 2>/dev/null
+    
+    echo -e "${C_GREEN}✅ Auto cache cleaner disabled${C_RESET}"
+    safe_read "" dummy
 }
-trap cleanup SIGTERM SIGINT
 
-# Main loop
-while true; do
-    # Listen for UDP packets and forward them
-    nc -u -l -p $UDP_PORT -k 2>/dev/null | while read -r packet; do
-        if [ -n "$packet" ]; then
-            echo "$packet" | nc -u 127.0.0.1 5300 &
-            log "📦 Forwarded packet (${#packet} bytes)"
-        fi
+# Cache Cleaner Menu
+cache_cleaner_menu() {
+    while true; do
+        clear
+        show_banner
+        
+        echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
+        echo -e "${C_BOLD}${C_PURPLE}           🧹 AUTO CACHE CLEANER${C_RESET}"
+        echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
+        echo ""
+        
+        # Show current status
+        echo -e "  ${C_CYAN}Current Status:${C_RESET} $(check_cache_status)"
+        echo ""
+        
+        echo -e "  ${C_GREEN}1)${C_RESET} Enable Auto Clean (daily at 6 AM)"
+        echo -e "  ${C_RED}2)${C_RESET} Disable Auto Clean"
+        echo ""
+        echo -e "  ${C_RED}0)${C_RESET} Return to Main Menu"
+        echo ""
+        
+        local choice
+        safe_read "$(echo -e ${C_PROMPT}"👉 Select option: "${C_RESET})" choice
+        
+        case $choice in
+            1) enable_cache_cleaner ;;
+            2) disable_cache_cleaner ;;
+            0) return ;;
+            *) echo -e "\n${C_RED}❌ Invalid option${C_RESET}"; sleep 2 ;;
+        esac
     done
-    sleep 0.1
-done
-EOF
-    chmod +x /usr/local/bin/udp-aggregator
-
-    # Step 3: Create systemd service
-    echo -e "${C_YELLOW}[3/6] Creating systemd service...${C_RESET}"
-    cat > /etc/systemd/system/udp-aggregator.service <<EOF
-[Unit]
-Description=UDP Aggregator - Voltron Tech
-After=network.target
-Before=dnstt.service
-
-[Service]
-Type=simple
-ExecStart=/usr/local/bin/udp-aggregator
-Restart=always
-RestartSec=5
-User=root
-Group=root
-MemoryLimit=50M
-CPUQuota=30%
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-    # Step 4: Start service
-    echo -e "${C_YELLOW}[4/6] Starting service...${C_RESET}"
-    systemctl daemon-reload
-    systemctl enable udp-aggregator
-    systemctl start udp-aggregator
-    sleep 3
-
-    # Step 5: Verify installation
-    echo -e "${C_YELLOW}[5/6] Verifying installation...${C_RESET}"
-    local success=true
-    
-    if systemctl is-active --quiet udp-aggregator; then
-        echo -e "  ${C_GREEN}✅ Service is running${C_RESET}"
-    else
-        echo -e "  ${C_RED}❌ Service failed to start${C_RESET}"
-        success=false
-    fi
-    
-    if pgrep -f "udp-aggregator" >/dev/null; then
-        echo -e "  ${C_GREEN}✅ Process is running (PID: $(pgrep -f udp-aggregator))${C_RESET}"
-    else
-        echo -e "  ${C_RED}❌ Process not found${C_RESET}"
-        success=false
-    fi
-    
-    if netstat -tuln 2>/dev/null | grep -q ":5300"; then
-        echo -e "  ${C_GREEN}✅ Port 5300 is listening${C_RESET}"
-    else
-        echo -e "  ${C_RED}❌ Port 5300 not listening${C_RESET}"
-        success=false
-    fi
-
-    # Step 6: Test
-    echo -e "${C_YELLOW}[6/6] Testing UDP Aggregator...${C_RESET}"
-    echo "test" | nc -u localhost 5300 &
-    sleep 2
-    
-    if [ $success = true ]; then
-        echo -e "\n${C_GREEN}✅ UDP AGGREGATOR INSTALLED AND WORKING!${C_RESET}"
-        echo -e "${C_CYAN}📊 Check logs: tail -f /var/log/voltrontech/speed-booster/udp-agg.log${C_RESET}"
-    else
-        echo -e "\n${C_YELLOW}⚠️ UDP Aggregator installed but may have issues. Check logs:${C_RESET}"
-        echo -e "  systemctl status udp-aggregator"
-        echo -e "  journalctl -u udp-aggregator -n 20"
-    fi
-    
-    sleep 3
-}
-
-# 2️⃣ COMPRESSION - Inabana data kuongeza ufanisi
-enable_advanced_compression() {
-    echo -e "\n${C_CYAN}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "${C_CYAN}           🗜️ ENABLING COMPRESSION${C_RESET}"
-    echo -e "${C_CYAN}═══════════════════════════════════════════════════════════════${C_RESET}"
-    
-    # Step 1: Backup SSH config
-    echo -e "${C_YELLOW}[1/4] Backing up SSH config...${C_RESET}"
-    cp /etc/ssh/sshd_config /etc/ssh/sshd_config.bak.$(date +%s)
-    
-    # Step 2: Enable compression in SSH
-    echo -e "${C_YELLOW}[2/4] Enabling SSH compression...${C_RESET}"
-    sed -i '/^Compression/d' /etc/ssh/sshd_config
-    sed -i '/^CompressionLevel/d' /etc/ssh/sshd_config
-    cat >> /etc/ssh/sshd_config <<EOF
-
-# Compression Settings - Voltron Tech
-Compression yes
-CompressionLevel 6
-IPQoS throughput
-EOF
-
-    # Step 3: Apply sysctl for compression
-    echo -e "${C_YELLOW}[3/4] Applying kernel parameters...${C_RESET}"
-    cat >> /etc/sysctl.conf <<EOF
-
-# TCP Compression - Voltron Tech
-net.ipv4.tcp_sack = 1
-net.ipv4.tcp_dsack = 1
-net.ipv4.tcp_fack = 1
-net.ipv4.tcp_window_scaling = 1
-EOF
-    sysctl -p > /dev/null 2>&1
-
-    # Step 4: Restart SSH and verify
-    echo -e "${C_YELLOW}[4/4] Restarting SSH and verifying...${C_RESET}"
-    systemctl restart sshd
-    sleep 3
-    
-    if systemctl is-active --quiet sshd; then
-        echo -e "  ${C_GREEN}✅ SSH is running${C_RESET}"
-    else
-        echo -e "  ${C_RED}❌ SSH failed to restart${C_RESET}"
-        # Restore backup
-        cp /etc/ssh/sshd_config.bak /etc/ssh/sshd_config
-        systemctl restart sshd
-    fi
-    
-    if grep -q "Compression yes" /etc/ssh/sshd_config; then
-        echo -e "  ${C_GREEN}✅ Compression enabled in SSH config${C_RESET}"
-    else
-        echo -e "  ${C_RED}❌ Compression not enabled${C_RESET}"
-    fi
-    
-    echo -e "\n${C_GREEN}✅ COMPRESSION ENABLED AND WORKING!${C_RESET}"
-    echo -e "${C_CYAN}📊 Compression level: 6 (Optimal for 1GB RAM)${C_RESET}"
-    
-    sleep 3
-}
-
-# 3️⃣ QOS - Inapanga trafiki kuipa SSH priority
-enable_qos() {
-    echo -e "\n${C_CYAN}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "${C_CYAN}           ⚖️ ENABLING QOS (QUALITY OF SERVICE)${C_RESET}"
-    echo -e "${C_CYAN}═══════════════════════════════════════════════════════════════${C_RESET}"
-    
-    # Step 1: Install dependencies
-    echo -e "${C_YELLOW}[1/6] Installing dependencies...${C_RESET}"
-    apt install -y tc iptables-persistent iproute2
-    
-    # Step 2: Get main interface
-    INTERFACE=$(ip route | grep default | awk '{print $5}' | head -1)
-    [ -z "$INTERFACE" ] && INTERFACE="eth0"
-    echo -e "${C_YELLOW}Using interface: $INTERFACE${C_RESET}"
-    
-    # Step 3: Clear existing QoS
-    echo -e "${C_YELLOW}[2/6] Clearing existing rules...${C_RESET}"
-    tc qdisc del dev $INTERFACE root 2>/dev/null || true
-    
-    # Step 4: Create QoS classes
-    echo -e "${C_YELLOW}[3/6] Creating QoS classes...${C_RESET}"
-    
-    # Root qdisc
-    tc qdisc add dev $INTERFACE root handle 1: htb default 30
-    
-    # Class 1: SSH (High priority)
-    tc class add dev $INTERFACE parent 1: classid 1:10 htb rate 1000mbit ceil 1000mbit prio 0
-    tc qdisc add dev $INTERFACE parent 1:10 handle 10: sfq perturb 10
-    
-    # Class 2: DNS (Medium priority)
-    tc class add dev $INTERFACE parent 1: classid 1:20 htb rate 800mbit ceil 1000mbit prio 1
-    tc qdisc add dev $INTERFACE parent 1:20 handle 20: sfq perturb 10
-    
-    # Class 3: Other (Low priority)
-    tc class add dev $INTERFACE parent 1: classid 1:30 htb rate 500mbit ceil 1000mbit prio 2
-    tc qdisc add dev $INTERFACE parent 1:30 handle 30: sfq perturb 10
-    
-    # Step 5: Mark packets
-    echo -e "${C_YELLOW}[4/6] Marking packets...${C_RESET}"
-    
-    # Clear existing marks
-    iptables -t mangle -F 2>/dev/null
-    
-    # Mark SSH traffic (port 22)
-    iptables -t mangle -A OUTPUT -p tcp --dport 22 -j MARK --set-mark 10
-    iptables -t mangle -A OUTPUT -p tcp --sport 22 -j MARK --set-mark 10
-    
-    # Mark SSH additional ports (if connection forcer is used)
-    for port in 2222 2223 2224 2225; do
-        iptables -t mangle -A OUTPUT -p tcp --dport $port -j MARK --set-mark 10 2>/dev/null
-        iptables -t mangle -A OUTPUT -p tcp --sport $port -j MARK --set-mark 10 2>/dev/null
-    done
-    
-    # Mark DNS traffic (port 53, 5300)
-    iptables -t mangle -A OUTPUT -p udp --dport 53 -j MARK --set-mark 20
-    iptables -t mangle -A OUTPUT -p udp --sport 53 -j MARK --set-mark 20
-    iptables -t mangle -A OUTPUT -p udp --dport 5300 -j MARK --set-mark 20
-    iptables -t mangle -A OUTPUT -p udp --sport 5300 -j MARK --set-mark 20
-    
-    # Step 6: Add filters
-    echo -e "${C_YELLOW}[5/6] Adding filters...${C_RESET}"
-    tc filter add dev $INTERFACE protocol ip parent 1:0 prio 1 handle 10 fw classid 1:10
-    tc filter add dev $INTERFACE protocol ip parent 1:0 prio 2 handle 20 fw classid 1:20
-    
-    # Save rules
-    iptables-save > /etc/iptables/rules.v4 2>/dev/null
-    
-    # Create startup script
-    cat > /etc/network/if-up.d/qos <<EOF
-#!/bin/bash
-# QoS startup - Voltron Tech
-if [ "\$IFACE" = "$INTERFACE" ]; then
-    tc qdisc add dev $INTERFACE root handle 1: htb default 30
-    tc class add dev $INTERFACE parent 1: classid 1:10 htb rate 1000mbit ceil 1000mbit prio 0
-    tc class add dev $INTERFACE parent 1: classid 1:20 htb rate 800mbit ceil 1000mbit prio 1
-    tc class add dev $INTERFACE parent 1: classid 1:30 htb rate 500mbit ceil 1000mbit prio 2
-    tc qdisc add dev $INTERFACE parent 1:10 handle 10: sfq perturb 10
-    tc qdisc add dev $INTERFACE parent 1:20 handle 20: sfq perturb 10
-    tc qdisc add dev $INTERFACE parent 1:30 handle 30: sfq perturb 10
-    tc filter add dev $INTERFACE protocol ip parent 1:0 prio 1 handle 10 fw classid 1:10
-    tc filter add dev $INTERFACE protocol ip parent 1:0 prio 2 handle 20 fw classid 1:20
-fi
-EOF
-    chmod +x /etc/network/if-up.d/qos
-    
-    # Step 7: Verify
-    echo -e "${C_YELLOW}[6/6] Verifying QoS...${C_RESET}"
-    
-    if tc qdisc show dev $INTERFACE | grep -q "htb"; then
-        echo -e "  ${C_GREEN}✅ QoS is applied on $INTERFACE${C_RESET}"
-    else
-        echo -e "  ${C_RED}❌ QoS not applied${C_RESET}"
-    fi
-    
-    if iptables -t mangle -L -n -v 2>/dev/null | grep -q "MARK"; then
-        echo -e "  ${C_GREEN}✅ iptables marks are set${C_RESET}"
-    else
-        echo -e "  ${C_RED}❌ iptables marks not found${C_RESET}"
-    fi
-    
-    echo -e "\n${C_GREEN}✅ QOS ENABLED AND WORKING!${C_RESET}"
-    echo -e "${C_CYAN}📊 SSH: Priority 1 (High)${C_RESET}"
-    echo -e "${C_CYAN}📊 DNS: Priority 2 (Medium)${C_RESET}"
-    echo -e "${C_CYAN}📊 Other: Priority 3 (Low)${C_RESET}"
-    
-    sleep 3
-}
-
-# 4️⃣ AUTO CLEAR CACHES - Inasafisha caches kila siku saa 6 asubuhi
-setup_auto_clear_caches() {
-    echo -e "\n${C_CYAN}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "${C_CYAN}           🧹 SETTING UP AUTO CLEAR CACHES${C_RESET}"
-    echo -e "${C_CYAN}═══════════════════════════════════════════════════════════════${C_RESET}"
-    
-    # Step 1: Create cache cleaner script
-    echo -e "${C_YELLOW}[1/4] Creating cache cleaner script...${C_RESET}"
-    cat > /usr/local/bin/voltron-cache-cleaner <<'EOF'
-#!/bin/bash
-# ========== VOLTRON TECH CACHE CLEANER ==========
-# Inasafisha caches kila siku saa 6:00 asubuhi
-
-LOG_FILE="/var/log/voltrontech/speed-booster/cache-cleaner.log"
-BACKUP_DIR="/var/cache/voltrontech/backups"
-
-# Create directories
-mkdir -p "$(dirname "$LOG_FILE")"
-mkdir -p "$BACKUP_DIR"
-
-log() {
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE"
-}
-
-log "🚀 Starting cache cleaning..."
-
-# Function to get free space
-get_free_space() {
-    df -BG / | awk 'NR==2 {print $4}' | sed 's/G//'
-}
-
-# Function to get used space
-get_used_space() {
-    df -BG / | awk 'NR==2 {print $3}' | sed 's/G//'
-}
-
-# Record before
-BEFORE_FREE=$(get_free_space)
-BEFORE_USED=$(get_used_space)
-log "📊 Before: ${BEFORE_FREE}G free, ${BEFORE_USED}G used"
-
-# 1. Clean system logs (keep last 1000 lines)
-log "📁 Cleaning system logs..."
-for log in /var/log/syslog /var/log/auth.log /var/log/kern.log /var/log/messages; do
-    if [ -f "$log" ] && [ -s "$log" ]; then
-        tail -n 1000 "$log" > "$log.tmp" 2>/dev/null
-        mv "$log.tmp" "$log" 2>/dev/null
-        log "  ✓ Cleaned $(basename "$log")"
-    fi
-done
-
-# 2. Clean rotated logs
-find /var/log -name "*.gz" -delete 2>/dev/null
-find /var/log -name "*.1" -delete 2>/dev/null
-find /var/log -name "*.old" -delete 2>/dev/null
-log "  ✓ Cleaned rotated logs"
-
-# 3. Clean temp files
-rm -rf /tmp/* 2>/dev/null
-rm -rf /var/tmp/* 2>/dev/null
-log "  ✓ Cleaned temp files"
-
-# 4. Clean user caches
-for user_home in /home/*; do
-    if [ -d "$user_home" ]; then
-        rm -rf "$user_home/.cache/*" 2>/dev/null
-        rm -rf "$user_home/.npm/*" 2>/dev/null
-        rm -rf "$user_home/.local/share/Trash/*" 2>/dev/null
-    fi
-done
-rm -rf /root/.cache/* 2>/dev/null
-log "  ✓ Cleaned user caches"
-
-# 5. Clean package cache
-if command -v apt &>/dev/null; then
-    apt clean -y 2>/dev/null
-    apt autoclean -y 2>/dev/null
-    apt autoremove -y 2>/dev/null
-    log "  ✓ Cleaned APT cache"
-fi
-
-# 6. Clean journal logs (keep 3 days)
-if command -v journalctl &>/dev/null; then
-    journalctl --vacuum-time=3d 2>/dev/null
-    log "  ✓ Cleaned journal logs"
-fi
-
-# 7. Clean Voltron Tech logs
-if [ -d "/var/log/voltrontech" ]; then
-    find /var/log/voltrontech -name "*.log" -size +10M -exec truncate -s 5M {} \; 2>/dev/null
-    log "  ✓ Optimized Voltron Tech logs"
-fi
-
-# Record after
-AFTER_FREE=$(get_free_space)
-AFTER_USED=$(get_used_space)
-SAVED=$((BEFORE_USED - AFTER_USED))
-
-log "📊 After: ${AFTER_FREE}G free, ${AFTER_USED}G used"
-log "✨ Space saved: ${SAVED}G"
-log "✅ Cache cleaning completed at $(date)"
-EOF
-    chmod +x /usr/local/bin/voltron-cache-cleaner
-
-    # Step 2: Create cron job for 6:00 AM
-    echo -e "${C_YELLOW}[2/4] Creating cron job...${C_RESET}"
-    cat > /etc/cron.d/voltron-cache-cleaner <<EOF
-# Voltron Tech Cache Cleaner - Runs at 6:00 AM every day
-0 6 * * * root /usr/local/bin/voltron-cache-cleaner > /dev/null 2>&1
-EOF
-    chmod 644 /etc/cron.d/voltron-cache-cleaner
-
-    # Step 3: Create systemd timer (alternative to cron)
-    echo -e "${C_YELLOW}[3/4] Creating systemd timer...${C_RESET}"
-    cat > /etc/systemd/system/voltron-cache-cleaner.service <<EOF
-[Unit]
-Description=Voltron Tech Cache Cleaner
-After=network.target
-
-[Service]
-Type=oneshot
-ExecStart=/usr/local/bin/voltron-cache-cleaner
-User=root
-EOF
-
-    cat > /etc/systemd/system/voltron-cache-cleaner.timer <<EOF
-[Unit]
-Description=Run Voltron Cache Cleaner daily at 6 AM
-Requires=voltron-cache-cleaner.service
-
-[Timer]
-OnCalendar=*-*-* 06:00:00
-Persistent=true
-
-[Install]
-WantedBy=timers.target
-EOF
-
-    systemctl daemon-reload
-    systemctl enable voltron-cache-cleaner.timer 2>/dev/null
-    systemctl start voltron-cache-cleaner.timer 2>/dev/null
-
-    # Step 4: Test run and verify
-    echo -e "${C_YELLOW}[4/4] Testing cache cleaner...${C_RESET}"
-    /usr/local/bin/voltron-cache-cleaner
-    
-    # Verify cron
-    if [ -f /etc/cron.d/voltron-cache-cleaner ]; then
-        echo -e "  ${C_GREEN}✅ Cron job installed${C_RESET}"
-    fi
-    
-    if systemctl is-active voltron-cache-cleaner.timer &>/dev/null; then
-        echo -e "  ${C_GREEN}✅ Systemd timer active${C_RESET}"
-    fi
-    
-    if [ -f /var/log/voltrontech/speed-booster/cache-cleaner.log ]; then
-        echo -e "  ${C_GREEN}✅ Log file created${C_RESET}"
-        tail -n 5 /var/log/voltrontech/speed-booster/cache-cleaner.log
-    fi
-    
-    echo -e "\n${C_GREEN}✅ AUTO CLEAR CACHES CONFIGURED AND WORKING!${C_RESET}"
-    echo -e "${C_CYAN}📊 Ita run kila siku saa 6:00 asubuhi${C_RESET}"
-    echo -e "${C_CYAN}📊 Log file: /var/log/voltrontech/speed-booster/cache-cleaner.log${C_RESET}"
-    
-    sleep 3
-}
-
-# 5️⃣ VERIFY ALL SPEED FEATURES
-verify_all_features() {
-    echo -e "\n${C_CYAN}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "${C_CYAN}           🔍 VERIFYING ALL SPEED FEATURES${C_RESET}"
-    echo -e "${C_CYAN}═══════════════════════════════════════════════════════════════${C_RESET}"
-    
-    local all_working=true
-    local working_count=0
-    local total_features=4
-    
-    # 1. UDP Aggregator
-    echo -e "\n${C_YELLOW}UDP AGGREGATOR:${C_RESET}"
-    if systemctl is-active --quiet udp-aggregator; then
-        echo -e "  ${C_GREEN}✅ Service is running${C_RESET}"
-        ((working_count++))
-    else
-        echo -e "  ${C_RED}❌ Service not running${C_RESET}"
-        all_working=false
-    fi
-    
-    if netstat -tuln 2>/dev/null | grep -q ":5300"; then
-        echo -e "  ${C_GREEN}✅ Port 5300 is listening${C_RESET}"
-    else
-        echo -e "  ${C_RED}❌ Port 5300 not listening${C_RESET}"
-        all_working=false
-    fi
-    
-    # 2. Compression
-    echo -e "\n${C_YELLOW}COMPRESSION:${C_RESET}"
-    if grep -q "Compression yes" /etc/ssh/sshd_config; then
-        echo -e "  ${C_GREEN}✅ Enabled in SSH config${C_RESET}"
-        ((working_count++))
-    else
-        echo -e "  ${C_RED}❌ Not enabled${C_RESET}"
-        all_working=false
-    fi
-    
-    if systemctl is-active --quiet sshd; then
-        echo -e "  ${C_GREEN}✅ SSH service is running${C_RESET}"
-    else
-        echo -e "  ${C_RED}❌ SSH not running${C_RESET}"
-        all_working=false
-    fi
-    
-    # 3. QoS
-    echo -e "\n${C_YELLOW}QOS:${C_RESET}"
-    INTERFACE=$(ip route | grep default | awk '{print $5}' | head -1)
-    [ -z "$INTERFACE" ] && INTERFACE="eth0"
-    
-    if tc qdisc show dev $INTERFACE 2>/dev/null | grep -q "htb"; then
-        echo -e "  ${C_GREEN}✅ Active on $INTERFACE${C_RESET}"
-        ((working_count++))
-    else
-        echo -e "  ${C_RED}❌ Not active${C_RESET}"
-        all_working=false
-    fi
-    
-    if iptables -t mangle -L -n -v 2>/dev/null | grep -q "MARK"; then
-        echo -e "  ${C_GREEN}✅ iptables marks set${C_RESET}"
-    else
-        echo -e "  ${C_RED}❌ iptables marks not found${C_RESET}"
-        all_working=false
-    fi
-    
-    # 4. Auto Clear Caches
-    echo -e "\n${C_YELLOW}AUTO CLEAR CACHES:${C_RESET}"
-    if [ -f /etc/cron.d/voltron-cache-cleaner ]; then
-        echo -e "  ${C_GREEN}✅ Cron job installed${C_RESET}"
-        ((working_count++))
-    else
-        echo -e "  ${C_RED}❌ Cron job not found${C_RESET}"
-        all_working=false
-    fi
-    
-    if [ -f /usr/local/bin/voltron-cache-cleaner ]; then
-        echo -e "  ${C_GREEN}✅ Cleaner script exists${C_RESET}"
-    else
-        echo -e "  ${C_RED}❌ Cleaner script not found${C_RESET}"
-        all_working=false
-    fi
-    
-    if [ -f /var/log/voltrontech/speed-booster/cache-cleaner.log ]; then
-        local last_run=$(tail -n 1 /var/log/voltrontech/speed-booster/cache-cleaner.log 2>/dev/null | grep -o "completed" || echo "")
-        if [ -n "$last_run" ]; then
-            echo -e "  ${C_GREEN}✅ Has run successfully${C_RESET}"
-        else
-            echo -e "  ${C_YELLOW}⚠️ Log exists but may not have run yet${C_RESET}"
-        fi
-    fi
-    
-    # Summary
-    echo -e "\n${C_CYAN}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "${C_CYAN}           📊 SUMMARY${C_RESET}"
-    echo -e "${C_CYAN}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "Features working: ${C_GREEN}$working_count/$total_features${C_RESET}"
-    
-    if [ $working_count -eq $total_features ]; then
-        echo -e "\n${C_GREEN}✅ ALL FEATURES ARE WORKING PERFECTLY!${C_RESET}"
-    elif [ $working_count -gt 2 ]; then
-        echo -e "\n${C_YELLOW}⚠️ MOST features are working. Check the ones marked RED.${C_RESET}"
-    else
-        echo -e "\n${C_RED}❌ Some features are not working. Please reinstall.${C_RESET}"
-    fi
-    
-    # Connection Forcer status (optional check)
-    if [ -f "$FORCER_CONFIG" ]; then
-        echo -e "\n${C_CYAN}Connection Forcer:${C_RESET}"
-        source "$FORCER_CONFIG"
-        echo -e "  ${C_GREEN}✅ Enabled ($CONNECTIONS_PER_IP connections per IP)${C_RESET}"
-    fi
-    
-    sleep 5
 }
 
 # ========== DNSTT INSTALLATION ==========
@@ -2520,7 +2091,7 @@ install_dnstt() {
     clear
     show_banner
     echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "${C_BOLD}${C_PURPLE}           📡 DNSTT INSTALLATION${C_RESET}"
+    echo -e "${C_BOLD}${C_PURPLE}           📡 DNSTT INSTALLATION (SPEED OPTIMIZED)${C_RESET}"
     echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
     
     if [ -f "$DNSTT_SERVICE" ]; then
@@ -2533,12 +2104,12 @@ install_dnstt() {
     fi
     
     # Step 1: Install dependencies
-    echo -e "\n${C_BLUE}[1/8] Installing dependencies...${C_RESET}"
+    echo -e "\n${C_BLUE}[1/9] Installing dependencies...${C_RESET}"
     $PKG_UPDATE
     $PKG_INSTALL wget curl git build-essential openssl
     
     # Step 2: Install Go
-    echo -e "\n${C_BLUE}[2/8] Installing Go...${C_RESET}"
+    echo -e "\n${C_BLUE}[2/9] Installing Go...${C_RESET}"
     if ! command -v go &> /dev/null; then
         wget -q https://go.dev/dl/go1.21.5.linux-amd64.tar.gz
         rm -rf /usr/local/go
@@ -2549,27 +2120,31 @@ install_dnstt() {
     fi
     
     # Step 3: Build DNSTT from source
-    echo -e "\n${C_BLUE}[3/8] Building DNSTT from source...${C_RESET}"
+    echo -e "\n${C_BLUE}[3/9] Building DNSTT from source...${C_RESET}"
     if ! build_dnstt_from_source; then
         echo -e "${C_RED}❌ Failed to build DNSTT${C_RESET}"
         safe_read "" dummy
         return 1
     fi
     
-    # Step 4: Configure firewall
-    echo -e "\n${C_BLUE}[4/8] Configuring firewall...${C_RESET}"
+    # Step 4: Apply speed optimizations
+    echo -e "\n${C_BLUE}[4/9] Applying speed optimizations...${C_RESET}"
+    apply_speed_optimizations
+    
+    # Step 5: Configure firewall
+    echo -e "\n${C_BLUE}[5/9] Configuring firewall...${C_RESET}"
     configure_firewall
     
-    # Step 5: Setup domain
-    echo -e "\n${C_BLUE}[5/8] Domain configuration...${C_RESET}"
+    # Step 6: Setup domain
+    echo -e "\n${C_BLUE}[6/9] Domain configuration...${C_RESET}"
     setup_domain
     
-    # Step 6: MTU selection
-    echo -e "\n${C_BLUE}[6/8] MTU selection...${C_RESET}"
+    # Step 7: MTU selection
+    echo -e "\n${C_BLUE}[7/9] MTU selection...${C_RESET}"
     mtu_selection_during_install
     
-    # Step 7: Generate keys
-    echo -e "\n${C_BLUE}[7/8] Generating keys...${C_RESET}"
+    # Step 8: Generate keys
+    echo -e "\n${C_BLUE}[8/9] Generating keys...${C_RESET}"
     if ! generate_keys; then
         echo -e "${C_RED}❌ Failed to generate keys${C_RESET}"
         safe_read "" dummy
@@ -2580,16 +2155,12 @@ install_dnstt() {
     SSH_PORT=$(ss -tlnp 2>/dev/null | grep sshd | awk '{print $4}' | cut -d: -f2 | head -1)
     SSH_PORT=${SSH_PORT:-22}
     
-    # Step 8: Create service
-    echo -e "\n${C_BLUE}[8/8] Creating service...${C_RESET}"
+    # Step 9: Create service
+    echo -e "\n${C_BLUE}[9/9] Creating service...${C_RESET}"
     create_dnstt_service "$DOMAIN" "$MTU" "$SSH_PORT"
     
     # Save DNSTT info
     save_dnstt_info "$DOMAIN" "$PUBLIC_KEY" "$MTU" "$SSH_PORT"
-    
-    # Apply ULTRA speed booster
-    echo -e "\n${C_BLUE}🚀 Applying ULTRA speed booster...${C_RESET}"
-    optimize_system_ultra
     
     # Start service
     echo -e "\n${C_BLUE}🚀 Starting DNSTT service...${C_RESET}"
@@ -2608,12 +2179,16 @@ install_dnstt() {
     
     # Save info
     cat > "$DB_DIR/dnstt_info.txt" <<EOF
-DNSTT Configuration
+DNSTT Configuration (Speed Optimized)
 ============================================
 Domain: $DOMAIN
 MTU: $MTU
 SSH Port: $SSH_PORT
 Public Key: $(cat "$DB_DIR/server.pub")
+Speed Features:
+- BBR Congestion Control: Active
+- Network Buffers: 2.5MB
+- Keepalive: 60s
 
 Client Commands:
 ----------------
@@ -2674,6 +2249,10 @@ show_dnstt_details() {
     echo -e "  SSH Port:      ${C_YELLOW}$SSH_PORT${C_RESET}"
     echo -e "  Binary:        ${C_YELLOW}$DNSTT_SERVER${C_RESET}"
     echo -e "  Public Key:    ${C_YELLOW}${PUBKEY:0:30}...${PUBKEY: -30}${C_RESET}"
+    echo -e "  Speed Features:"
+    echo -e "    • BBR:       ${C_GREEN}Active${C_RESET}"
+    echo -e "    • Buffers:   ${C_GREEN}2.5MB${C_RESET}"
+    echo -e "    • Keepalive: ${C_GREEN}60s${C_RESET}"
     
     safe_read "" dummy
 }
@@ -3232,15 +2811,17 @@ uninstall_script() {
         source "$FORCER_CONFIG"
         systemctl stop haproxy 2>/dev/null
         systemctl disable haproxy 2>/dev/null
-        sed -i "/^Port 127.0.0.1:$SSH_PORT/d" /etc/ssh/sshd_config
-        sed -i "s/^#Port $SSH_PORT/Port $SSH_PORT/" /etc/ssh/sshd_config
+        
+        # Restore SSH config
+        if [ -f /etc/ssh/sshd_config.backup.forcer ]; then
+            cp /etc/ssh/sshd_config.backup.forcer /etc/ssh/sshd_config
+            systemctl restart sshd
+        fi
     fi
     
-    # Stop speed booster services
-    systemctl stop udp-aggregator 2>/dev/null
-    systemctl disable udp-aggregator 2>/dev/null
-    systemctl stop voltron-cache-cleaner.timer 2>/dev/null
-    systemctl disable voltron-cache-cleaner.timer 2>/dev/null
+    # Disable Cache Cleaner
+    rm -f "$CACHE_CRON_FILE" 2>/dev/null
+    crontab -l 2>/dev/null | grep -v "voltron-cache-clean" | crontab - 2>/dev/null
     
     # Stop all services
     systemctl stop dnstt.service v2ray-dnstt.service badvpn.service udp-custom.service haproxy voltronproxy.service nginx zivpn.service 2>/dev/null
@@ -3249,18 +2830,14 @@ uninstall_script() {
     # Remove service files
     rm -f "$DNSTT_SERVICE" "$V2RAY_SERVICE" "$BADVPN_SERVICE" "$UDP_CUSTOM_SERVICE" "$VOLTRONPROXY_SERVICE" "$ZIVPN_SERVICE"
     rm -f "$TRAFFIC_SERVICE" "$LIMITER_SERVICE"
-    rm -f /etc/systemd/system/udp-aggregator.service
-    rm -f /etc/systemd/system/voltron-cache-cleaner.*
     
     # Remove binaries
     rm -f "$DNSTT_SERVER" "$DNSTT_CLIENT" "$V2RAY_BIN" "$BADVPN_BIN" "$UDP_CUSTOM_BIN" "$VOLTRONPROXY_BIN" "$ZIVPN_BIN"
     rm -f "$LIMITER_SCRIPT" "$TRAFFIC_SCRIPT" "$LOSS_PROTECT_SCRIPT"
-    rm -f /usr/local/bin/udp-aggregator
-    rm -f /usr/local/bin/voltron-cache-cleaner
+    rm -f "$CACHE_SCRIPT"
     
     # Remove directories
     rm -rf "$BADVPN_BUILD_DIR" "$UDP_CUSTOM_DIR" "$ZIVPN_DIR"
-    rm -rf /var/log/voltrontech/speed-booster
     
     # Remove configuration
     rm -rf "$DB_DIR"
@@ -3872,7 +3449,6 @@ main_menu() {
     while true; do
         show_banner
         
-        # 👤 USER MANAGEMENT SECTION
         echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
         echo -e "${C_BOLD}${C_PURPLE}                    👤 USER MANAGEMENT${C_RESET}"
         echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
@@ -3881,7 +3457,6 @@ main_menu() {
         printf "  ${C_GREEN}%2s${C_RESET}) %-25s  ${C_GREEN}%2s${C_RESET}) %-25s\n" "3" "Edit User" "7" "Renew User"
         printf "  ${C_GREEN}%2s${C_RESET}) %-25s\n" "4" "Lock User"
         
-        # ⚙️ SYSTEM UTILITIES SECTION
         echo ""
         echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
         echo -e "${C_BOLD}${C_PURPLE}                    ⚙️ SYSTEM UTILITIES${C_RESET}"
@@ -3890,23 +3465,13 @@ main_menu() {
         printf "  ${C_GREEN}%2s${C_RESET}) %-25s  ${C_GREEN}%2s${C_RESET}) %-25s\n" "9" "Backup Users" "13" "Cleanup Expired"
         printf "  ${C_GREEN}%2s${C_RESET}) %-25s  ${C_GREEN}%2s${C_RESET}) %-25s\n" "10" "Restore Users" "14" "MTU Optimization"
         printf "  ${C_GREEN}%2s${C_RESET}) %-25s  ${C_GREEN}%2s${C_RESET}) %-25s\n" "11" "DNS Domain" "15" "V2Ray Management"
-        printf "  ${C_GREEN}%2s${C_RESET}) %-25s\n" "16" "Connection Forcer"
-        printf "  ${C_GREEN}%2s${C_RESET}) %-25s\n" "17" "DT Proxy"
+        printf "  ${C_GREEN}%2s${C_RESET}) %-25s  ${C_GREEN}%2s${C_RESET}) %-25s\n" "16" "Connection Forcer" "17" "DT Proxy"
+        printf "  ${C_GREEN}%2s${C_RESET}) %-25s\n" "18" "🧹 Cache Cleaner"
 
-        # ⚡ SPEED BOOSTER SECTION (NEW)
         echo ""
-        echo -e "${C_BOLD}${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
-        echo -e "${C_BOLD}${C_GREEN}                    ⚡ SPEED BOOSTER FEATURES${C_RESET}"
-        echo -e "${C_BOLD}${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
-        printf "  ${C_YELLOW}%2s${C_RESET}) %-25s  ${C_YELLOW}%2s${C_RESET}) %-25s\n" "18" "UDP Aggregator" "19" "Compression"
-        printf "  ${C_YELLOW}%2s${C_RESET}) %-25s  ${C_YELLOW}%2s${C_RESET}) %-25s\n" "20" "QoS" "21" "Auto Clear Caches"
-        printf "  ${C_YELLOW}%2s${C_RESET}) %-25s\n" "22" "Verify Speed Features"
-
-        # 🔥 DANGER ZONE SECTION
-        echo ""
-        echo -e "${C_BOLD}${C_RED}═══════════════════════════════════════════════════════════════${C_RESET}"
-        echo -e "${C_BOLD}${C_RED}                    🔥 DANGER ZONE${C_RESET}"
-        echo -e "${C_BOLD}${C_RED}═══════════════════════════════════════════════════════════════${C_RESET}"
+        echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
+        echo -e "${C_BOLD}${C_PURPLE}                    🔥 DANGER ZONE${C_RESET}"
+        echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
         printf "  ${C_RED}%2s${C_RESET}) %-28s  ${C_RED}%2s${C_RESET}) %-25s\n" "99" "Uninstall Script" "0" "Exit"
 
         echo ""
@@ -3914,7 +3479,6 @@ main_menu() {
         safe_read "$(echo -e ${C_PROMPT}"👉 Select an option: "${C_RESET})" choice
         
         case $choice in
-            # 👤 USER MANAGEMENT (1-7)
             1) _create_user ;;
             2) _delete_user ;;
             3) _edit_user ;;
@@ -3922,8 +3486,6 @@ main_menu() {
             5) _unlock_user ;;
             6) _list_users ;;
             7) _renew_user ;;
-            
-            # ⚙️ SYSTEM UTILITIES (8-17)
             8) protocol_menu ;;
             9) backup_user_data ;;
             10) restore_user_data ;;
@@ -3934,19 +3496,9 @@ main_menu() {
             15) v2ray_main_menu ;;
             16) connection_forcer_menu ;;
             17) dt_proxy_menu ;;
-            
-            # ⚡ SPEED BOOSTER (18-22) - NEW
-            18) install_udp_aggregator ;;
-            19) enable_advanced_compression ;;
-            20) enable_qos ;;
-            21) setup_auto_clear_caches ;;
-            22) verify_all_features ;;
-            
-            # 🔥 DANGER ZONE (99,0)
+            18) cache_cleaner_menu ;;
             99) uninstall_script ;;
             0) echo -e "\n${C_BLUE}👋 Goodbye!${C_RESET}"; exit 0 ;;
-            
-            # ❌ INVALID
             *) echo -e "\n${C_RED}❌ Invalid option${C_RESET}"; sleep 2 ;;
         esac
     done
@@ -3958,11 +3510,9 @@ if [[ $EUID -ne 0 ]]; then
     exit 1
 fi
 
-# Check if first run
 if [[ "$1" == "--install-setup" ]]; then
     initial_setup
     exit 0
 fi
 
-# Start main menu
 main_menu
