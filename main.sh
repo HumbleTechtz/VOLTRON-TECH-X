@@ -1206,103 +1206,7 @@ _unlock_user() {
     safe_read "" dummy
 }
 
-# ========== SHOW USER DETAILS WITH IP INFORMATION ==========
-show_user_details() {
-    local username=$1
-    
-    # Get user data from database
-    local line=$(grep "^$username:" "$DB_FILE")
-    local expiry=$(echo "$line" | cut -d: -f3)
-    local limit=$(echo "$line" | cut -d: -f4)
-    local traffic_limit=$(echo "$line" | cut -d: -f5)
-    local traffic_used=$(echo "$line" | cut -d: -f6)
-    
-    # Get current connections
-    local online=$(pgrep -u "$username" sshd 2>/dev/null | wc -l)
-    
-    # Get IP details using ss
-    local ip_details=""
-    if command -v ss &>/dev/null; then
-        ip_details=$(ss -tnp 2>/dev/null | grep "$username" | awk '{print $5}' | cut -d: -f1 | sort | uniq -c | sort -nr)
-    else
-        ip_details=$(netstat -tnp 2>/dev/null | grep "$username" | awk '{print $5}' | cut -d: -f1 | sort | uniq -c | sort -nr)
-    fi
-    
-    local ip_count=$(echo "$ip_details" | wc -l)
-    [ -z "$ip_details" ] && ip_count=0
-    
-    clear
-    echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "${C_BOLD}${C_PURPLE}           👤 USER DETAILS: ${C_YELLOW}$username${C_PURPLE}${C_RESET}"
-    echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo ""
-    
-    echo -e "${C_CYAN}📊 Summary:${C_RESET}"
-    echo -e "  • Username:     ${C_YELLOW}$username${C_RESET}"
-    echo -e "  • Expiry:       ${C_YELLOW}$expiry${C_RESET}"
-    echo -e "  • Connections:  ${C_YELLOW}$online/$limit${C_RESET}"
-    
-    # Format traffic
-    local traffic_disp=""
-    if [[ "$traffic_limit" == "0" ]] || [[ -z "$traffic_limit" ]]; then
-        traffic_disp="∞"
-    else
-        traffic_disp="$traffic_limit GB"
-    fi
-    echo -e "  • Traffic:      ${C_YELLOW}$traffic_used / $traffic_disp${C_RESET}"
-    
-    # Determine status
-    local status_text=""
-    local status_color=""
-    
-    if ! id "$username" &>/dev/null; then
-        status_text="NO USER"
-        status_color="${C_RED}"
-    elif passwd -S "$username" 2>/dev/null | grep -q " L "; then
-        status_text="LOCKED"
-        status_color="${C_YELLOW}"
-    else
-        local expiry_ts=$(date -d "$expiry" +%s 2>/dev/null || echo 0)
-        local current_ts=$(date +%s)
-        
-        if [[ $expiry_ts -lt $current_ts && $expiry_ts -ne 0 ]]; then
-            status_text="EXPIRED"
-            status_color="${C_RED}"
-        elif [[ "$traffic_limit" != "0" ]] && [ -n "$traffic_limit" ] && [ -n "$traffic_used" ] && [ "$(echo "$traffic_used >= $traffic_limit" | bc 2>/dev/null)" -eq 1 ]; then
-            status_text="LIMIT"
-            status_color="${C_RED}"
-        else
-            status_text="ACTIVE"
-            status_color="${C_GREEN}"
-        fi
-    fi
-    echo -e "  • Status:       $status_text"
-    
-    echo ""
-    echo -e "${C_CYAN}🌐 Active IPs ($ip_count total):${C_RESET}"
-    if [ -n "$ip_details" ]; then
-        echo "$ip_details" | while read count ip; do
-            # Check if connection forcer is enabled and show warning if less than expected
-            if [ -f "$FORCER_CONFIG" ]; then
-                source "$FORCER_CONFIG"
-                if [ $count -lt $CONNECTIONS_PER_IP ]; then
-                    echo -e "  • ${C_YELLOW}$ip${C_RESET} ── ${C_RED}$count connections ⚠️ (should be $CONNECTIONS_PER_IP)${C_RESET}"
-                else
-                    echo -e "  • ${C_YELLOW}$ip${C_RESET} ── ${C_GREEN}$count connections ✓${C_RESET}"
-                fi
-            else
-                echo -e "  • ${C_YELLOW}$ip${C_RESET} ── ${C_GREEN}$count connections${C_RESET}"
-            fi
-        done
-    else
-        echo -e "  ${C_DIM}No active connections${C_RESET}"
-    fi
-    
-    echo ""
-    safe_read "Press Enter to continue..."
-}
-
-# ========== LIST USERS WITH SELECTION ==========
+# ========== LIST USERS (ORIGINAL STYLE) ==========
 _list_users() {
     clear
     show_banner
@@ -1316,13 +1220,11 @@ _list_users() {
         return
     fi
     
-    # Array to store usernames
-    users=()
+    printf "${C_BOLD}%-15s | %-12s | %-8s | %-25s | %-10s${C_RESET}\n" "USERNAME" "EXPIRY" "LIMIT" "TRAFFIC" "STATUS"
+    echo -e "${C_CYAN}──────────────────────────────────────────────────────────────────────────${C_RESET}"
     
-    # Display users with numbers
     while IFS=: read -r user pass expiry limit traffic_limit traffic_used; do
         [[ -z "$user" ]] && continue
-        users+=("$user")
         
         # Get current connections
         local online=0
@@ -1330,30 +1232,67 @@ _list_users() {
             online=$(pgrep -u "$user" sshd 2>/dev/null | wc -l)
         fi
         
-        # Format traffic display
-        local traffic_disp=""
-        if [[ "$traffic_limit" == "0" ]] || [[ -z "$traffic_limit" ]]; then
-            traffic_disp="∞"
-        else
-            traffic_disp="$traffic_limit GB"
+        # Format traffic
+        local traffic_limit_num=0
+        local traffic_used_num=0
+        
+        if [[ -n "$traffic_limit" ]] && [[ "$traffic_limit" != "''" ]] && [[ "$traffic_limit" != "0" ]] && [[ "$traffic_limit" != "null" ]]; then
+            traffic_limit_num=$(echo "$traffic_limit" | sed 's/[^0-9.]//g' | awk '{printf "%.0f", $1}' 2>/dev/null || echo "0")
         fi
         
-        # Show user with number
-        printf "  ${C_GREEN}%2d)${C_RESET} %-15s │ ${C_YELLOW}%s/%s${C_RESET} connections │ Traffic: ${C_CYAN}%s/%s${C_RESET}\n" \
-            "${#users[@]}" "$user" "$online" "$limit" "$traffic_used" "$traffic_disp"
+        if [[ -n "$traffic_used" ]] && [[ "$traffic_used" != "''" ]] && [[ "$traffic_used" != "null" ]]; then
+            if [[ "$traffic_used" == .* ]]; then
+                traffic_used="0$traffic_used"
+            fi
+            traffic_used_num=$(echo "$traffic_used" | sed 's/[^0-9.]//g' | awk '{printf "%.2f", $1}' 2>/dev/null || echo "0")
+        fi
+        
+        local traffic_disp=""
+        if [[ "$traffic_limit_num" == "0" ]]; then
+            traffic_disp="$(printf "%.2f" $traffic_used_num) GB / ∞"
+        else
+            if command -v bc &>/dev/null; then
+                local percent=$(echo "scale=1; $traffic_used_num * 100 / $traffic_limit_num" | bc 2>/dev/null || echo "0")
+                traffic_disp="$(printf "%.2f" $traffic_used_num) / $traffic_limit_num GB ($percent%)"
+            else
+                traffic_disp="$(printf "%.2f" $traffic_used_num) / $traffic_limit_num GB"
+            fi
+        fi
+        
+        # Determine status
+        local status_text=""
+        local status_color=""
+        
+        if ! id "$user" &>/dev/null; then
+            status_text="NO USER"
+            status_color="${C_RED}"
+        elif passwd -S "$user" 2>/dev/null | grep -q " L "; then
+            status_text="LOCKED"
+            status_color="${C_YELLOW}"
+        else
+            local expiry_ts=$(date -d "$expiry" +%s 2>/dev/null || echo 0)
+            local current_ts=$(date +%s)
+            
+            if [[ $expiry_ts -lt $current_ts && $expiry_ts -ne 0 ]]; then
+                status_text="EXPIRED"
+                status_color="${C_RED}"
+            elif [[ "$traffic_limit_num" -gt 0 ]] && (( $(echo "$traffic_used_num >= $traffic_limit_num" | bc -l 2>/dev/null) )); then
+                status_text="LIMIT"
+                status_color="${C_RED}"
+            else
+                status_text="ACTIVE"
+                status_color="${C_GREEN}"
+            fi
+        fi
+        
+        printf "%-15s | ${C_YELLOW}%-12s${C_RESET} | ${C_CYAN}%s/%s${C_RESET} | %-25s | ${status_color}%-10s${C_RESET}\n" \
+            "$user" "$expiry" "$online" "$limit" "$traffic_disp" "$status_text"
             
     done < "$DB_FILE"
     
+    echo -e "${C_CYAN}──────────────────────────────────────────────────────────────────────────${C_RESET}"
     echo ""
-    echo -e "  ${C_RED} 0)${C_RESET} Return to main menu"
-    echo ""
-    
-    local choice
-    safe_read "👉 Select user to view details (or 0): " choice
-    
-    if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge 1 ] && [ "$choice" -le "${#users[@]}" ]; then
-        show_user_details "${users[$((choice-1))]}"
-    fi
+    safe_read "" dummy
 }
 
 _renew_user() {
