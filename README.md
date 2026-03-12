@@ -1,4 +1,3 @@
-```markdown
 # 🔥 VOLTRON TECH ULTIMATE SCRIPT v6.0
 
 <div align="center">
@@ -370,7 +369,7 @@ HAProxy Issues
 systemctl status haproxy
 
 # Test configuration
-haproxy -f /etc/haproxy/haproxy.cfg -c
+haproxy -f /etc/haproxy/haproxyfg -c
 
 # View statistics (browser)
 http://YOUR_IP:8404/stats
