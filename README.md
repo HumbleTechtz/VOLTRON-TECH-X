@@ -379,35 +379,6 @@ http://YOUR_IP:8404/stats
 
 ---
 
-📝 CHANGELOG
-
-Version 6.0 (March 2024)
-
-· ✅ Added UDP Aggregator - Packet combining for 30% speed boost
-· ✅ Added Compression - Data compression for 50% less bandwidth
-· ✅ Added QoS - Traffic prioritization for lag-free SSH
-· ✅ Added Auto Clear Caches - Daily system cleanup at 6 AM
-· ✅ Added Verify Features - Check all speed boosters status
-· ✅ Improved Connection Forcer - Better stability and performance
-· ✅ Ultra Speed Optimization v2.0 - Advanced kernel tuning
-· ✅ Fixed DNSTT Service - Resolved startup issues
-· ✅ Optimized for 1GB RAM - Efficient memory usage
-
-Version 5.0 (January 2024)
-
-· ✅ Connection Forcer with 5 connections per IP
-· ✅ Multi-protocol support (SSH, DNSTT, V2RAY, BADVPN, UDP)
-· ✅ User management with traffic monitoring
-· ✅ Auto limiter and expiry remover
-
-Version 4.0 (October 2023)
-
-· ✅ Initial release
-· ✅ Basic SSH and DNSTT support
-· ✅ User creation and management
-
----
-
 🤝 CONTRIBUTING
 
 Contributions are welcome! Here's how you can help:
