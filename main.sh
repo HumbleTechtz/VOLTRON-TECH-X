@@ -41,6 +41,7 @@ INSTALL_FLAG_FILE="$DB_DIR/.install"
 SSL_CERT_DIR="$DB_DIR/ssl"
 SSL_CERT_FILE="$SSL_CERT_DIR/voltrontech.pem"
 SSH_BANNER_FILE="/etc/voltrontech/banner"
+TRAFFIC_DIR="$DB_DIR/traffic"
 
 # DNS Protocols Directories
 DNSTT_KEYS_DIR="$DB_DIR/dnstt"
@@ -115,7 +116,7 @@ UNINSTALL_MODE="interactive"
 # ========== CREATE DIRECTORIES ==========
 create_directories() {
     echo -e "${C_BLUE}📁 Creating directories...${C_RESET}"
-    mkdir -p $DB_DIR $DNSTT_KEYS_DIR $V2RAY_KEYS_DIR $V2RAY_DIR $BACKUP_DIR $LOGS_DIR $CONFIG_DIR $SSL_CERT_DIR $FEC_DIR
+    mkdir -p $DB_DIR $DNSTT_KEYS_DIR $V2RAY_KEYS_DIR $V2RAY_DIR $BACKUP_DIR $LOGS_DIR $CONFIG_DIR $SSL_CERT_DIR $FEC_DIR $TRAFFIC_DIR
     mkdir -p $V2RAY_DIR/dnstt $V2RAY_DIR/v2ray $V2RAY_DIR/users
     mkdir -p $UDP_CUSTOM_DIR $ZIVPN_DIR
     mkdir -p $(dirname "$SSH_BANNER_FILE")
@@ -371,7 +372,7 @@ show_banner() {
     
     # Show Cache Cleaner status
     if [ -f "$CACHE_CRON_FILE" ]; then
-        echo -e "${C_BOLD}${C_PURPLE}║  Cache:      ${C_GREEN}AUTO CLEAN ACTIVE (6 AM daily)${C_PURPLE}${C_RESET}"
+        echo -e "${C_BOLD}${C_PURPLE}║  Cache:      ${C_GREEN}AUTO CLEAN ACTIVE (12:00 AM daily)${C_PURPLE}${C_RESET}"
     else
         echo -e "${C_BOLD}${C_PURPLE}║  Cache:      ${C_YELLOW}AUTO CLEAN DISABLED${C_PURPLE}${C_RESET}"
     fi
@@ -457,10 +458,10 @@ EOF
     echo -e "${C_GREEN}✅ Aggressive keepalive set to 10s intervals${C_RESET}"
 }
 
-# Function for advanced TCP tuning (10+ parameters)
+# Function for advanced TCP tuning (12 parameters)
 optimize_advanced_tcp() {
     echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "${C_BLUE}           📐 APPLYING ADVANCED TCP TUNABLES (10+ parameters)${C_RESET}"
+    echo -e "${C_BLUE}           📐 APPLYING ADVANCED TCP TUNABLES (12 parameters)${C_RESET}"
     echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
     
     # Advanced TCP optimizations for maximum throughput
@@ -495,7 +496,7 @@ net.ipv4.tcp_thin_linear_timeouts = 1
 net.ipv4.tcp_autocorking = 0
 EOF
     
-    echo -e "${C_GREEN}✅ Advanced TCP tuning applied (10+ parameters)${C_RESET}"
+    echo -e "${C_GREEN}✅ Advanced TCP tuning applied (12 parameters)${C_RESET}"
 }
 
 # Function to set ultra file descriptors (8M)
@@ -544,6 +545,371 @@ apply_ultra_boost() {
     echo -e "  ${C_CYAN}• Expected Speed:${C_RESET} ${C_GREEN}10x with MTU 512!${C_RESET}"
     
     sleep 3
+}
+
+# ========== FIXED LIMITER SERVICE WITH TRAFFIC MONITORING ==========
+create_limiter_service() {
+    cat > "$LIMITER_SCRIPT" <<'EOF'
+#!/bin/bash
+DB_FILE="/etc/voltrontech/users.db"
+TRAFFIC_DIR="/etc/voltrontech/traffic"
+mkdir -p "$TRAFFIC_DIR"
+
+# Function to calculate traffic per user
+update_user_traffic() {
+    local username=$1
+    local traffic_file="$TRAFFIC_DIR/$username"
+    
+    # Get user's active connections
+    local connections=$(pgrep -u "$username" sshd 2>/dev/null | wc -l)
+    
+    if [ $connections -gt 0 ]; then
+        # Simple traffic estimation (1KB per second per connection)
+        local total_bytes=$((connections * 1024))
+        
+        # Add to user's traffic
+        if [ -f "$traffic_file" ]; then
+            current=$(cat "$traffic_file" 2>/dev/null || echo "0")
+            new=$((current + total_bytes))
+            echo "$new" > "$traffic_file"
+        else
+            echo "$total_bytes" > "$traffic_file"
+        fi
+    fi
+}
+
+while true; do
+    if [ -f "$DB_FILE" ]; then
+        current_ts=$(date +%s)
+        while IFS=: read -r user pass expiry limit traffic_limit traffic_used status; do
+            [[ -z "$user" ]] && continue
+            status=${status:-ACTIVE}
+            
+            # Check expiry
+            expiry_ts=$(date -d "$expiry" +%s 2>/dev/null || echo 0)
+            if [[ $expiry_ts -lt $current_ts && $expiry_ts -ne 0 ]]; then
+                usermod -L "$user" 2>/dev/null
+                killall -u "$user" -9 2>/dev/null
+                sed -i "s/^$user:.*/$user:$pass:$expiry:$limit:$traffic_limit:$traffic_used:EXPIRED/" "$DB_FILE" 2>/dev/null
+                continue
+            fi
+            
+            # Get current connections
+            online=$(pgrep -u "$user" sshd 2>/dev/null | wc -l)
+            
+            # Check connection limit
+            if [[ "$online" -gt "$limit" && "$limit" -ne 0 ]]; then
+                usermod -L "$user" 2>/dev/null
+                killall -u "$user" -9 2>/dev/null
+                sed -i "s/^$user:.*/$user:$pass:$expiry:$limit:$traffic_limit:$traffic_used:LIMIT/" "$DB_FILE" 2>/dev/null
+                (sleep 120; usermod -U "$user" 2>/dev/null) &
+                continue
+            fi
+            
+            # Update traffic
+            update_user_traffic "$user"
+            
+            # Get current traffic from traffic file
+            traffic_file="$TRAFFIC_DIR/$user"
+            if [ -f "$traffic_file" ]; then
+                current_traffic_bytes=$(cat "$traffic_file" 2>/dev/null || echo "0")
+                current_traffic_gb=$(echo "scale=2; $current_traffic_bytes / 1073741824" | bc 2>/dev/null || echo "0")
+            else
+                current_traffic_gb=0
+            fi
+            
+            # Check traffic limit
+            if [ "$traffic_limit" != "0" ] && [ -n "$traffic_limit" ]; then
+                if (( $(echo "$current_traffic_gb >= $traffic_limit" | bc -l 2>/dev/null) )); then
+                    usermod -L "$user" 2>/dev/null
+                    killall -u "$user" -9 2>/dev/null
+                    sed -i "s/^$user:.*/$user:$pass:$expiry:$limit:$traffic_limit:$current_traffic_gb:LIMIT/" "$DB_FILE" 2>/dev/null
+                    continue
+                fi
+            fi
+            
+            # Update database with current traffic
+            sed -i "s/^$user:[^:]*:[^:]*:[^:]*:[^:]*:[^:]*:[^:]*/$user:$pass:$expiry:$limit:$traffic_limit:$current_traffic_gb:ACTIVE/" "$DB_FILE" 2>/dev/null
+            
+        done < "$DB_FILE"
+    fi
+    sleep 5
+done
+EOF
+    chmod +x "$LIMITER_SCRIPT"
+    
+    cat > "$LIMITER_SERVICE" <<EOF
+[Unit]
+Description=Voltron Connection & Traffic Limiter
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=$LIMITER_SCRIPT
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    systemctl daemon-reload
+    systemctl enable voltron-limiter.service 2>/dev/null
+    systemctl restart voltron-limiter.service 2>/dev/null
+}
+
+# ========== FIXED TRAFFIC MONITOR ==========
+create_traffic_monitor() {
+    cat > "$TRAFFIC_SCRIPT" <<'EOF'
+#!/bin/bash
+DB_FILE="/etc/voltrontech/users.db"
+TRAFFIC_DIR="/etc/voltrontech/traffic"
+mkdir -p "$TRAFFIC_DIR"
+
+# Function to get traffic for a user
+get_user_traffic() {
+    local username=$1
+    local traffic_file="$TRAFFIC_DIR/$username"
+    
+    if [ -f "$traffic_file" ]; then
+        cat "$traffic_file"
+    else
+        echo "0"
+    fi
+}
+
+while true; do
+    if [ -f "$DB_FILE" ]; then
+        while IFS=: read -r user pass expiry limit traffic_limit traffic_used status; do
+            [[ -z "$user" ]] && continue
+            status=${status:-ACTIVE}
+            
+            if id "$user" &>/dev/null; then
+                connections=$(pgrep -u "$user" sshd 2>/dev/null | wc -l)
+                
+                if [ $connections -gt 0 ]; then
+                    # Get current traffic
+                    current_bytes=$(get_user_traffic "$user")
+                    current_gb=$(echo "scale=3; $current_bytes / 1073741824" | bc 2>/dev/null || echo "0")
+                    
+                    # Update database with current traffic
+                    sed -i "s/^$user:[^:]*:[^:]*:[^:]*:[^:]*:[^:]*:[^:]*/$user:$pass:$expiry:$limit:$traffic_limit:$current_gb:$status/" "$DB_FILE" 2>/dev/null
+                fi
+            fi
+        done < "$DB_FILE"
+    fi
+    sleep 60
+done
+EOF
+    chmod +x "$TRAFFIC_SCRIPT"
+    
+    cat > "$TRAFFIC_SERVICE" <<EOF
+[Unit]
+Description=Voltron Traffic Monitor
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=$TRAFFIC_SCRIPT
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    systemctl daemon-reload
+    systemctl enable voltron-traffic.service 2>/dev/null
+    systemctl restart voltron-traffic.service 2>/dev/null
+}
+
+# ========== ADVANCED CACHE CLEANER (12:00 AM) ==========
+
+# Function to check cache cleaner status
+check_cache_status() {
+    if [ -f "$CACHE_CRON_FILE" ]; then
+        echo -e "${C_GREEN}ENABLED${C_RESET} (runs daily at 12:00 AM - Midnight)"
+        return 0
+    else
+        echo -e "${C_RED}DISABLED${C_RESET}"
+        return 1
+    fi
+}
+
+# Function to enable advanced auto cache cleaner (12:00 AM)
+enable_cache_cleaner() {
+    echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    echo -e "${C_BLUE}           🔧 ENABLING ADVANCED AUTO CACHE CLEANER${C_RESET}"
+    echo -e "${C_BLUE}           ⏰ Schedule: Daily at 12:00 AM (Midnight)${C_RESET}"
+    echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    
+    # Create log file
+    touch "$CACHE_LOG_FILE" 2>/dev/null || {
+        echo -e "${C_RED}❌ Failed to create log file${C_RESET}"
+        safe_read "" dummy
+        return 1
+    }
+    
+    # Create advanced clean script
+    cat > "$CACHE_SCRIPT" << 'EOF'
+#!/bin/bash
+# VOLTRON TECH Advanced Auto Cache Cleaner
+# Runs at 12:00 AM (Midnight)
+LOG_FILE="/var/log/voltron-cache.log"
+
+log() {
+    echo "$(date): $1" >> "$LOG_FILE"
+}
+
+log "========================================="
+log "Starting advanced cache clean at $(date)"
+log "========================================="
+
+# === RECORD SPACE BEFORE ===
+before=$(df / | awk 'NR==2 {print $3}')
+
+# === LEVEL 1: APT CACHE ===
+log "[1/5] Cleaning apt cache..."
+apt clean >> "$LOG_FILE" 2>&1
+apt autoclean >> "$LOG_FILE" 2>&1
+apt autoremove -y >> "$LOG_FILE" 2>&1
+
+# === LEVEL 2: SYSTEM LOGS ===
+log "[2/5] Cleaning old system logs..."
+journalctl --vacuum-time=3d >> "$LOG_FILE" 2>&1
+rm -f /var/log/*.gz /var/log/*.old /var/log/*.log.* 2>/dev/null
+find /var/log -type f -name "*.log" -size +100M -exec truncate -s 0 {} \; 2>/dev/null
+
+# === LEVEL 3: TEMPORARY FILES ===
+log "[3/5] Cleaning temporary files..."
+rm -rf /tmp/* 2>/dev/null
+rm -rf /var/tmp/* 2>/dev/null
+rm -rf /var/cache/apt/archives/*.deb 2>/dev/null
+rm -rf /var/cache/debconf/* 2>/dev/null
+
+# === LEVEL 4: OLD KERNELS ===
+log "[4/5] Removing old kernels..."
+current_kernel=$(uname -r)
+dpkg -l linux-* | grep '^ii' | awk '{print $2}' | grep -v "$current_kernel" | grep -E 'linux-image-[0-9]' | while read kernel; do
+    log "  Removing old kernel: $kernel"
+    apt purge -y "$kernel" >> "$LOG_FILE" 2>&1
+done
+
+# === LEVEL 5: USER CACHES ===
+log "[5/5] Cleaning user caches..."
+for user_home in /home/* /root; do
+    if [ -d "$user_home/.cache" ]; then
+        find "$user_home/.cache" -type f -atime +30 -delete 2>/dev/null
+    fi
+    if [ -d "$user_home/.npm" ]; then
+        npm cache clean --force >> "$LOG_FILE" 2>&1 2>/dev/null
+    fi
+    if [ -d "$user_home/.cargo" ]; then
+        cargo cache -a >> "$LOG_FILE" 2>&1 2>/dev/null
+    fi
+    if [ -d "$user_home/.composer" ]; then
+        composer clear-cache >> "$LOG_FILE" 2>&1 2>/dev/null
+    fi
+done
+
+# === CALCULATE SPACE SAVED ===
+after=$(df / | awk 'NR==2 {print $3}')
+saved=$((before - after))
+saved_mb=$((saved / 1024))
+saved_gb=$(echo "scale=2; $saved_mb / 1024" | bc 2>/dev/null || echo "0")
+
+log "========================================="
+log "Advanced clean completed at $(date)"
+log "Space saved: ${saved_mb}MB (${saved_gb}GB)"
+log "========================================="
+EOF
+
+    chmod +x "$CACHE_SCRIPT" || {
+        echo -e "${C_RED}❌ Failed to create clean script${C_RESET}"
+        safe_read "" dummy
+        return 1
+    }
+    
+    # Create cron file for 12:00 AM (midnight)
+    cat > "$CACHE_CRON_FILE" << EOF
+# VOLTRON TECH Advanced Auto Cache Cleaner
+# Runs daily at 12:00 AM (Midnight)
+0 0 * * * root $CACHE_SCRIPT
+EOF
+
+    # Also add to crontab for compatibility
+    (crontab -l 2>/dev/null | grep -v "voltron-cache-clean"; echo "0 0 * * * $CACHE_SCRIPT") | crontab - 2>/dev/null
+
+    # Check if cron file was created
+    if [ -f "$CACHE_CRON_FILE" ]; then
+        echo -e "${C_GREEN}✅ Advanced auto cache cleaner enabled successfully!${C_RESET}"
+        echo -e "  ${C_CYAN}Schedule:${C_RESET} Daily at ${C_YELLOW}12:00 AM (Midnight)${C_RESET}"
+        echo -e "  ${C_CYAN}Clean Level:${C_RESET} Deep Clean (5 levels)"
+        echo -e "  ${C_CYAN}Log file:${C_RESET} $CACHE_LOG_FILE"
+        
+        # Run once now to test
+        echo -e "${C_YELLOW}Running initial advanced clean...${C_RESET}"
+        bash "$CACHE_SCRIPT"
+        echo -e "${C_GREEN}✅ Initial advanced clean completed${C_RESET}"
+        
+        # Show next run time
+        echo -e "\n${C_CYAN}📌 Next automatic run:${C_RESET} Tonight at 12:00 AM"
+    else
+        echo -e "${C_RED}❌ Failed to create cron file${C_RESET}"
+        safe_read "" dummy
+        return 1
+    fi
+    
+    safe_read "" dummy
+}
+
+# Function to disable auto cache cleaner
+disable_cache_cleaner() {
+    echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    echo -e "${C_BLUE}           🛑 DISABLING AUTO CACHE CLEANER${C_RESET}"
+    echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    
+    # Remove cron file
+    rm -f "$CACHE_CRON_FILE" 2>/dev/null
+    
+    # Remove from crontab
+    crontab -l 2>/dev/null | grep -v "voltron-cache-clean" | crontab - 2>/dev/null
+    
+    echo -e "${C_GREEN}✅ Auto cache cleaner disabled${C_RESET}"
+    echo -e "${C_YELLOW}📌 No more automatic cleanups at 12:00 AM${C_RESET}"
+    safe_read "" dummy
+}
+
+# Cache Cleaner Menu (Enable/Disable tu)
+cache_cleaner_menu() {
+    while true; do
+        clear
+        show_banner
+        
+        echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
+        echo -e "${C_BOLD}${C_PURPLE}           🧹 ADVANCED AUTO CACHE CLEANER${C_RESET}"
+        echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
+        echo ""
+        
+        # Show current status
+        echo -e "  ${C_CYAN}Current Status:${C_RESET} $(check_cache_status)"
+        echo -e "  ${C_CYAN}Clean Level:${C_RESET} Deep Clean (5 levels)"
+        echo -e "  ${C_CYAN}Schedule:${C_RESET} ${C_YELLOW}Daily at 12:00 AM (Midnight)${C_RESET}"
+        echo ""
+        echo -e "  ${C_GREEN}1)${C_RESET} Enable Advanced Auto Clean (12:00 AM)"
+        echo -e "  ${C_RED}2)${C_RESET} Disable Auto Clean"
+        echo ""
+        echo -e "  ${C_RED}0)${C_RESET} Return to Main Menu"
+        echo ""
+        
+        local choice
+        safe_read "$(echo -e ${C_PROMPT}"👉 Select option: "${C_RESET})" choice
+        
+        case $choice in
+            1) enable_cache_cleaner ;;
+            2) disable_cache_cleaner ;;
+            0) return ;;
+            *) echo -e "\n${C_RED}❌ Invalid option${C_RESET}"; sleep 2 ;;
+        esac
+    done
 }
 
 # ========== BUILD DNSTT FROM SOURCE ==========
@@ -1071,115 +1437,6 @@ show_client_commands() {
     echo -e "  • 10 Parallel Instances: ${C_GREEN}10x speed!${C_RESET}"
 }
 
-# ========== TRAFFIC MONITOR ==========
-create_traffic_monitor() {
-    cat > "$TRAFFIC_SCRIPT" <<'EOF'
-#!/bin/bash
-DB_FILE="/etc/voltrontech/users.db"
-
-while true; do
-    if [ -f "$DB_FILE" ]; then
-        while IFS=: read -r user pass expiry limit traffic_limit traffic_used; do
-            if id "$user" &>/dev/null; then
-                connections=$(pgrep -u "$user" sshd | wc -l)
-                
-                if [ $connections -gt 0 ]; then
-                    new_traffic=$(echo "scale=3; $traffic_used + 0.01" | bc 2>/dev/null || echo "$traffic_used")
-                    
-                    if [ "$traffic_limit" != "0" ] && [ -n "$traffic_limit" ]; then
-                        if [ $(echo "$new_traffic >= $traffic_limit" | bc 2>/dev/null) -eq 1 ]; then
-                            usermod -L "$user" 2>/dev/null
-                            killall -u "$user" 2>/dev/null
-                        fi
-                    fi
-                    
-                    sed -i "s/^$user:[^:]*:[^:]*:[^:]*:[^:]*:[^:]*/$user:$pass:$expiry:$limit:$traffic_limit:$new_traffic/" "$DB_FILE" 2>/dev/null
-                fi
-            fi
-        done < "$DB_FILE"
-    fi
-    sleep 60
-done
-EOF
-    chmod +x "$TRAFFIC_SCRIPT"
-    
-    cat > "$TRAFFIC_SERVICE" <<EOF
-[Unit]
-Description=Voltron Traffic Monitor
-After=network.target
-
-[Service]
-Type=simple
-ExecStart=$TRAFFIC_SCRIPT
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-    systemctl daemon-reload
-    systemctl enable voltron-traffic.service 2>/dev/null
-    systemctl start voltron-traffic.service 2>/dev/null
-}
-
-# ========== LIMITER SERVICE ==========
-create_limiter_service() {
-    cat > "$LIMITER_SCRIPT" <<'EOF'
-#!/bin/bash
-DB_FILE="/etc/voltrontech/users.db"
-
-while true; do
-    if [ -f "$DB_FILE" ]; then
-        current_ts=$(date +%s)
-        while IFS=: read -r user pass expiry limit traffic_limit traffic_used; do
-            [[ -z "$user" ]] && continue
-            
-            expiry_ts=$(date -d "$expiry" +%s 2>/dev/null || echo 0)
-            if [[ $expiry_ts -lt $current_ts && $expiry_ts -ne 0 ]]; then
-                usermod -L "$user" 2>/dev/null
-                killall -u "$user" 2>/dev/null
-                continue
-            fi
-            
-            online=$(pgrep -u "$user" sshd | wc -l)
-            if [[ "$online" -gt "$limit" ]]; then
-                usermod -L "$user" 2>/dev/null
-                killall -u "$user" 2>/dev/null
-                (sleep 120; usermod -U "$user" 2>/dev/null) &
-            fi
-            
-            if [ "$traffic_limit" != "0" ] && [ -n "$traffic_limit" ] && [ -n "$traffic_used" ]; then
-                if [ $(echo "$traffic_used >= $traffic_limit" | bc 2>/dev/null) -eq 1 ]; then
-                    usermod -L "$user" 2>/dev/null
-                    killall -u "$user" 2>/dev/null
-                fi
-            fi
-        done < "$DB_FILE"
-    fi
-    sleep 5
-done
-EOF
-    chmod +x "$LIMITER_SCRIPT"
-    
-    cat > "$LIMITER_SERVICE" <<EOF
-[Unit]
-Description=Voltron Connection Limiter
-After=network.target
-
-[Service]
-Type=simple
-ExecStart=$LIMITER_SCRIPT
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-    systemctl daemon-reload
-    systemctl enable voltron-limiter.service 2>/dev/null
-    systemctl start voltron-limiter.service 2>/dev/null
-}
-
 # ========== SSH USER MANAGEMENT ==========
 _create_user() {
     clear
@@ -1233,7 +1490,7 @@ _create_user() {
     useradd -m -s /usr/sbin/nologin "$username"
     echo "$username:$password" | chpasswd
     chage -E "$expire_date" "$username"
-    echo "$username:$password:$expire_date:$limit:$traffic_limit:0" >> "$DB_FILE"
+    echo "$username:$password:$expire_date:$limit:$traffic_limit:0:ACTIVE" >> "$DB_FILE"
     
     clear
     show_banner
@@ -1267,6 +1524,7 @@ _delete_user() {
     killall -u "$username" 2>/dev/null
     userdel -r "$username" 2>/dev/null
     sed -i "/^$username:/d" "$DB_FILE"
+    rm -f "$TRAFFIC_DIR/$username" 2>/dev/null
     
     echo -e "\n${C_GREEN}✅ User deleted${C_RESET}"
     safe_read "" dummy
@@ -1293,26 +1551,25 @@ _edit_user() {
         return
     fi
     
-    local current_pass=$(echo "$line" | cut -d: -f2)
-    local current_expiry=$(echo "$line" | cut -d: -f3)
-    local current_limit=$(echo "$line" | cut -d: -f4)
-    local current_traffic_limit=$(echo "$line" | cut -d: -f5)
-    local current_traffic_used=$(echo "$line" | cut -d: -f6)
+    IFS=: read -r user pass expiry limit traffic_limit traffic_used status <<< "$line"
+    status=${status:-ACTIVE}
     
     while true; do
         clear
         show_banner
         echo -e "${C_BOLD}${C_PURPLE}--- Editing User: ${C_YELLOW}$username${C_PURPLE} ---${C_RESET}"
         echo -e "\nCurrent Details:"
-        echo -e "  Expiry:        $current_expiry"
-        echo -e "  Connection:    $current_limit"
-        echo -e "  Traffic Limit: $current_traffic_limit GB"
-        echo -e "  Traffic Used:  $current_traffic_used GB"
+        echo -e "  Expiry:        $expiry"
+        echo -e "  Connection:    $limit"
+        echo -e "  Traffic Limit: $traffic_limit GB"
+        echo -e "  Traffic Used:  $traffic_used GB"
+        echo -e "  Status:        $status"
         echo -e "\nSelect a detail to edit:\n"
         echo -e "  ${C_GREEN}1)${C_RESET} 🔑 Change Password"
         echo -e "  ${C_GREEN}2)${C_RESET} 🗓️ Change Expiration"
         echo -e "  ${C_GREEN}3)${C_RESET} 📶 Change Connection Limit"
         echo -e "  ${C_GREEN}4)${C_RESET} 📊 Change Traffic Limit"
+        echo -e "  ${C_GREEN}5)${C_RESET} 🔓 Unlock User (if locked)"
         echo -e "\n  ${C_RED}0)${C_RESET} ✅ Finish Editing"
         echo
         read -p "👉 Enter your choice: " edit_choice
@@ -1329,7 +1586,7 @@ _edit_user() {
                     fi
                 done
                 echo "$username:$new_pass" | chpasswd
-                sed -i "s/^$username:.*/$username:$new_pass:$current_expiry:$current_limit:$current_traffic_limit:$current_traffic_used/" "$DB_FILE"
+                sed -i "s/^$username:.*/$username:$new_pass:$expiry:$limit:$traffic_limit:$traffic_used:$status/" "$DB_FILE"
                 echo -e "\n${C_GREEN}✅ Password changed.${C_RESET}"
                 ;;
             2)
@@ -1337,8 +1594,8 @@ _edit_user() {
                 if [[ "$days" =~ ^[0-9]+$ ]]; then
                     local new_expiry=$(date -d "+$days days" +%Y-%m-%d)
                     chage -E "$new_expiry" "$username"
-                    sed -i "s/^$username:.*/$username:$current_pass:$new_expiry:$current_limit:$current_traffic_limit:$current_traffic_used/" "$DB_FILE"
-                    current_expiry="$new_expiry"
+                    sed -i "s/^$username:.*/$username:$pass:$new_expiry:$limit:$traffic_limit:$traffic_used:$status/" "$DB_FILE"
+                    expiry="$new_expiry"
                     echo -e "\n${C_GREEN}✅ Expiration updated to $new_expiry${C_RESET}"
                 else
                     echo -e "\n${C_RED}❌ Invalid number.${C_RESET}"
@@ -1347,8 +1604,8 @@ _edit_user() {
             3)
                 read -p "Enter new connection limit: " new_limit
                 if [[ "$new_limit" =~ ^[0-9]+$ ]]; then
-                    sed -i "s/^$username:.*/$username:$current_pass:$current_expiry:$new_limit:$current_traffic_limit:$current_traffic_used/" "$DB_FILE"
-                    current_limit="$new_limit"
+                    sed -i "s/^$username:.*/$username:$pass:$expiry:$new_limit:$traffic_limit:$traffic_used:$status/" "$DB_FILE"
+                    limit="$new_limit"
                     echo -e "\n${C_GREEN}✅ Connection limit updated to $new_limit${C_RESET}"
                 else
                     echo -e "\n${C_RED}❌ Invalid number.${C_RESET}"
@@ -1357,11 +1614,21 @@ _edit_user() {
             4)
                 read -p "Enter new traffic limit (GB) [0=unlimited]: " new_traffic
                 if [[ "$new_traffic" =~ ^[0-9]+$ ]]; then
-                    sed -i "s/^$username:.*/$username:$current_pass:$current_expiry:$current_limit:$new_traffic:$current_traffic_used/" "$DB_FILE"
-                    current_traffic_limit="$new_traffic"
+                    sed -i "s/^$username:.*/$username:$pass:$expiry:$limit:$new_traffic:$traffic_used:$status/" "$DB_FILE"
+                    traffic_limit="$new_traffic"
                     echo -e "\n${C_GREEN}✅ Traffic limit updated to $new_traffic GB${C_RESET}"
                 else
                     echo -e "\n${C_RED}❌ Invalid number.${C_RESET}"
+                fi
+                ;;
+            5)
+                if [[ "$status" == "LIMIT" ]] || [[ "$status" == "LOCKED" ]]; then
+                    usermod -U "$username" 2>/dev/null
+                    sed -i "s/^$username:.*/$username:$pass:$expiry:$limit:$traffic_limit:$traffic_used:ACTIVE/" "$DB_FILE"
+                    echo -e "\n${C_GREEN}✅ User unlocked${C_RESET}"
+                    status="ACTIVE"
+                else
+                    echo -e "\n${C_YELLOW}⚠️ User is not locked${C_RESET}"
                 fi
                 ;;
             0)
@@ -1392,6 +1659,13 @@ _lock_user() {
     
     usermod -L "$username"
     killall -u "$username" -9 &>/dev/null
+    
+    local line=$(grep "^$username:" "$DB_FILE")
+    if [ -n "$line" ]; then
+        IFS=: read -r user pass expiry limit traffic_limit traffic_used status <<< "$line"
+        sed -i "s/^$username:.*/$username:$pass:$expiry:$limit:$traffic_limit:$traffic_used:LOCKED/" "$DB_FILE"
+    fi
+    
     echo -e "\n${C_GREEN}✅ User locked.${C_RESET}"
     safe_read "" dummy
 }
@@ -1411,6 +1685,13 @@ _unlock_user() {
     fi
     
     usermod -U "$username"
+    
+    local line=$(grep "^$username:" "$DB_FILE")
+    if [ -n "$line" ]; then
+        IFS=: read -r user pass expiry limit traffic_limit traffic_used status <<< "$line"
+        sed -i "s/^$username:.*/$username:$pass:$expiry:$limit:$traffic_limit:$traffic_used:ACTIVE/" "$DB_FILE"
+    fi
+    
     echo -e "\n${C_GREEN}✅ User unlocked.${C_RESET}"
     safe_read "" dummy
 }
@@ -1432,8 +1713,9 @@ _list_users() {
     printf "${C_BOLD}%-15s | %-12s | %-8s | %-25s | %-10s${C_RESET}\n" "USERNAME" "EXPIRY" "LIMIT" "TRAFFIC" "STATUS"
     echo -e "${C_CYAN}──────────────────────────────────────────────────────────────────────────${C_RESET}"
     
-    while IFS=: read -r user pass expiry limit traffic_limit traffic_used; do
+    while IFS=: read -r user pass expiry limit traffic_limit traffic_used status; do
         [[ -z "$user" ]] && continue
+        status=${status:-ACTIVE}
         
         # Get current connections
         local online=0
@@ -1441,58 +1723,37 @@ _list_users() {
             online=$(pgrep -u "$user" sshd 2>/dev/null | wc -l)
         fi
         
-        # Format traffic
-        local traffic_limit_num=0
-        local traffic_used_num=0
-        
-        if [[ -n "$traffic_limit" ]] && [[ "$traffic_limit" != "''" ]] && [[ "$traffic_limit" != "0" ]] && [[ "$traffic_limit" != "null" ]]; then
-            traffic_limit_num=$(echo "$traffic_limit" | sed 's/[^0-9.]//g' | awk '{printf "%.0f", $1}' 2>/dev/null || echo "0")
-        fi
-        
-        if [[ -n "$traffic_used" ]] && [[ "$traffic_used" != "''" ]] && [[ "$traffic_used" != "null" ]]; then
-            if [[ "$traffic_used" == .* ]]; then
-                traffic_used="0$traffic_used"
-            fi
-            traffic_used_num=$(echo "$traffic_used" | sed 's/[^0-9.]//g' | awk '{printf "%.2f", $1}' 2>/dev/null || echo "0")
-        fi
-        
+        # Format traffic display
         local traffic_disp=""
-        if [[ "$traffic_limit_num" == "0" ]]; then
-            traffic_disp="$(printf "%.2f" $traffic_used_num) GB / ∞"
+        if [[ "$traffic_limit" == "0" ]] || [[ -z "$traffic_limit" ]]; then
+            traffic_disp="$(printf "%.2f" $traffic_used) GB / ∞"
         else
             if command -v bc &>/dev/null; then
-                local percent=$(echo "scale=1; $traffic_used_num * 100 / $traffic_limit_num" | bc 2>/dev/null || echo "0")
-                traffic_disp="$(printf "%.2f" $traffic_used_num) / $traffic_limit_num GB ($percent%)"
+                local percent=$(echo "scale=1; $traffic_used * 100 / $traffic_limit" | bc 2>/dev/null || echo "0")
+                traffic_disp="$(printf "%.2f" $traffic_used) / $traffic_limit GB ($percent%)"
             else
-                traffic_disp="$(printf "%.2f" $traffic_used_num) / $traffic_limit_num GB"
+                traffic_disp="$(printf "%.2f" $traffic_used) / $traffic_limit GB"
             fi
         fi
         
-        # Determine status
-        local status_text=""
+        # Determine status color
         local status_color=""
+        local status_text="$status"
         
-        if ! id "$user" &>/dev/null; then
-            status_text="NO USER"
-            status_color="${C_RED}"
-        elif passwd -S "$user" 2>/dev/null | grep -q " L "; then
-            status_text="LOCKED"
-            status_color="${C_YELLOW}"
-        else
-            local expiry_ts=$(date -d "$expiry" +%s 2>/dev/null || echo 0)
-            local current_ts=$(date +%s)
-            
-            if [[ $expiry_ts -lt $current_ts && $expiry_ts -ne 0 ]]; then
-                status_text="EXPIRED"
-                status_color="${C_RED}"
-            elif [[ "$traffic_limit_num" -gt 0 ]] && (( $(echo "$traffic_used_num >= $traffic_limit_num" | bc -l 2>/dev/null) )); then
-                status_text="LIMIT"
-                status_color="${C_RED}"
-            else
-                status_text="ACTIVE"
+        case $status in
+            ACTIVE)
                 status_color="${C_GREEN}"
-            fi
-        fi
+                ;;
+            LOCKED|LIMIT)
+                status_color="${C_YELLOW}"
+                ;;
+            EXPIRED)
+                status_color="${C_RED}"
+                ;;
+            *)
+                status_color="${C_WHITE}"
+                ;;
+        esac
         
         printf "%-15s | ${C_YELLOW}%-12s${C_RESET} | ${C_CYAN}%s/%s${C_RESET} | %-25s | ${status_color}%-10s${C_RESET}\n" \
             "$user" "$expiry" "$online" "$limit" "$traffic_disp" "$status_text"
@@ -1525,6 +1786,9 @@ _renew_user() {
         return
     fi
     
+    IFS=: read -r user pass expiry limit traffic_limit traffic_used status <<< "$line"
+    status=${status:-ACTIVE}
+    
     read -p "📆 Additional days: " days
     if ! [[ "$days" =~ ^[0-9]+$ ]]; then
         echo -e "\n${C_RED}❌ Invalid number.${C_RESET}"
@@ -1532,14 +1796,9 @@ _renew_user() {
         return
     fi
     
-    local pass=$(echo "$line" | cut -d: -f2)
-    local limit=$(echo "$line" | cut -d: -f4)
-    local traffic_limit=$(echo "$line" | cut -d: -f5)
-    local traffic_used=$(echo "$line" | cut -d: -f6)
-    
     local new_expiry=$(date -d "+$days days" +%Y-%m-%d)
     chage -E "$new_expiry" "$username"
-    sed -i "s/^$username:.*/$username:$pass:$new_expiry:$limit:$traffic_limit:$traffic_used/" "$DB_FILE"
+    sed -i "s/^$username:.*/$username:$pass:$new_expiry:$limit:$traffic_limit:$traffic_used:$status/" "$DB_FILE"
     
     echo -e "\n${C_GREEN}✅ User renewed until $new_expiry${C_RESET}"
     safe_read "" dummy
@@ -1550,12 +1809,13 @@ _cleanup_expired() {
     local current_ts=$(date +%s)
     local count=0
     
-    while IFS=: read -r user pass expiry limit traffic_limit traffic_used; do
+    while IFS=: read -r user pass expiry limit traffic_limit traffic_used status; do
         local expiry_ts=$(date -d "$expiry" +%s 2>/dev/null || echo 0)
         if [[ $expiry_ts -lt $current_ts && $expiry_ts -ne 0 ]]; then
             killall -u "$user" 2>/dev/null
             userdel -r "$user" 2>/dev/null
             sed -i "/^$user:/d" "$DB_FILE"
+            rm -f "$TRAFFIC_DIR/$user" 2>/dev/null
             echo "  Removed $user"
             ((count++))
         fi
@@ -2073,139 +2333,6 @@ connection_forcer_menu() {
             2) disable_connection_forcer ;;
             3) status_connection_forcer ;;
             4) stats_connection_forcer ;;
-            0) return ;;
-            *) echo -e "\n${C_RED}❌ Invalid option${C_RESET}"; sleep 2 ;;
-        esac
-    done
-}
-
-# ========== SIMPLE CACHE CLEANER ==========
-
-# Function to check cache cleaner status
-check_cache_status() {
-    if [ -f "$CACHE_CRON_FILE" ]; then
-        echo -e "${C_GREEN}ENABLED${C_RESET} (runs daily at 6 AM)"
-        return 0
-    else
-        echo -e "${C_RED}DISABLED${C_RESET}"
-        return 1
-    fi
-}
-
-# Function to enable auto cache cleaner
-enable_cache_cleaner() {
-    echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "${C_BLUE}           🔧 ENABLING AUTO CACHE CLEANER${C_RESET}"
-    echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
-    
-    # Create log file
-    touch "$CACHE_LOG_FILE" 2>/dev/null || {
-        echo -e "${C_RED}❌ Failed to create log file${C_RESET}"
-        safe_read "" dummy
-        return 1
-    }
-    
-    # Create clean script
-    cat > "$CACHE_SCRIPT" << 'EOF'
-#!/bin/bash
-# VOLTRON TECH Auto Cache Cleaner
-LOG_FILE="/var/log/voltron-cache.log"
-
-echo "$(date): Starting cache clean..." >> "$LOG_FILE"
-
-# Clean apt cache
-apt clean >> "$LOG_FILE" 2>&1
-apt autoclean >> "$LOG_FILE" 2>&1
-apt autoremove -y >> "$LOG_FILE" 2>&1
-
-# Clean old logs
-journalctl --vacuum-time=7d >> "$LOG_FILE" 2>&1
-rm -f /var/log/*.gz /var/log/*.old 2>/dev/null
-
-# Get space saved
-before=$(df / | awk 'NR==2 {print $3}')
-after=$(df / | awk 'NR==2 {print $3}')
-saved=$((before - after))
-saved_mb=$((saved / 1024))
-
-echo "$(date): Clean completed, saved ${saved_mb}MB" >> "$LOG_FILE"
-EOF
-
-    chmod +x "$CACHE_SCRIPT" || {
-        echo -e "${C_RED}❌ Failed to create clean script${C_RESET}"
-        safe_read "" dummy
-        return 1
-    }
-    
-    # Create cron file
-    cat > "$CACHE_CRON_FILE" << EOF
-# VOLTRON TECH Auto Cache Cleaner
-# Runs daily at 6 AM
-0 6 * * * root $CACHE_SCRIPT
-EOF
-
-    # Check if cron file was created
-    if [ -f "$CACHE_CRON_FILE" ]; then
-        echo -e "${C_GREEN}✅ Auto cache cleaner enabled successfully!${C_RESET}"
-        echo -e "  ${C_CYAN}Schedule:${C_RESET} Daily at 6:00 AM"
-        echo -e "  ${C_CYAN}Log file:${C_RESET} $CACHE_LOG_FILE"
-        
-        # Run once now to test
-        echo -e "${C_YELLOW}Running initial clean...${C_RESET}"
-        bash "$CACHE_SCRIPT"
-        echo -e "${C_GREEN}✅ Initial clean completed${C_RESET}"
-    else
-        echo -e "${C_RED}❌ Failed to create cron file${C_RESET}"
-        safe_read "" dummy
-        return 1
-    fi
-    
-    safe_read "" dummy
-}
-
-# Function to disable auto cache cleaner
-disable_cache_cleaner() {
-    echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "${C_BLUE}           🛑 DISABLING AUTO CACHE CLEANER${C_RESET}"
-    echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
-    
-    # Remove cron file
-    rm -f "$CACHE_CRON_FILE" 2>/dev/null
-    
-    # Also remove from crontab if exists
-    crontab -l 2>/dev/null | grep -v "voltron-cache-clean" | crontab - 2>/dev/null
-    
-    echo -e "${C_GREEN}✅ Auto cache cleaner disabled${C_RESET}"
-    safe_read "" dummy
-}
-
-# Cache Cleaner Menu
-cache_cleaner_menu() {
-    while true; do
-        clear
-        show_banner
-        
-        echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
-        echo -e "${C_BOLD}${C_PURPLE}           🧹 AUTO CACHE CLEANER${C_RESET}"
-        echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
-        echo ""
-        
-        # Show current status
-        echo -e "  ${C_CYAN}Current Status:${C_RESET} $(check_cache_status)"
-        echo ""
-        
-        echo -e "  ${C_GREEN}1)${C_RESET} Enable Auto Clean (daily at 6 AM)"
-        echo -e "  ${C_RED}2)${C_RESET} Disable Auto Clean"
-        echo ""
-        echo -e "  ${C_RED}0)${C_RESET} Return to Main Menu"
-        echo ""
-        
-        local choice
-        safe_read "$(echo -e ${C_PROMPT}"👉 Select option: "${C_RESET})" choice
-        
-        case $choice in
-            1) enable_cache_cleaner ;;
-            2) disable_cache_cleaner ;;
             0) return ;;
             *) echo -e "\n${C_RED}❌ Invalid option${C_RESET}"; sleep 2 ;;
         esac
@@ -2825,7 +2952,7 @@ backup_user_data() {
     safe_read "👉 Backup path [/root/voltrontech_backup.tar.gz]: " backup_path
     backup_path=${backup_path:-/root/voltrontech_backup.tar.gz}
     
-    tar -czf "$backup_path" $DB_DIR 2>/dev/null
+    tar -czf "$backup_path" $DB_DIR $TRAFFIC_DIR 2>/dev/null
     echo -e "${C_GREEN}✅ Backup created: $backup_path${C_RESET}"
     safe_read "" dummy
 }
@@ -2948,6 +3075,8 @@ uninstall_script() {
     # Stop all services
     systemctl stop dnstt.service v2ray-dnstt.service badvpn.service udp-custom.service haproxy voltronproxy.service nginx zivpn.service 2>/dev/null
     systemctl disable dnstt.service v2ray-dnstt.service badvpn.service udp-custom.service voltronproxy.service 2>/dev/null
+    systemctl stop voltron-limiter.service voltron-traffic.service 2>/dev/null
+    systemctl disable voltron-limiter.service voltron-traffic.service 2>/dev/null
     
     # Remove service files
     rm -f "$DNSTT_SERVICE" "$V2RAY_SERVICE" "$BADVPN_SERVICE" "$UDP_CUSTOM_SERVICE" "$VOLTRONPROXY_SERVICE" "$ZIVPN_SERVICE"
@@ -2962,7 +3091,7 @@ uninstall_script() {
     rm -rf "$BADVPN_BUILD_DIR" "$UDP_CUSTOM_DIR" "$ZIVPN_DIR"
     
     # Remove configuration
-    rm -rf "$DB_DIR"
+    rm -rf "$DB_DIR" "$TRAFFIC_DIR"
     
     # Restore DNS
     chattr -i /etc/resolv.conf 2>/dev/null
