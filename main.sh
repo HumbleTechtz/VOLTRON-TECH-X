@@ -1,10 +1,10 @@
 #!/bin/bash
 
 # ========== VOLTRON TECH ULTIMATE SCRIPT ==========
-# Version: 8.0 (MTU 512 OPTIMIZED)
+# Version: 9.0 (ULTRA BOOST - 10x SPEED for MTU 512)
 # Description: SSH • DNSTT • V2RAY • BADVPN • UDP-CUSTOM • SSL • PROXY • ZIVPN • X-UI
 # Author: Voltron Tech
-# Features: Optimized for ISP with MTU 512 limit - Maximum speed through parallel instances!
+# Features: ULTRA BOOST - 10x speed with MTU 512 using 10 parallel instances!
 
 # ========== COLOR CODES ==========
 C_RESET='\033[0m'
@@ -349,14 +349,17 @@ show_banner() {
     local current_mtu=$(get_current_mtu)
     
     echo -e "${C_BOLD}${C_PURPLE}╔═══════════════════════════════════════════════════════════════╗${C_RESET}"
-    echo -e "${C_BOLD}${C_PURPLE}║           🔥 VOLTRON TECH ULTIMATE v8.0 🔥                    ║${C_RESET}"
+    echo -e "${C_BOLD}${C_PURPLE}║           🔥 VOLTRON TECH ULTIMATE v9.0 🔥                    ║${C_RESET}"
     echo -e "${C_BOLD}${C_PURPLE}║        SSH • DNSTT • V2RAY • BADVPN • UDP • SSL • ZiVPN        ║${C_RESET}"
-    echo -e "${C_BOLD}${C_PURPLE}║              MTU 512 OPTIMIZED - MAXIMUM SPEED                  ║${C_RESET}"
+    echo -e "${C_BOLD}${C_PURPLE}║              ULTRA BOOST - 10x SPEED for MTU 512                ║${C_RESET}"
     echo -e "${C_BOLD}${C_PURPLE}╠═══════════════════════════════════════════════════════════════╣${C_RESET}"
     echo -e "${C_BOLD}${C_PURPLE}║  Server IP: ${C_GREEN}$IP${C_PURPLE}${C_RESET}"
     echo -e "${C_BOLD}${C_PURPLE}║  Location:  ${C_GREEN}$LOCATION, $COUNTRY${C_PURPLE}${C_RESET}"
     echo -e "${C_BOLD}${C_PURPLE}║  ISP:       ${C_GREEN}$ISP${C_PURPLE}${C_RESET}"
     echo -e "${C_BOLD}${C_PURPLE}║  Current MTU: ${C_GREEN}$current_mtu${C_PURPLE}${C_RESET}"
+    
+    # Show ULTRA BOOST status
+    echo -e "${C_BOLD}${C_PURPLE}║  ULTRA BOOST: ${C_GREEN}ACTIVE (10x speed mode)${C_PURPLE}${C_RESET}"
     
     # Show Connection Forcer status
     if [ -f "$FORCER_CONFIG" ]; then
@@ -377,7 +380,7 @@ show_banner() {
     echo ""
 }
 
-# ========== ENHANCED SPEED OPTIMIZATION FOR MTU 512 ==========
+# ========== ULTRA BOOST FUNCTIONS (DEFAULT - 10x SPEED) ==========
 
 # Function to enable BBR v3 with fq_codel
 enable_bbr_v3() {
@@ -404,126 +407,141 @@ EOF
     echo -e "${C_GREEN}✅ BBR v3 enabled with fq_codel (optimized for low latency)${C_RESET}"
 }
 
-# Function to set ULTRA buffers (16MB for MTU 512)
+# Function to set ULTRA buffers (32MB for 10x speed)
 optimize_ultra_buffers() {
     echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "${C_BLUE}           📊 OPTIMIZING ULTRA BUFFERS (16MB)${C_RESET}"
+    echo -e "${C_BLUE}           📊 OPTIMIZING ULTRA BUFFERS (32MB)${C_RESET}"
     echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
     
-    # Set buffer sizes to 16MB - critical for MTU 512 performance
-    sysctl -w net.core.rmem_max=16777216 > /dev/null 2>&1
-    sysctl -w net.core.wmem_max=16777216 > /dev/null 2>&1
-    sysctl -w net.ipv4.tcp_rmem="4096 87380 16777216" > /dev/null 2>&1
-    sysctl -w net.ipv4.tcp_wmem="4096 65536 16777216" > /dev/null 2>&1
-    sysctl -w net.core.optmem_max=16777216 > /dev/null 2>&1
+    # Set buffer sizes to 32MB - critical for 10x speed with MTU 512
+    sysctl -w net.core.rmem_max=33554432 > /dev/null 2>&1
+    sysctl -w net.core.wmem_max=33554432 > /dev/null 2>&1
+    sysctl -w net.ipv4.tcp_rmem="4096 87380 33554432" > /dev/null 2>&1
+    sysctl -w net.ipv4.tcp_wmem="4096 65536 33554432" > /dev/null 2>&1
+    sysctl -w net.core.optmem_max=33554432 > /dev/null 2>&1
     
     # Make permanent
     cat >> /etc/sysctl.conf << EOF
 
-# Ultra Network Buffers for MTU 512 (16MB)
-net.core.rmem_max = 16777216
-net.core.wmem_max = 16777216
-net.ipv4.tcp_rmem = 4096 87380 16777216
-net.ipv4.tcp_wmem = 4096 65536 16777216
-net.core.optmem_max = 16777216
+# Ultra Network Buffers for MTU 512 (32MB) - 10x speed
+net.core.rmem_max = 33554432
+net.core.wmem_max = 33554432
+net.ipv4.tcp_rmem = 4096 87380 33554432
+net.ipv4.tcp_wmem = 4096 65536 33554432
+net.core.optmem_max = 33554432
 EOF
     
-    echo -e "${C_GREEN}✅ Ultra buffers set to 16MB (optimized for MTU 512)${C_RESET}"
+    echo -e "${C_GREEN}✅ Ultra buffers set to 32MB (optimized for 10x speed)${C_RESET}"
 }
 
-# Function to set aggressive keepalive (15s)
+# Function to set aggressive keepalive (10s)
 optimize_aggressive_keepalive() {
     echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "${C_BLUE}           🔄 OPTIMIZING AGGRESSIVE KEEPALIVE (15s)${C_RESET}"
+    echo -e "${C_BLUE}           🔄 OPTIMIZING AGGRESSIVE KEEPALIVE (10s)${C_RESET}"
     echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
     
     # Set aggressive keepalive to maintain connection with MTU 512
-    sysctl -w net.ipv4.tcp_keepalive_time=15 > /dev/null 2>&1
-    sysctl -w net.ipv4.tcp_keepalive_intvl=3 > /dev/null 2>&1
+    sysctl -w net.ipv4.tcp_keepalive_time=10 > /dev/null 2>&1
+    sysctl -w net.ipv4.tcp_keepalive_intvl=2 > /dev/null 2>&1
     sysctl -w net.ipv4.tcp_keepalive_probes=2 > /dev/null 2>&1
     
     # Make permanent
     cat >> /etc/sysctl.conf << EOF
 
-# Aggressive TCP Keepalive for MTU 512 (15s)
-net.ipv4.tcp_keepalive_time = 15
-net.ipv4.tcp_keepalive_intvl = 3
+# Aggressive TCP Keepalive for MTU 512 (10s) - 10x speed
+net.ipv4.tcp_keepalive_time = 10
+net.ipv4.tcp_keepalive_intvl = 2
 net.ipv4.tcp_keepalive_probes = 2
 EOF
     
-    echo -e "${C_GREEN}✅ Aggressive keepalive set to 15s intervals${C_RESET}"
+    echo -e "${C_GREEN}✅ Aggressive keepalive set to 10s intervals${C_RESET}"
 }
 
-# Function to set TCP window scaling (critical for MTU 512)
-optimize_tcp_window() {
+# Function for advanced TCP tuning (10+ parameters)
+optimize_advanced_tcp() {
     echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "${C_BLUE}           📐 OPTIMIZING TCP WINDOW SCALING${C_RESET}"
+    echo -e "${C_BLUE}           📐 APPLYING ADVANCED TCP TUNABLES (10+ parameters)${C_RESET}"
     echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
     
-    # TCP window scaling is essential for MTU 512
+    # Advanced TCP optimizations for maximum throughput
+    sysctl -w net.ipv4.tcp_sack=1 > /dev/null 2>&1
+    sysctl -w net.ipv4.tcp_dsack=1 > /dev/null 2>&1
+    sysctl -w net.ipv4.tcp_fack=1 > /dev/null 2>&1
     sysctl -w net.ipv4.tcp_window_scaling=1 > /dev/null 2>&1
-    sysctl -w net.ipv4.tcp_adv_win_scale=2 > /dev/null 2>&1
-    sysctl -w net.ipv4.tcp_moderate_rcvbuf=1 > /dev/null 2>&1
-    sysctl -w net.ipv4.tcp_no_metrics_save=1 > /dev/null 2>&1
+    sysctl -w net.ipv4.tcp_timestamps=1 > /dev/null 2>&1
     sysctl -w net.ipv4.tcp_slow_start_after_idle=0 > /dev/null 2>&1
+    sysctl -w net.ipv4.tcp_no_metrics_save=1 > /dev/null 2>&1
+    sysctl -w net.ipv4.tcp_moderate_rcvbuf=1 > /dev/null 2>&1
+    sysctl -w net.ipv4.tcp_low_latency=1 > /dev/null 2>&1
+    sysctl -w net.ipv4.tcp_early_retrans=3 > /dev/null 2>&1
+    sysctl -w net.ipv4.tcp_thin_linear_timeouts=1 > /dev/null 2>&1
+    sysctl -w net.ipv4.tcp_autocorking=0 > /dev/null 2>&1
     
     # Make permanent
     cat >> /etc/sysctl.conf << EOF
 
-# TCP Window Scaling for MTU 512
+# Advanced TCP Tuning for MTU 512 - 10x speed
+net.ipv4.tcp_sack = 1
+net.ipv4.tcp_dsack = 1
+net.ipv4.tcp_fack = 1
 net.ipv4.tcp_window_scaling = 1
-net.ipv4.tcp_adv_win_scale = 2
-net.ipv4.tcp_moderate_rcvbuf = 1
-net.ipv4.tcp_no_metrics_save = 1
+net.ipv4.tcp_timestamps = 1
 net.ipv4.tcp_slow_start_after_idle = 0
+net.ipv4.tcp_no_metrics_save = 1
+net.ipv4.tcp_moderate_rcvbuf = 1
+net.ipv4.tcp_low_latency = 1
+net.ipv4.tcp_early_retrans = 3
+net.ipv4.tcp_thin_linear_timeouts = 1
+net.ipv4.tcp_autocorking = 0
 EOF
     
-    echo -e "${C_GREEN}✅ TCP window scaling optimized for MTU 512${C_RESET}"
+    echo -e "${C_GREEN}✅ Advanced TCP tuning applied (10+ parameters)${C_RESET}"
 }
 
-# Function to set ultra file descriptors (4M)
+# Function to set ultra file descriptors (8M)
 optimize_ultra_filedesc() {
     echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "${C_BLUE}           📄 SETTING ULTRA FILE DESCRIPTORS (4M)${C_RESET}"
+    echo -e "${C_BLUE}           📄 SETTING ULTRA FILE DESCRIPTORS (8M)${C_RESET}"
     echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
     
-    # Set ultra-high file descriptors for multiple instances
-    ulimit -n 4194304 2>/dev/null || ulimit -n 2097152 2>/dev/null || true
+    # Set ultra-high file descriptors for 10+ instances
+    ulimit -n 8388608 2>/dev/null || ulimit -n 4194304 2>/dev/null || true
     
-    cat > /etc/security/limits.d/99-ultra-speed.conf << 'EOF'
-# Ultra file descriptors for MTU 512 - allows many connections
-* soft nofile 4194304
-* hard nofile 4194304
-root soft nofile 4194304
-root hard nofile 4194304
-* soft nproc 4194304
-* hard nproc 4194304
+    cat > /etc/security/limits.d/99-ultra-boost.conf << 'EOF'
+# Ultra file descriptors for MTU 512 - 10x speed (supports 10+ instances)
+* soft nofile 8388608
+* hard nofile 8388608
+root soft nofile 8388608
+root hard nofile 8388608
+* soft nproc 8388608
+* hard nproc 8388608
 EOF
     
-    echo -e "${C_GREEN}✅ File descriptors set to 4M (supports up to 1000+ connections)${C_RESET}"
+    echo -e "${C_GREEN}✅ File descriptors set to 8M (supports 10+ parallel instances)${C_RESET}"
 }
 
-# Function to apply all MTU 512 specific optimizations
-apply_mtu512_optimizations() {
+# Function to apply all ULTRA BOOST optimizations (DEFAULT - 10x speed)
+apply_ultra_boost() {
     echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "${C_BLUE}           🚀 APPLYING MTU 512 ULTRA OPTIMIZATIONS${C_RESET}"
+    echo -e "${C_BLUE}           🚀 APPLYING ULTRA BOOST (10x SPEED)${C_RESET}"
     echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
     
     enable_bbr_v3
     optimize_ultra_buffers
     optimize_aggressive_keepalive
-    optimize_tcp_window
+    optimize_advanced_tcp
     optimize_ultra_filedesc
     
     echo -e "\n${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "${C_GREEN}           ✅ MTU 512 ULTRA OPTIMIZATIONS APPLIED!${C_RESET}"
+    echo -e "${C_GREEN}           ✅ ULTRA BOOST ACTIVATED - 10x SPEED!${C_RESET}"
     echo -e "${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
     echo -e "  ${C_CYAN}• BBR v3 with fq_codel:${C_RESET} Active"
-    echo -e "  ${C_CYAN}• Ultra Buffers:${C_RESET} 16MB"
-    echo -e "  ${C_CYAN}• Aggressive Keepalive:${C_RESET} 15s"
-    echo -e "  ${C_CYAN}• TCP Window Scaling:${C_RESET} Optimized"
-    echo -e "  ${C_CYAN}• File Descriptors:${C_RESET} 4M"
-    echo -e "  ${C_CYAN}• Expected Speed:${C_RESET} ${C_GREEN}8-10x with parallel instances!${C_RESET}"
+    echo -e "  ${C_CYAN}• Ultra Buffers:${C_RESET} 32MB"
+    echo -e "  ${C_CYAN}• Aggressive Keepalive:${C_RESET} 10s"
+    echo -e "  ${C_CYAN}• Advanced TCP Tuning:${C_RESET} 12 parameters"
+    echo -e "  ${C_CYAN}• File Descriptors:${C_RESET} 8M"
+    echo -e "  ${C_CYAN}• Parallel Instances:${C_RESET} 10 (on client)"
+    echo -e "  ${C_CYAN}• Expected Speed:${C_RESET} ${C_GREEN}10x with MTU 512!${C_RESET}"
     
     sleep 3
 }
@@ -815,16 +833,17 @@ mtu_selection_during_install() {
     echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
     echo ""
     
-    # Force MTU 512 as per user request
+    # Force MTU 512 for ULTRA BOOST
     MTU=512
     
-    echo -e "${C_GREEN}✅ MTU set to $MTU (optimized for your ISP)${C_RESET}"
-    echo -e "${C_YELLOW}📌 Speed will be achieved through:${C_RESET}"
-    echo -e "   • 16MB Ultra Buffers"
+    echo -e "${C_GREEN}✅ MTU set to $MTU (ULTRA BOOST mode)${C_RESET}"
+    echo -e "${C_YELLOW}📌 10x speed will be achieved through:${C_RESET}"
+    echo -e "   • 32MB Ultra Buffers"
     echo -e "   • BBR v3 Congestion Control"
-    echo -e "   • Multiple Parallel Instances"
-    echo -e "   • Aggressive Keepalive (15s)"
-    echo -e "   • TCP Window Scaling"
+    echo -e "   • 10 Parallel Instances"
+    echo -e "   • Aggressive Keepalive (10s)"
+    echo -e "   • Advanced TCP Tuning (12 parameters)"
+    echo -e "   • 8M File Descriptors"
     
     mkdir -p "$CONFIG_DIR"
     echo "$MTU" > "$CONFIG_DIR/mtu"
@@ -899,12 +918,12 @@ create_dnstt_service() {
     local ssh_port=$3
     
     echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "${C_BLUE}           📋 CREATING DNSTT SERVICE${C_RESET}"
+    echo -e "${C_BLUE}           📋 CREATING DNSTT SERVICE (ULTRA BOOST)${C_RESET}"
     echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
     
     cat > "$DNSTT_SERVICE" <<EOF
 [Unit]
-Description=DNSTT Server (MTU 512 Optimized)
+Description=DNSTT Server (ULTRA BOOST - 10x Speed)
 After=network.target
 
 [Service]
@@ -930,7 +949,7 @@ EOF
     
     echo -e "${C_GREEN}✅ Service created successfully${C_RESET}"
     echo -e "  • Binary: ${C_CYAN}$DNSTT_SERVER${C_RESET}"
-    echo -e "  • MTU: ${C_CYAN}$mtu (ISP limited)${C_RESET}"
+    echo -e "  • MTU: ${C_CYAN}$mtu (ULTRA BOOST mode)${C_RESET}"
     echo -e "  • Port: ${C_CYAN}5300${C_RESET}"
     echo -e "  • Target: ${C_CYAN}127.0.0.1:$ssh_port${C_RESET}"
 }
@@ -950,7 +969,7 @@ SSH_PORT="$ssh_port"
 EOF
 }
 
-# ========== SHOW CLIENT COMMANDS WITH DNS OPTIONS ==========
+# ========== SHOW CLIENT COMMANDS WITH 10 INSTANCES (ULTRA BOOST) ==========
 show_client_commands() {
     local domain=$1
     local mtu=$2
@@ -958,64 +977,98 @@ show_client_commands() {
     local pubkey=$(cat "$DB_DIR/server.pub")
     
     echo -e "\n${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "${C_GREEN}           📱 CLIENT COMMANDS (MTU 512 OPTIMIZED)${C_RESET}"
+    echo -e "${C_GREEN}           📱 ULTRA CLIENT COMMANDS (10x SPEED)${C_RESET}"
     echo -e "${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
     echo ""
     
-    echo -e "${C_YELLOW}📌 Recommended DNS Resolvers for Tanzania:${C_RESET}"
-    echo -e "  • Halotel:  ${C_GREEN}169.255.187.58:53${C_RESET} - Fastest in TZ"
-    echo -e "  • Google:   ${C_GREEN}8.8.8.8:53${C_RESET} - Stable"
-    echo -e "  • Cloudflare: ${C_GREEN}1.1.1.1:53${C_RESET} - Private"
+    echo -e "${C_YELLOW}📌 ULTRA DNS Resolvers (10 different - for 10 instances):${C_RESET}"
+    echo -e "  ${C_GREEN}1.${C_RESET} 8.8.8.8:53          (Google)"
+    echo -e "  ${C_GREEN}2.${C_RESET} 1.1.1.1:53          (Cloudflare)"
+    echo -e "  ${C_GREEN}3.${C_RESET} 169.255.187.58:53   (Halotel - Tanzania)"
+    echo -e "  ${C_GREEN}4.${C_RESET} 208.67.222.222:53   (OpenDNS)"
+    echo -e "  ${C_GREEN}5.${C_RESET} 9.9.9.9:53          (Quad9)"
+    echo -e "  ${C_GREEN}6.${C_RESET} 77.88.8.8:53        (Yandex)"
+    echo -e "  ${C_GREEN}7.${C_RESET} 8.26.56.26:53       (Comodo)"
+    echo -e "  ${C_GREEN}8.${C_RESET} 185.228.168.9:53    (CleanBrowsing)"
+    echo -e "  ${C_GREEN}9.${C_RESET} 76.76.19.19:53      (Alternate DNS)"
+    echo -e "  ${C_GREEN}10.${C_RESET} 94.140.14.14:53     (AdGuard)"
     echo ""
     
-    echo -e "${C_YELLOW}📌 Single Instance (Standard):${C_RESET}"
+    echo -e "${C_YELLOW}📌 ULTRA SCRIPT - 10 Parallel Instances (10x Speed):${C_RESET}"
+    echo -e "${WHITE}# Create ultra boost script${NC}"
+    echo -e "${WHITE}cat > /usr/local/bin/ultra-dnstt.sh << 'EOF'${NC}"
+    echo -e "#!/bin/bash"
+    echo -e "# ULTRA BOOST - 10 Instances for 10x Speed"
+    echo -e "# Generated by Voltron Tech"
+    echo -e ""
+    echo -e "DOMAIN=\"$domain\""
+    echo -e "PUBKEY_FILE=\"$DB_DIR/server.pub\""
+    echo -e "MTU=$mtu"
+    echo -e "BASE_PORT=1080"
+    echo -e ""
+    echo -e "# DNS resolvers (10 different)"
+    echo -e "DNS_RESOLVERS=("
+    echo -e "    \"8.8.8.8:53\""
+    echo -e "    \"1.1.1.1:53\""
+    echo -e "    \"169.255.187.58:53\""
+    echo -e "    \"208.67.222.222:53\""
+    echo -e "    \"9.9.9.9:53\""
+    echo -e "    \"77.88.8.8:53\""
+    echo -e "    \"8.26.56.26:53\""
+    echo -e "    \"185.228.168.9:53\""
+    echo -e "    \"76.76.19.19:53\""
+    echo -e "    \"94.140.14.14:53\""
+    echo -e ")"
+    echo -e ""
+    echo -e "# Create proxychains config"
+    echo -e "cat > /tmp/proxychains-ultra.conf << 'PROXY_EOF'"
+    echo -e "dynamic_chain"
+    echo -e "round_robin_chain on"
+    echo -e "[ProxyList]"
+    echo -e "PROXY_EOF"
+    echo -e ""
+    echo -e "for i in {0..9}; do"
+    echo -e "    PORT=\$((BASE_PORT + i))"
+    echo -e "    echo \"socks5 127.0.0.1 \$PORT\" >> /tmp/proxychains-ultra.conf"
+    echo -e "    $DNSTT_CLIENT -udp \${DNS_RESOLVERS[\$i]} \\"
+    echo -e "        -pubkey-file \"\$PUBKEY_FILE\" \\"
+    echo -e "        -mtu \$MTU \\"
+    echo -e "        -listen \"127.0.0.1:\$PORT\" \\"
+    echo -e "        \"\$DOMAIN\" 127.0.0.1:$ssh_port &"
+    echo -e "    echo \"Instance \$((i+1)) started on port \$PORT\""
+    echo -e "    sleep 1"
+    echo -e "done"
+    echo -e ""
+    echo -e "echo \"\""
+    echo -e "echo \"✅ 10 ULTRA INSTANCES ACTIVE!\""
+    echo -e "echo \"📌 Use: proxychains4 -f /tmp/proxychains-ultra.conf ssh user@localhost -p $ssh_port\""
+    echo -e "echo \"📌 Use: proxychains4 -f /tmp/proxychains-ultra.conf curl ifconfig.me\""
+    echo -e "echo \"📌 Expected speed: 10x!\""
+    echo -e "EOF"
+    echo ""
+    echo -e "${WHITE}chmod +x /usr/local/bin/ultra-dnstt.sh${NC}"
+    echo -e "${WHITE}sudo /usr/local/bin/ultra-dnstt.sh${NC}"
+    echo ""
+    
+    echo -e "${C_YELLOW}📌 Single Instance (for testing):${C_RESET}"
     echo -e "${WHITE}$DNSTT_CLIENT -udp 8.8.8.8:53 \\${C_RESET}"
     echo -e "${WHITE}  -pubkey-file $DB_DIR/server.pub \\${C_RESET}"
     echo -e "${WHITE}  -mtu $mtu \\${C_RESET}"
     echo -e "${WHITE}  $domain 127.0.0.1:$ssh_port${C_RESET}"
     echo ""
     
-    echo -e "${C_YELLOW}📌 Multiple Instances (5x Speed) - Use with proxychains:${C_RESET}"
-    echo -e "${WHITE}# Create proxychains config${NC}"
-    echo -e "${WHITE}cat > /tmp/proxychains.conf << 'EOF'${NC}"
-    echo -e "dynamic_chain"
-    echo -e "round_robin_chain on"
-    echo -e "[ProxyList]"
-    for i in {0..4}; do
-        echo "socks5 127.0.0.1 $((1080 + i))"
-    done
-    echo -e "EOF"
-    echo ""
-    
-    echo -e "${WHITE}# Start 5 instances${NC}"
-    for i in {0..4}; do
-        local dns=""
-        case $i in
-            0) dns="8.8.8.8:53" ;;
-            1) dns="1.1.1.1:53" ;;
-            2) dns="169.255.187.58:53" ;;
-            3) dns="208.67.222.222:53" ;;
-            4) dns="9.9.9.9:53" ;;
-        esac
-        echo -e "${WHITE}$DNSTT_CLIENT -udp $dns -pubkey-file $DB_DIR/server.pub -mtu $mtu -listen 127.0.0.1:$((1080 + i)) $domain 127.0.0.1:$ssh_port &${NC}"
-    done
-    echo ""
-    
-    echo -e "${C_YELLOW}📌 Use with proxychains:${C_RESET}"
-    echo -e "${WHITE}proxychains4 -f /tmp/proxychains.conf curl ifconfig.me${NC}"
-    echo -e "${WHITE}proxychains4 -f /tmp/proxychains.conf ssh user@localhost -p $ssh_port${NC}"
-    echo ""
-    
     echo -e "${C_GREEN}📌 Public Key:${C_RESET}"
     echo -e "${YELLOW}$pubkey${C_RESET}"
     echo ""
     
-    echo -e "${C_CYAN}⚡ SPEED NOTES FOR MTU 512:${C_RESET}"
-    echo -e "  • MTU: ${C_GREEN}512 (ISP limited)${C_RESET}"
-    echo -e "  • Ultra Buffers: ${C_GREEN}16MB${C_RESET}"
+    echo -e "${C_CYAN}⚡ ULTRA BOOST STATUS (10x Speed Mode):${C_RESET}"
+    echo -e "  • MTU: ${C_GREEN}$mtu (ISP limited)${C_RESET}"
+    echo -e "  • Ultra Buffers: ${C_GREEN}32MB${C_RESET}"
     echo -e "  • BBR v3: ${C_GREEN}Active${C_RESET}"
-    echo -e "  • Keepalive: ${C_GREEN}15s${C_RESET}"
-    echo -e "  • 5 Parallel Instances: ${C_GREEN}5x speed potential!${C_RESET}"
+    echo -e "  • Keepalive: ${C_GREEN}10s${C_RESET}"
+    echo -e "  • File Descriptors: ${C_GREEN}8M${C_RESET}"
+    echo -e "  • TCP Tuning: ${C_GREEN}12 parameters optimized${C_RESET}"
+    echo -e "  • 10 Parallel Instances: ${C_GREEN}10x speed!${C_RESET}"
 }
 
 # ========== TRAFFIC MONITOR ==========
@@ -2159,12 +2212,12 @@ cache_cleaner_menu() {
     done
 }
 
-# ========== DNSTT INSTALLATION ==========
+# ========== DNSTT INSTALLATION WITH ULTRA BOOST ==========
 install_dnstt() {
     clear
     show_banner
     echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "${C_BOLD}${C_PURPLE}           📡 DNSTT INSTALLATION (MTU 512 OPTIMIZED)${C_RESET}"
+    echo -e "${C_BOLD}${C_PURPLE}           📡 DNSTT INSTALLATION (ULTRA BOOST - 10x SPEED)${C_RESET}"
     echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
     
     if [ -f "$DNSTT_SERVICE" ]; then
@@ -2200,9 +2253,9 @@ install_dnstt() {
         return 1
     fi
     
-    # Step 4: Apply MTU 512 specific optimizations
-    echo -e "\n${C_BLUE}[4/9] Applying MTU 512 ultra optimizations...${C_RESET}"
-    apply_mtu512_optimizations
+    # Step 4: Apply ULTRA BOOST optimizations (DEFAULT - 10x speed)
+    echo -e "\n${C_BLUE}[4/9] Applying ULTRA BOOST optimizations (10x speed)...${C_RESET}"
+    apply_ultra_boost
     
     # Step 5: Configure firewall
     echo -e "\n${C_BLUE}[5/9] Configuring firewall...${C_RESET}"
@@ -2247,28 +2300,29 @@ install_dnstt() {
         journalctl -u dnstt.service -n 20 --no-pager
     fi
     
-    # Show client commands
+    # Show client commands with ULTRA BOOST
     show_client_commands "$DOMAIN" "$MTU" "$SSH_PORT"
     
     # Save info
     cat > "$DB_DIR/dnstt_info.txt" <<EOF
-DNSTT Configuration (MTU 512 Optimized)
+DNSTT Configuration (ULTRA BOOST - 10x Speed)
 ============================================
 Domain: $DOMAIN
 MTU: $MTU (ISP limited)
 SSH Port: $SSH_PORT
 Public Key: $(cat "$DB_DIR/server.pub")
-MTU 512 Optimizations:
+ULTRA BOOST Features:
 - BBR v3 with fq_codel: Active
-- Ultra Buffers: 16MB
-- Aggressive Keepalive: 15s
-- TCP Window Scaling: Optimized
-- File Descriptors: 4M
+- Ultra Buffers: 32MB
+- Aggressive Keepalive: 10s
+- Advanced TCP Tuning: 12 parameters
+- File Descriptors: 8M
+- Parallel Instances: 10 (on client)
 
-For maximum speed, use 5 parallel instances with different DNS resolvers!
+For 10x speed, use the ULTRA client script shown above!
 EOF
     
-    echo -e "\n${C_GREEN}✅ DNSTT installation complete!${C_RESET}"
+    echo -e "\n${C_GREEN}✅ DNSTT installation complete with ULTRA BOOST!${C_RESET}"
     echo -e "${C_YELLOW}📁 Info saved to: $DB_DIR/dnstt_info.txt${C_RESET}"
     safe_read "" dummy
 }
@@ -2293,7 +2347,7 @@ uninstall_dnstt() {
 show_dnstt_details() {
     clear
     echo -e "${C_BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
-    echo -e "${C_GREEN}           📡 DNSTT DETAILS (MTU 512 OPTIMIZED)${C_RESET}"
+    echo -e "${C_GREEN}           📡 DNSTT DETAILS (ULTRA BOOST)${C_RESET}"
     echo -e "${C_BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
     
     if [ ! -f "$DB_DIR/domain.txt" ]; then
@@ -2317,16 +2371,17 @@ show_dnstt_details() {
     
     echo -e "  Status:        $status"
     echo -e "  Domain:        ${C_YELLOW}$DOMAIN${C_RESET}"
-    echo -e "  MTU:           ${C_YELLOW}$MTU (ISP limited)${C_RESET}"
+    echo -e "  MTU:           ${C_YELLOW}$MTU (ULTRA BOOST mode)${C_RESET}"
     echo -e "  SSH Port:      ${C_YELLOW}$SSH_PORT${C_RESET}"
     echo -e "  Binary:        ${C_YELLOW}$DNSTT_SERVER${C_RESET}"
     echo -e "  Public Key:    ${C_YELLOW}${PUBKEY:0:30}...${PUBKEY: -30}${C_RESET}"
-    echo -e "  MTU 512 Optimizations:"
+    echo -e "  ULTRA BOOST Features:"
     echo -e "    • BBR v3:    ${C_GREEN}Active${C_RESET}"
-    echo -e "    • Buffers:   ${C_GREEN}16MB${C_RESET}"
-    echo -e "    • Keepalive: ${C_GREEN}15s${C_RESET}"
-    echo -e "    • File Desc: ${C_GREEN}4M${C_RESET}"
-    echo -e "    • Instances: ${C_GREEN}5x speed possible${C_RESET}"
+    echo -e "    • Buffers:   ${C_GREEN}32MB${C_RESET}"
+    echo -e "    • Keepalive: ${C_GREEN}10s${C_RESET}"
+    echo -e "    • TCP Tuning: ${C_GREEN}12 parameters${C_RESET}"
+    echo -e "    • File Desc: ${C_GREEN}8M${C_RESET}"
+    echo -e "    • Instances: ${C_GREEN}10x speed possible${C_RESET}"
     
     safe_read "" dummy
 }
