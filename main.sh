@@ -3,7 +3,7 @@
 # ========== VOLTRON TECH MANAGER ==========
 # Version: 10.0 Premium Edition
 # Description: Complete Server Management Script
-# Based on: FirewallFalcon Manager
+# Based on: FirewallFalcon Manager + Voltron Tech DNSTT
 # Author: Voltron Tech
 
 # ========== VOLTRONTECH DESEC.IO CONFIG ==========
@@ -92,51 +92,65 @@ create_directories() {
     touch "$BANNER_ENABLED"
 }
 
-# ========== GET IP, LOCATION, ISP ==========
+# ========== GET IP, LOCATION, ISP (FIXED) ==========
 get_ip_info() {
+    mkdir -p "$DB_DIR/cache"
+    
     IP_CACHE_FILE="$DB_DIR/cache/ip"
-    LOCATION_CACHE_FILE="$DB_DIR/cache/location"
+    COUNTRY_CACHE_FILE="$DB_DIR/cache/country"
     ISP_CACHE_FILE="$DB_DIR/cache/isp"
     
-    if [ ! -f "$IP_CACHE_FILE" ] || [ $(( $(date +%s) - $(stat -c %Y "$IP_CACHE_FILE" 2>/dev/null || echo 0) )) -gt 3600 ]; then
-        curl -s -4 icanhazip.com > "$IP_CACHE_FILE" 2>/dev/null || echo "Unknown" > "$IP_CACHE_FILE"
-    fi
-    IP=$(cat "$IP_CACHE_FILE")
-    
-    if [ ! -f "$LOCATION_CACHE_FILE" ] || [ ! -f "$ISP_CACHE_FILE" ] || [ $(( $(date +%s) - $(stat -c %Y "$LOCATION_CACHE_FILE" 2>/dev/null || echo 0) )) -gt 86400 ]; then
-        local ip_info=$(curl -s "http://ip-api.com/json/$IP" 2>/dev/null)
-        if [ $? -eq 0 ] && [ -n "$ip_info" ]; then
-            echo "$ip_info" | grep -o '"city":"[^"]*"' | cut -d'"' -f4 2>/dev/null | tr -d '\n' > "$LOCATION_CACHE_FILE"
-            echo "$ip_info" | grep -o '"country":"[^"]*"' | cut -d'"' -f4 2>/dev/null >> "$LOCATION_CACHE_FILE"
-            echo "$ip_info" | grep -o '"isp":"[^"]*"' | cut -d'"' -f4 2>/dev/null > "$ISP_CACHE_FILE"
+    if [ ! -f "$IP_CACHE_FILE" ] || [ $(( $(date +%s) - $(stat -c %Y "$IP_CACHE_FILE" 2>/dev/null || echo 0) )) -gt 21600 ]; then
+        IP=$(curl -s -4 icanhazip.com 2>/dev/null)
+        if [ -z "$IP" ]; then
+            IP=$(curl -s -4 ifconfig.me 2>/dev/null)
+        fi
+        if [ -z "$IP" ]; then
+            IP=$(curl -s -4 ipinfo.io/ip 2>/dev/null)
+        fi
+        if [ -z "$IP" ]; then
+            IP="Unknown"
+        fi
+        echo "$IP" > "$IP_CACHE_FILE"
+        
+        if [ "$IP" != "Unknown" ]; then
+            local api_data=$(curl -s "http://ip-api.com/json/$IP?fields=status,country,isp" 2>/dev/null)
+            if echo "$api_data" | grep -q '"status":"success"'; then
+                local country=$(echo "$api_data" | grep -o '"country":"[^"]*"' | cut -d'"' -f4)
+                local isp=$(echo "$api_data" | grep -o '"isp":"[^"]*"' | cut -d'"' -f4)
+                echo "${country:-Unknown}" > "$COUNTRY_CACHE_FILE"
+                echo "${isp:-Unknown}" > "$ISP_CACHE_FILE"
+            else
+                echo "Unknown" > "$COUNTRY_CACHE_FILE"
+                echo "Unknown" > "$ISP_CACHE_FILE"
+            fi
         else
-            echo "Unknown" > "$LOCATION_CACHE_FILE"
-            echo "Unknown" >> "$LOCATION_CACHE_FILE"
+            echo "Unknown" > "$COUNTRY_CACHE_FILE"
             echo "Unknown" > "$ISP_CACHE_FILE"
         fi
     fi
     
-    LOCATION=$(head -1 "$LOCATION_CACHE_FILE" 2>/dev/null || echo "Unknown")
-    COUNTRY=$(tail -1 "$LOCATION_CACHE_FILE" 2>/dev/null || echo "Unknown")
+    IP=$(cat "$IP_CACHE_FILE" 2>/dev/null || echo "Unknown")
+    COUNTRY=$(cat "$COUNTRY_CACHE_FILE" 2>/dev/null || echo "Unknown")
     ISP=$(cat "$ISP_CACHE_FILE" 2>/dev/null || echo "Unknown")
+    LOCATION="$COUNTRY"
 }
 
 # ========== SHOW BANNER ==========
 show_banner() {
-    clear
     get_ip_info
     local current_mtu=$(get_current_mtu)
     
+    clear
     echo -e "${C_BOLD}${C_PURPLE}╔═══════════════════════════════════════════════════════════════╗${C_RESET}"
     echo -e "${C_BOLD}${C_PURPLE}║           🔥 VOLTRON TECH MANAGER v10.0 🔥                   ║${C_RESET}"
     echo -e "${C_BOLD}${C_PURPLE}║        SSH • DNSTT • BADVPN • UDP • Nginx • ZiVPN • X-UI       ║${C_RESET}"
     echo -e "${C_BOLD}${C_PURPLE}╠═══════════════════════════════════════════════════════════════╣${C_RESET}"
     echo -e "${C_BOLD}${C_PURPLE}║  Server IP: ${C_GREEN}$IP${C_PURPLE}${C_RESET}"
-    echo -e "${C_BOLD}${C_PURPLE}║  Location:  ${C_GREEN}$LOCATION, $COUNTRY${C_PURPLE}${C_RESET}"
+    echo -e "${C_BOLD}${C_PURPLE}║  Location:  ${C_GREEN}$LOCATION${C_PURPLE}${C_RESET}"
     echo -e "${C_BOLD}${C_PURPLE}║  ISP:       ${C_GREEN}$ISP${C_PURPLE}${C_RESET}"
     echo -e "${C_BOLD}${C_PURPLE}║  Current MTU: ${C_GREEN}$current_mtu${C_PURPLE}${C_RESET}"
     
-    # Show Domain status
     if [ -f "$DNS_INFO_FILE" ]; then
         source "$DNS_INFO_FILE"
         echo -e "${C_BOLD}${C_PURPLE}║  Domain:     ${C_GREEN}$FULL_DOMAIN${C_PURPLE}${C_RESET}"
@@ -1085,6 +1099,11 @@ generate_user_banner() {
     local current_ts=$5
     local online_count=$6
     
+    # Skip if user doesn't exist
+    if ! id "$user" &>/dev/null; then
+        return
+    fi
+    
     # Calculate days left
     local days_left="N/A"
     if [[ "$expiry" != "Never" && -n "$expiry" ]]; then
@@ -1149,11 +1168,6 @@ generate_user_banner() {
     echo -e "  </span>" >> "$BANNER_DIR/${user}.txt"
     echo -e "</H3>" >> "$BANNER_DIR/${user}.txt"
     
-    # Nafasi
-    echo -e "<H3 style=\"text-align:center\">" >> "$BANNER_DIR/${user}.txt"
-    echo -e "  <span style=\"padding: 8px 15px; display: inline-block; margin: 3px;\"></span>" >> "$BANNER_DIR/${user}.txt"
-    echo -e "</H3>" >> "$BANNER_DIR/${user}.txt"
-    
     # SOUTH AFRICA SERVER
     echo -e "<H3 style=\"text-align:center\">" >> "$BANNER_DIR/${user}.txt"
     echo -e "  <span style=\"padding: 8px 15px; display: inline-block; margin: 3px;\">" >> "$BANNER_DIR/${user}.txt"
@@ -1166,11 +1180,6 @@ generate_user_banner() {
     echo -e "  <span style=\"padding: 8px 15px; display: inline-block; margin: 3px;\">" >> "$BANNER_DIR/${user}.txt"
     echo -e "    📱 HALOTEL UNLIMITED" >> "$BANNER_DIR/${user}.txt"
     echo -e "  </span>" >> "$BANNER_DIR/${user}.txt"
-    echo -e "</H3>" >> "$BANNER_DIR/${user}.txt"
-    
-    # Nafasi
-    echo -e "<H3 style=\"text-align:center\">" >> "$BANNER_DIR/${user}.txt"
-    echo -e "  <span style=\"padding: 8px 15px; display: inline-block; margin: 3px;\"></span>" >> "$BANNER_DIR/${user}.txt"
     echo -e "</H3>" >> "$BANNER_DIR/${user}.txt"
     
     # ACCOUNT STATUS
@@ -1229,11 +1238,6 @@ generate_user_banner() {
     echo -e "  </span>" >> "$BANNER_DIR/${user}.txt"
     echo -e "</H3>" >> "$BANNER_DIR/${user}.txt"
     
-    # Nafasi
-    echo -e "<H3 style=\"text-align:center\">" >> "$BANNER_DIR/${user}.txt"
-    echo -e "  <span style=\"padding: 8px 15px; display: inline-block; margin: 3px;\"></span>" >> "$BANNER_DIR/${user}.txt"
-    echo -e "</H3>" >> "$BANNER_DIR/${user}.txt"
-    
     # JOIN GROUP
     echo -e "<H3 style=\"text-align:center\">" >> "$BANNER_DIR/${user}.txt"
     echo -e "  <span style=\"padding: 8px 15px; display: inline-block; margin: 3px;\">" >> "$BANNER_DIR/${user}.txt"
@@ -1248,11 +1252,6 @@ generate_user_banner() {
     echo -e "  </span>" >> "$BANNER_DIR/${user}.txt"
     echo -e "</H3>" >> "$BANNER_DIR/${user}.txt"
     
-    # Nafasi
-    echo -e "<H3 style=\"text-align:center\">" >> "$BANNER_DIR/${user}.txt"
-    echo -e "  <span style=\"padding: 8px 15px; display: inline-block; margin: 3px;\"></span>" >> "$BANNER_DIR/${user}.txt"
-    echo -e "</H3>" >> "$BANNER_DIR/${user}.txt"
-    
     # Signature
     echo -e "<H3 style=\"text-align:center\">" >> "$BANNER_DIR/${user}.txt"
     echo -e "  <span style=\"padding: 8px 15px; display: inline-block; margin: 3px;\">" >> "$BANNER_DIR/${user}.txt"
@@ -1260,12 +1259,9 @@ generate_user_banner() {
     echo -e "  </span>" >> "$BANNER_DIR/${user}.txt"
     echo -e "</H3>" >> "$BANNER_DIR/${user}.txt"
     
-    # Nafasi
-    echo -e "<H3 style=\"text-align:center\">" >> "$BANNER_DIR/${user}.txt"
-    echo -e "  <span style=\"padding: 8px 15px; display: inline-block; margin: 3px;\"></span>" >> "$BANNER_DIR/${user}.txt"
-    echo -e "</H3>" >> "$BANNER_DIR/${user}.txt"
-    
     echo -e "</font>" >> "$BANNER_DIR/${user}.txt"
+    
+    chmod 644 "$BANNER_DIR/${user}.txt"
 }
 
 # Main limiter loop
@@ -1427,11 +1423,15 @@ EOF
     fi
     
     systemctl restart sshd 2>/dev/null || systemctl restart ssh 2>/dev/null
+    
+    chmod 755 "$BANNER_DIR" 2>/dev/null
+    chmod 644 "$BANNER_DIR"/*.txt 2>/dev/null
 }
 
 # ========== SSH BANNER MENU ==========
 ssh_banner_menu() {
     while true; do
+        get_ip_info
         clear
         show_banner
         echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
@@ -1449,6 +1449,8 @@ ssh_banner_menu() {
         echo -e "  ${C_GREEN}1)${C_RESET} Enable Banner"
         echo -e "  ${C_RED}2)${C_RESET} Disable Banner"
         echo -e "  ${C_GREEN}3)${C_RESET} Preview Banner (for a user)"
+        echo -e "  ${C_GREEN}4)${C_RESET} Test IP Information"
+        echo -e "  ${C_GREEN}5)${C_RESET} Fix Banner Permissions"
         echo ""
         echo -e "  ${C_RED}0)${C_RESET} Return"
         echo ""
@@ -1483,10 +1485,42 @@ ssh_banner_menu() {
                 fi
                 safe_read "" dummy
                 ;;
+            4)
+                test_ip_info
+                ;;
+            5)
+                echo -e "\n${C_BLUE}Fixing banner permissions...${C_RESET}"
+                chmod 755 "$BANNER_DIR"
+                chmod 644 "$BANNER_DIR"/*.txt 2>/dev/null
+                systemctl restart voltrontech-limiter.service
+                systemctl restart sshd 2>/dev/null || systemctl restart ssh 2>/dev/null
+                echo -e "${C_GREEN}✅ Banner permissions fixed${C_RESET}"
+                safe_read "" dummy
+                ;;
             0) return ;;
             *) echo -e "\n${C_RED}❌ Invalid option${C_RESET}"; sleep 2 ;;
         esac
     done
+}
+
+# ========== TEST IP INFO ==========
+test_ip_info() {
+    clear
+    echo -e "${C_BOLD}${C_PURPLE}--- 🔍 IP Information Test ---${C_RESET}"
+    echo ""
+    
+    rm -f "$DB_DIR/cache/ip" "$DB_DIR/cache/country" "$DB_DIR/cache/isp"
+    get_ip_info
+    
+    echo -e "${C_CYAN}Current values:${C_RESET}"
+    echo -e "  IP:       ${C_GREEN}$IP${C_RESET}"
+    echo -e "  Location: ${C_GREEN}$LOCATION${C_RESET}"
+    echo -e "  Country:  ${C_GREEN}$COUNTRY${C_RESET}"
+    echo -e "  ISP:      ${C_GREEN}$ISP${C_RESET}"
+    echo ""
+    
+    echo -e "${C_YELLOW}Press [Enter] to continue...${C_RESET}"
+    read -r
 }
 
 # ========== DESEC.IO DOMAIN GENERATOR ==========
@@ -1499,7 +1533,7 @@ _is_valid_ipv4() {
     fi
 }
 
-generate_dns_record() {
+generate_desec_domain() {
     echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
     echo -e "${C_BLUE}           ☁️  GENERATING DOMAIN WITH DESEC.IO${C_RESET}"
     echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
@@ -1560,19 +1594,12 @@ SERVER_IPV4="$SERVER_IPV4"
 SERVER_IPV6="$SERVER_IPV6"
 EOF
 
-    echo -e "\n${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "${C_GREEN}           ✅ DOMAIN GENERATED SUCCESSFULLY!${C_RESET}"
-    echo -e "${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "  ${C_CYAN}Domain:${C_RESET}     ${C_YELLOW}$FULL_DOMAIN${C_RESET}"
-    echo -e "  ${C_CYAN}IPv4:${C_RESET}       ${C_GREEN}$SERVER_IPV4${C_RESET}"
-    if [[ -n "$SERVER_IPV6" ]]; then
-        echo -e "  ${C_CYAN}IPv6:${C_RESET}       ${C_GREEN}$SERVER_IPV6${C_RESET}"
-    fi
-    
+    echo -e "\n${C_GREEN}✅ Domain generated: ${C_YELLOW}$FULL_DOMAIN${C_RESET}"
+    DOMAIN="$FULL_DOMAIN"
     return 0
 }
 
-delete_dns_record() {
+delete_desec_record() {
     echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
     echo -e "${C_BLUE}           🗑️  DELETING DNS RECORDS${C_RESET}"
     echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
@@ -1652,9 +1679,9 @@ dns_menu() {
         safe_read "👉 Select option: " choice
         
         case $choice in
-            1) generate_dns_record; safe_read "" dummy ;;
+            1) generate_desec_domain; safe_read "" dummy ;;
             2) show_dns_info; safe_read "" dummy ;;
-            3) delete_dns_record; safe_read "" dummy ;;
+            3) delete_desec_record; safe_read "" dummy ;;
             0) return ;;
             *) echo -e "\n${C_RED}❌ Invalid option${C_RESET}"; sleep 2 ;;
         esac
@@ -2489,14 +2516,6 @@ mtu_selection_during_install() {
     
     MTU=512
     echo -e "${C_GREEN}✅ MTU set to $MTU (ULTRA BOOST mode)${C_RESET}"
-    echo -e "${C_YELLOW}📌 10x speed achieved through:${C_RESET}"
-    echo -e "   • 32MB Ultra Buffers"
-    echo -e "   • BBR v3 Congestion Control"
-    echo -e "   • 10 Parallel Instances"
-    echo -e "   • Aggressive Keepalive (10s)"
-    echo -e "   • Advanced TCP Tuning (12 parameters)"
-    echo -e "   • 8M File Descriptors"
-    
     mkdir -p "$CONFIG_DIR"
     echo "$MTU" > "$CONFIG_DIR/mtu"
 }
@@ -2671,12 +2690,11 @@ generate_keys() {
     echo -e "  • Public key:  ${C_CYAN}$DNSTT_KEYS_DIR/server.pub${C_RESET}"
 }
 
-# Create DNSTT service
-create_dnstt_service_ultra() {
+# Create DNSTT service (YOUR ORIGINAL SERVICE)
+create_dnstt_service() {
     local domain=$1
     local mtu=$2
-    local target=$3
-    local desc=$4
+    local ssh_port=$3
     
     echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
     echo -e "${C_BLUE}           📋 CREATING DNSTT SERVICE (ULTRA BOOST)${C_RESET}"
@@ -2684,7 +2702,7 @@ create_dnstt_service_ultra() {
     
     cat > "$DNSTT_SERVICE_FILE" <<EOF
 [Unit]
-Description=DNSTT Server for $desc (ULTRA BOOST)
+Description=DNSTT Server (ULTRA BOOST - 10x Speed)
 After=network.target
 
 [Service]
@@ -2698,7 +2716,7 @@ ExecStart=$DNSTT_BINARY -udp :5300 \\
     -timeout 60 \\
     -keepalive 5 \\
     -retransmit 3 \\
-    $domain $target
+    $domain 127.0.0.1:$ssh_port
 Restart=always
 RestartSec=3
 StandardOutput=append:$LOGS_DIR/dnstt-server.log
@@ -2710,19 +2728,18 @@ EOF
 
     systemctl daemon-reload
     systemctl enable dnstt.service > /dev/null 2>&1
-    systemctl start dnstt.service
     
     echo -e "${C_GREEN}✅ Service created successfully${C_RESET}"
     echo -e "  • Binary: ${C_CYAN}$DNSTT_BINARY${C_RESET}"
     echo -e "  • MTU: ${C_CYAN}$mtu (ULTRA BOOST mode)${C_RESET}"
     echo -e "  • Port: ${C_CYAN}5300${C_RESET}"
-    echo -e "  • Target: ${C_CYAN}$target${C_RESET}"
+    echo -e "  • Target: ${C_CYAN}127.0.0.1:$ssh_port${C_RESET}"
     echo -e "  • Timeout: ${C_CYAN}60s${C_RESET}"
     echo -e "  • Keepalive: ${C_CYAN}5s${C_RESET}"
     echo -e "  • Retransmit: ${C_CYAN}3${C_RESET}"
 }
 
-# Save DNSTT info
+# Save DNSTT info (with forward desc)
 save_dnstt_info() {
     local domain=$1
     local pubkey=$2
@@ -2731,23 +2748,28 @@ save_dnstt_info() {
     local desc=$5
     
     cat > "$DNSTT_CONFIG_FILE" <<EOF
+# DNSTT Configuration - Generated $(date)
 TUNNEL_DOMAIN="$domain"
 PUBLIC_KEY="$pubkey"
 FORWARD_DESC="$desc"
 MTU_VALUE="$mtu"
 SSH_PORT="$port"
+INSTALL_DATE="$(date '+%Y-%m-%d %H:%M:%S')"
 EOF
 
     if [ -f "$DNS_INFO_FILE" ]; then
         cat "$DNS_INFO_FILE" >> "$DNSTT_CONFIG_FILE"
+        echo -e "${C_GREEN}✅ Desec.io DNS records saved${C_RESET}"
     fi
+    
+    echo -e "${C_GREEN}✅ DNSTT configuration saved to $DNSTT_CONFIG_FILE${C_RESET}"
 }
 
-# Show DNSTT details
+# Show DNSTT details (with forward desc and desec)
 show_dnstt_details() {
     clear
     echo -e "${C_BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
-    echo -e "${C_GREEN}           📋 DNSTT CONNECTION DETAILS${C_RESET}"
+    echo -e "${C_GREEN}                 📋 DNSTT CONNECTION DETAILS${C_RESET}"
     echo -e "${C_BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
     
     if [ ! -f "$DNSTT_CONFIG_FILE" ]; then
@@ -2766,32 +2788,67 @@ show_dnstt_details() {
         status_display="${C_RED}● STOPPED${C_RESET}"
     fi
     
-    echo -e "\n  ${C_CYAN}Service Status:${C_RESET}  $status_display"
+    local uptime=""
+    if [[ "$status" == "active" ]]; then
+        uptime=$(systemctl show dnstt.service -p ActiveEnterTimestamp --value 2>/dev/null)
+        uptime=" (since $uptime)"
+    fi
+    
+    echo -e "\n  ${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+    echo -e "  ${C_WHITE}🔷 SERVICE INFORMATION${C_RESET}"
+    echo -e "  ${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+    echo -e "  ${C_CYAN}Status:${C_RESET}        $status_display$uptime"
+    echo -e "  ${C_CYAN}Install Date:${C_RESET}  ${C_GREEN}$INSTALL_DATE${C_RESET}"
+    echo ""
+    
+    echo -e "  ${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+    echo -e "  ${C_WHITE}🔷 TUNNEL INFORMATION${C_RESET}"
+    echo -e "  ${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
     echo -e "  ${C_CYAN}Tunnel Domain:${C_RESET}  ${C_YELLOW}$TUNNEL_DOMAIN${C_RESET}"
     echo -e "  ${C_CYAN}Forward To:${C_RESET}     ${C_GREEN}$FORWARD_DESC${C_RESET}"
     echo -e "  ${C_CYAN}MTU:${C_RESET}            ${C_GREEN}$MTU_VALUE${C_RESET}"
-    echo -e "  ${C_CYAN}Public Key:${C_RESET}"
-    echo -e "  ${C_GRAY}$PUBLIC_KEY${C_RESET}"
+    echo -e "  ${C_CYAN}SSH Port:${C_RESET}       ${C_GREEN}$SSH_PORT${C_RESET}"
+    echo ""
     
-    if [ -f "$DNS_INFO_FILE" ]; then
-        source "$DNS_INFO_FILE"
-        echo -e "\n  ${C_CYAN}Desec.io DNS Records:${C_RESET}"
-        echo -e "  • Full Domain: ${C_GREEN}$FULL_DOMAIN${C_RESET}"
-        echo -e "  • IPv4:        ${C_GREEN}$SERVER_IPV4${C_RESET}"
+    echo -e "  ${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+    echo -e "  ${C_WHITE}🔷 PUBLIC KEY${C_RESET}"
+    echo -e "  ${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+    echo -e "  ${C_GRAY}$PUBLIC_KEY${C_RESET}"
+    echo ""
+    
+    if [ -n "$FULL_DOMAIN" ]; then
+        echo -e "  ${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+        echo -e "  ${C_WHITE}🔷 DESEC.IO DNS RECORDS${C_RESET}"
+        echo -e "  ${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+        echo -e "  ${C_CYAN}Full Domain:${C_RESET}   ${C_GREEN}$FULL_DOMAIN${C_RESET}"
+        echo -e "  ${C_CYAN}Subdomain:${C_RESET}     ${C_GREEN}$SUBDOMAIN${C_RESET}"
+        echo -e "  ${C_CYAN}IPv4:${C_RESET}          ${C_GREEN}$SERVER_IPV4${C_RESET}"
         if [[ "$HAS_IPV6" == "true" && -n "$SERVER_IPV6" ]]; then
-            echo -e "  • IPv6:        ${C_GREEN}$SERVER_IPV6${C_RESET}"
+            echo -e "  ${C_CYAN}IPv6:${C_RESET}          ${C_GREEN}$SERVER_IPV6${C_RESET}"
         fi
+        echo ""
     fi
+    
+    echo -e "  ${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+    echo -e "  ${C_WHITE}⚡ ULTRA BOOST FEATURES${C_RESET}"
+    echo -e "  ${C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+    echo -e "  ${C_CYAN}BBR v3:${C_RESET}           ${C_GREEN}Active${C_RESET}"
+    echo -e "  ${C_CYAN}Ultra Buffers:${C_RESET}    ${C_GREEN}32MB${C_RESET}"
+    echo -e "  ${C_CYAN}Keepalive:${C_RESET}        ${C_GREEN}10s${C_RESET}"
+    echo -e "  ${C_CYAN}TCP Parameters:${C_RESET}   ${C_GREEN}12 optimized${C_RESET}"
+    echo -e "  ${C_CYAN}File Descriptors:${C_RESET} ${C_GREEN}8M${C_RESET}"
+    echo -e "  ${C_CYAN}Parallel Instances:${C_RESET} ${C_GREEN}10 (client-side)${C_RESET}"
     
     echo -e "\n${C_YELLOW}────────────────────────────────────────────────────────────${C_RESET}"
     safe_read "" dummy
 }
 
 # Show client commands
-show_client_commands_ultra() {
+show_client_commands() {
     local domain=$1
     local mtu=$2
     local ssh_port=$3
+    local pubkey=$(cat "$DNSTT_KEYS_DIR/server.pub")
     
     echo -e "\n${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
     echo -e "${C_GREEN}           📱 ULTRA CLIENT COMMANDS (10x SPEED)${C_RESET}"
@@ -2876,7 +2933,7 @@ EOF
     echo ""
     
     echo -e "${C_GREEN}📌 Public Key:${C_RESET}"
-    echo -e "${C_YELLOW}$PUBLIC_KEY${C_RESET}"
+    echo -e "${C_YELLOW}$pubkey${C_RESET}"
     echo ""
     
     echo -e "${C_CYAN}⚡ ULTRA BOOST STATUS (10x Speed Mode):${C_RESET}"
@@ -2889,20 +2946,18 @@ EOF
     echo -e "  • 10 Parallel Instances: ${C_GREEN}10x speed!${C_RESET}"
 }
 
-# Uninstall DNSTT
+# Uninstall DNSTT (with Desec cleanup)
 uninstall_dnstt() {
     echo -e "\n${C_BOLD}${C_PURPLE}--- 🗑️ Uninstalling DNSTT ---${C_RESET}"
     
     if [ ! -f "$DNSTT_SERVICE_FILE" ]; then
         echo -e "${C_YELLOW}ℹ️ DNSTT does not appear to be installed${C_RESET}"
-        safe_read "" dummy
         return
     fi
     
     read -p "👉 Are you sure you want to uninstall DNSTT? (y/n): " confirm
     if [[ "$confirm" != "y" ]]; then
         echo -e "\n${C_YELLOW}❌ Uninstallation cancelled.${C_RESET}"
-        safe_read "" dummy
         return
     fi
     
@@ -2912,7 +2967,7 @@ uninstall_dnstt() {
     
     # Delete Desec DNS records if they exist
     if [ -f "$DNS_INFO_FILE" ]; then
-        delete_dns_record
+        delete_desec_record
     fi
     
     echo -e "\n${C_BLUE}🗑️ Removing DNSTT files...${C_RESET}"
@@ -2928,7 +2983,7 @@ uninstall_dnstt() {
     safe_read "" dummy
 }
 
-# DNSTT installation
+# DNSTT installation (YOUR ORIGINAL + FORWARDING + DESEC)
 install_dnstt() {
     clear
     show_banner
@@ -2936,16 +2991,16 @@ install_dnstt() {
     echo -e "${C_BOLD}${C_PURPLE}           📡 DNSTT INSTALLATION (ULTRA BOOST)${C_RESET}"
     echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
     
-    # Smart check - if already installed, show details
-    if [ -f "$DNSTT_SERVICE_FILE" ] && [ -f "$DNSTT_CONFIG_FILE" ] && systemctl is-active --quiet dnstt.service; then
-        echo -e "\n${C_GREEN}✅ DNSTT is already installed and running.${C_RESET}"
+    # SMART CHECK - Ikiwa tayari imesakinishwa, onyesha details
+    if [ -f "$DNSTT_SERVICE_FILE" ] && [ -f "$DNSTT_CONFIG_FILE" ]; then
+        echo -e "\n${C_GREEN}✅ DNSTT is already installed.${C_RESET}"
         show_dnstt_details
         return
     fi
     
-    # If installed but not running, remove automatically
+    # Ikiwa imesakinishwa lakini haifanyi kazi, ondoa
     if [ -f "$DNSTT_SERVICE_FILE" ]; then
-        echo -e "\n${C_YELLOW}⚠️ Found existing DNSTT installation (not running). Removing...${C_RESET}"
+        echo -e "\n${C_YELLOW}⚠️ Found existing DNSTT installation. Removing...${C_RESET}"
         systemctl stop dnstt.service 2>/dev/null
         systemctl disable dnstt.service 2>/dev/null
         rm -f "$DNSTT_SERVICE_FILE"
@@ -2954,31 +3009,40 @@ install_dnstt() {
         rm -f "$DNSTT_CONFIG_FILE"
         rm -f "$DNS_INFO_FILE"
         systemctl daemon-reload
-        echo -e "${C_GREEN}✅ Old installation removed. Proceeding with fresh install...${C_RESET}"
+        echo -e "${C_GREEN}✅ Old installation removed.${C_RESET}"
         sleep 2
     fi
     
     # Step 1: Install dependencies
-    echo -e "\n${C_BLUE}[1/13] Installing dependencies...${C_RESET}"
+    echo -e "\n${C_BLUE}[1/10] Installing dependencies...${C_RESET}"
     apt-get update
     apt-get install -y wget curl git build-essential openssl netcat-openbsd jq
     
-    # Step 2: Check port 53
-    echo -e "\n${C_BLUE}[2/13] Checking port 53...${C_RESET}"
-    systemctl stop systemd-resolved 2>/dev/null
-    systemctl disable systemd-resolved 2>/dev/null
-    chattr -i /etc/resolv.conf 2>/dev/null
-    rm -f /etc/resolv.conf
-    echo "nameserver 8.8.8.8" > /etc/resolv.conf
-    echo "nameserver 1.1.1.1" >> /etc/resolv.conf
-    chattr +i /etc/resolv.conf 2>/dev/null
+    # Step 2: Install Go
+    echo -e "\n${C_BLUE}[2/10] Installing Go...${C_RESET}"
+    if ! command -v go &> /dev/null; then
+        wget -q https://go.dev/dl/go1.21.5.linux-amd64.tar.gz
+        rm -rf /usr/local/go
+        tar -C /usr/local -xzf go1.21.5.linux-amd64.tar.gz
+        rm -f go1.21.5.linux-amd64.tar.gz
+        export PATH=$PATH:/usr/local/go/bin
+        echo 'export PATH=$PATH:/usr/local/go/bin' >> /etc/profile
+    fi
     
-    # Step 3: Configure firewall
-    echo -e "\n${C_BLUE}[3/13] Configuring firewall...${C_RESET}"
+    # Step 3: Build DNSTT from source
+    echo -e "\n${C_BLUE}[3/10] Building DNSTT from source...${C_RESET}"
+    build_dnstt_from_source
+    
+    # Step 4: Apply ULTRA BOOST optimizations
+    echo -e "\n${C_BLUE}[4/10] Applying ULTRA BOOST optimizations (10x speed)...${C_RESET}"
+    apply_ultra_boost
+    
+    # Step 5: Configure firewall
+    echo -e "\n${C_BLUE}[5/10] Configuring firewall...${C_RESET}"
     configure_firewall
     
-    # Step 4: Choose forwarding destination
-    echo -e "\n${C_BLUE}[4/13] Choose forwarding destination:${C_RESET}"
+    # Step 6: Choose forwarding destination (FALCON STYLE)
+    echo -e "\n${C_BLUE}[6/10] Choose forwarding destination:${C_RESET}"
     echo -e "  ${C_GREEN}[1]${C_RESET} ➡️ Forward to SSH (port 22)"
     echo -e "  ${C_GREEN}[2]${C_RESET} ➡️ Forward to V2Ray (port 8787)"
     read -p "👉 Enter your choice [2]: " fwd_choice
@@ -2991,83 +3055,133 @@ install_dnstt() {
         forward_port="8787"
         forward_desc="V2Ray (port 8787)"
     fi
-    FORWARD_TARGET="127.0.0.1:$forward_port"
     
-    # Step 5: Domain configuration
-    echo -e "\n${C_BLUE}[5/13] Domain configuration...${C_RESET}"
-    echo -e "  ${C_GREEN}[1]${C_RESET} Use existing domain from DNS Manager"
-    echo -e "  ${C_GREEN}[2]${C_RESET} Generate new domain with Desec.io"
+    # Step 7: Domain configuration (DESEC)
+    echo -e "\n${C_BLUE}[7/10] Domain configuration...${C_RESET}"
+    echo -e "  ${C_GREEN}[1]${C_RESET} Custom domain (Enter your own)"
+    echo -e "  ${C_GREEN}[2]${C_RESET} Auto-generate with Desec.io"
     read -p "👉 Enter your choice [2]: " domain_choice
     domain_choice=${domain_choice:-2}
     
-    if [[ "$domain_choice" == "1" ]] && [ -f "$DNS_INFO_FILE" ]; then
-        source "$DNS_INFO_FILE"
-        DOMAIN="$FULL_DOMAIN"
-        echo -e "${C_GREEN}✅ Using existing domain: $DOMAIN${C_RESET}"
+    if [[ "$domain_choice" == "1" ]]; then
+        read -p "👉 Enter tunnel domain: " DOMAIN
     else
-        generate_dns_record
-        if [ $? -eq 0 ] && [ -f "$DNS_INFO_FILE" ]; then
-            source "$DNS_INFO_FILE"
-            DOMAIN="$FULL_DOMAIN"
-        else
+        generate_desec_domain
+        if [ $? -ne 0 ]; then
             echo -e "${C_YELLOW}⚠️ Domain generation failed. Please enter domain manually:${C_RESET}"
             read -p "👉 Enter tunnel domain: " DOMAIN
         fi
     fi
     
-    # Step 6: MTU configuration
-    echo -e "\n${C_BLUE}[6/13] MTU configuration...${C_RESET}"
+    # Step 8: MTU configuration
+    echo -e "\n${C_BLUE}[8/10] MTU configuration...${C_RESET}"
     mtu_selection_during_install
     
-    # Step 7: Install Go
-    echo -e "\n${C_BLUE}[7/13] Installing Go...${C_RESET}"
-    if ! command -v go &> /dev/null; then
-        wget -q https://go.dev/dl/go1.21.5.linux-amd64.tar.gz
-        rm -rf /usr/local/go
-        tar -C /usr/local -xzf go1.21.5.linux-amd64.tar.gz
-        rm -f go1.21.5.linux-amd64.tar.gz
-        export PATH=$PATH:/usr/local/go/bin
-        echo 'export PATH=$PATH:/usr/local/go/bin' >> /etc/profile
-    fi
-    
-    # Step 8: Build DNSTT from source
-    echo -e "\n${C_BLUE}[8/13] Building DNSTT from source...${C_RESET}"
-    build_dnstt_from_source
-    if [ $? -ne 0 ]; then
-        echo -e "\n${C_RED}❌ Failed to build DNSTT. Aborting installation.${C_RESET}"
-        safe_read "" dummy
-        return 1
-    fi
-    
     # Step 9: Generate keys
-    echo -e "\n${C_BLUE}[9/13] Generating encryption keys...${C_RESET}"
+    echo -e "\n${C_BLUE}[9/10] Generating keys...${C_RESET}"
     generate_keys
-    if [ $? -ne 0 ]; then
-        echo -e "\n${C_RED}❌ Failed to generate keys. Aborting installation.${C_RESET}"
-        safe_read "" dummy
-        return 1
+    
+    # Step 10: Create service
+    echo -e "\n${C_BLUE}[10/10] Creating service...${C_RESET}"
+    create_dnstt_service "$DOMAIN" "$MTU" "$forward_port"
+    
+    # Save DNSTT info
+    save_dnstt_info "$DOMAIN" "$PUBLIC_KEY" "$MTU" "$forward_port" "$forward_desc"
+    
+    # Start service
+    echo -e "\n${C_BLUE}🚀 Starting DNSTT service...${C_RESET}"
+    systemctl start dnstt.service
+    sleep 3
+    
+    if systemctl is-active --quiet dnstt.service; then
+        echo -e "${C_GREEN}✅ Service started successfully${C_RESET}"
+    else
+        echo -e "${C_RED}❌ Service failed to start${C_RESET}"
+        journalctl -u dnstt.service -n 20 --no-pager
     fi
     
-    # ========== ULTRA BOOST INSIDE DNSTT ONLY ==========
-    echo -e "\n${C_BLUE}[10/13] Applying ULTRA BOOST optimizations for DNSTT...${C_RESET}"
+    # Show details and client commands
+    show_dnstt_details
+    show_client_commands "$DOMAIN" "$MTU" "$forward_port"
     
-    echo -e "${C_GREEN}Enabling BBR v3...${C_RESET}"
+    safe_read "" dummy
+}
+
+# ========== ULTRA BOOST FUNCTIONS ==========
+apply_ultra_boost() {
+    echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    echo -e "${C_BLUE}           🚀 APPLYING ULTRA BOOST (10x SPEED)${C_RESET}"
+    echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    
+    enable_bbr_v3
+    optimize_ultra_buffers
+    optimize_aggressive_keepalive
+    optimize_advanced_tcp
+    optimize_ultra_filedesc
+    
+    echo -e "\n${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
+    echo -e "${C_GREEN}           ✅ ULTRA BOOST ACTIVATED - 10x SPEED!${C_RESET}"
+    echo -e "${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
+    echo -e "  ${C_CYAN}• BBR v3 with fq_codel:${C_RESET} Active"
+    echo -e "  ${C_CYAN}• Ultra Buffers:${C_RESET} 32MB"
+    echo -e "  ${C_CYAN}• Aggressive Keepalive:${C_RESET} 10s"
+    echo -e "  ${C_CYAN}• Advanced TCP Tuning:${C_RESET} 12 parameters"
+    echo -e "  ${C_CYAN}• File Descriptors:${C_RESET} 8M"
+    
+    sleep 2
+}
+
+enable_bbr_v3() {
+    echo -e "${C_GREEN}[1/5] Enabling BBR v3...${C_RESET}"
     modprobe tcp_bbr 2>/dev/null
+    echo "tcp_bbr" >> /etc/modules-load.d/modules.conf 2>/dev/null
     sysctl -w net.ipv4.tcp_congestion_control=bbr > /dev/null 2>&1
     sysctl -w net.core.default_qdisc=fq_codel > /dev/null 2>&1
     
-    echo -e "${C_GREEN}Setting ultra buffers (32MB)...${C_RESET}"
+    cat >> /etc/sysctl.conf << EOF
+
+# BBR v3 Congestion Control with fq_codel
+net.ipv4.tcp_congestion_control = bbr
+net.core.default_qdisc = fq_codel
+EOF
+}
+
+optimize_ultra_buffers() {
+    echo -e "${C_GREEN}[2/5] Setting ultra buffers (32MB)...${C_RESET}"
     sysctl -w net.core.rmem_max=33554432 > /dev/null 2>&1
     sysctl -w net.core.wmem_max=33554432 > /dev/null 2>&1
     sysctl -w net.ipv4.tcp_rmem="4096 87380 33554432" > /dev/null 2>&1
     sysctl -w net.ipv4.tcp_wmem="4096 65536 33554432" > /dev/null 2>&1
+    sysctl -w net.core.optmem_max=33554432 > /dev/null 2>&1
     
-    echo -e "${C_GREEN}Setting aggressive keepalive (10s)...${C_RESET}"
+    cat >> /etc/sysctl.conf << EOF
+
+# Ultra Network Buffers for MTU 512 (32MB) - 10x speed
+net.core.rmem_max = 33554432
+net.core.wmem_max = 33554432
+net.ipv4.tcp_rmem = 4096 87380 33554432
+net.ipv4.tcp_wmem = 4096 65536 33554432
+net.core.optmem_max = 33554432
+EOF
+}
+
+optimize_aggressive_keepalive() {
+    echo -e "${C_GREEN}[3/5] Setting aggressive keepalive (10s)...${C_RESET}"
     sysctl -w net.ipv4.tcp_keepalive_time=10 > /dev/null 2>&1
     sysctl -w net.ipv4.tcp_keepalive_intvl=2 > /dev/null 2>&1
     sysctl -w net.ipv4.tcp_keepalive_probes=2 > /dev/null 2>&1
     
-    echo -e "${C_GREEN}Applying advanced TCP tuning...${C_RESET}"
+    cat >> /etc/sysctl.conf << EOF
+
+# Aggressive TCP Keepalive for MTU 512 (10s) - 10x speed
+net.ipv4.tcp_keepalive_time = 10
+net.ipv4.tcp_keepalive_intvl = 2
+net.ipv4.tcp_keepalive_probes = 2
+EOF
+}
+
+optimize_advanced_tcp() {
+    echo -e "${C_GREEN}[4/5] Applying advanced TCP tuning...${C_RESET}"
     sysctl -w net.ipv4.tcp_sack=1 > /dev/null 2>&1
     sysctl -w net.ipv4.tcp_dsack=1 > /dev/null 2>&1
     sysctl -w net.ipv4.tcp_fack=1 > /dev/null 2>&1
@@ -3081,21 +3195,9 @@ install_dnstt() {
     sysctl -w net.ipv4.tcp_thin_linear_timeouts=1 > /dev/null 2>&1
     sysctl -w net.ipv4.tcp_autocorking=0 > /dev/null 2>&1
     
-    echo -e "${C_GREEN}Setting ultra file descriptors (8M)...${C_RESET}"
-    ulimit -n 8388608 2>/dev/null || true
-    
     cat >> /etc/sysctl.conf << EOF
 
-# ULTRA BOOST for DNSTT
-net.ipv4.tcp_congestion_control = bbr
-net.core.default_qdisc = fq_codel
-net.core.rmem_max = 33554432
-net.core.wmem_max = 33554432
-net.ipv4.tcp_rmem = 4096 87380 33554432
-net.ipv4.tcp_wmem = 4096 65536 33554432
-net.ipv4.tcp_keepalive_time = 10
-net.ipv4.tcp_keepalive_intvl = 2
-net.ipv4.tcp_keepalive_probes = 2
+# Advanced TCP Tuning for MTU 512 - 10x speed
 net.ipv4.tcp_sack = 1
 net.ipv4.tcp_dsack = 1
 net.ipv4.tcp_fack = 1
@@ -3109,41 +3211,27 @@ net.ipv4.tcp_early_retrans = 3
 net.ipv4.tcp_thin_linear_timeouts = 1
 net.ipv4.tcp_autocorking = 0
 EOF
+}
+
+optimize_ultra_filedesc() {
+    echo -e "${C_GREEN}[5/5] Setting ultra file descriptors (8M)...${C_RESET}"
+    ulimit -n 8388608 2>/dev/null || ulimit -n 4194304 2>/dev/null || true
     
-    echo -e "\n${C_GREEN}✅ ULTRA BOOST ACTIVATED FOR DNSTT - 10x SPEED!${C_RESET}"
-    sleep 2
-    # ========== END OF ULTRA BOOST ==========
-    
-    # Step 11: Create service
-    echo -e "\n${C_BLUE}[11/13] Creating DNSTT service...${C_RESET}"
-    create_dnstt_service_ultra "$DOMAIN" "$MTU" "$FORWARD_TARGET" "$forward_desc"
-    
-    # Step 12: Save configuration
-    echo -e "\n${C_BLUE}[12/13] Saving configuration...${C_RESET}"
-    save_dnstt_info "$DOMAIN" "$PUBLIC_KEY" "$MTU" "$forward_port" "$forward_desc"
-    
-    # Step 13: Check service status and show details
-    echo -e "\n${C_BLUE}[13/13] Checking service status...${C_RESET}"
-    sleep 3
-    
-    if systemctl is-active --quiet dnstt.service; then
-        echo -e "\n${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
-        echo -e "${C_GREEN}           ✅ DNSTT INSTALLED SUCCESSFULLY!${C_RESET}"
-        echo -e "${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
-        show_dnstt_details
-        show_client_commands_ultra "$DOMAIN" "$MTU" "$forward_port"
-    else
-        echo -e "\n${C_RED}❌ DNSTT service failed to start${C_RESET}"
-        echo -e "\n${C_YELLOW}Displaying last 20 lines of service log:${C_RESET}"
-        journalctl -u dnstt.service -n 20 --no-pager
-    fi
-    
-    safe_read "" dummy
+    cat > /etc/security/limits.d/99-ultra-boost.conf << 'EOF'
+# Ultra file descriptors for MTU 512 - 10x speed
+* soft nofile 8388608
+* hard nofile 8388608
+root soft nofile 8388608
+root hard nofile 8388608
+* soft nproc 8388608
+* hard nproc 8388608
+EOF
 }
 
 # ========== PROTOCOL MENU ==========
 protocol_menu() {
     while true; do
+        get_ip_info
         clear
         show_banner
         echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
@@ -3193,6 +3281,7 @@ protocol_menu() {
 # ========== MAIN MENU ==========
 main_menu() {
     while true; do
+        get_ip_info
         show_banner
         echo
         echo -e "   ${C_TITLE}═══════════════════[ ${C_BOLD}👤 USER MANAGEMENT ${C_RESET}${C_TITLE}]═══════════════════${C_RESET}"
@@ -3312,6 +3401,14 @@ initial_setup() {
     setup_trial_cleanup
     setup_limiter_service
     setup_ssh_banner_config
+    
+    get_ip_info
+    
+    echo -e "${C_GREEN}✅ Initial setup complete${C_RESET}"
+    echo -e "  Server IP: ${C_CYAN}$IP${C_RESET}"
+    echo -e "  Location:  ${C_CYAN}$LOCATION${C_RESET}"
+    echo -e "  ISP:       ${C_CYAN}$ISP${C_RESET}"
+    sleep 2
 }
 
 # ========== START ==========
@@ -3320,5 +3417,6 @@ if [[ $EUID -ne 0 ]]; then
     exit 1
 fi
 
+create_directories
 initial_setup
 main_menu
