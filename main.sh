@@ -990,7 +990,7 @@ bulk_create_users() {
     safe_read "" dummy
 }
 
-# ========== LIMITER SERVICE WITH BANNER ==========
+# ========== LIMITER SERVICE WITH BANNER (FALCON + YOUR DECORATIONS) ==========
 setup_limiter_service() {
     cat > "$LIMITER_SCRIPT" << 'EOF'
 #!/bin/bash
@@ -1053,120 +1053,122 @@ generate_user_banner() {
         fi
     fi
     
-    # Create banner file with HTML tags (YOUR BANNER)
+    # Create banner file with HTML tags (FALCON STYLE + YOUR DECORATIONS)
     echo -e "<font color=\"white\">" > "$BANNER_DIR/${user}.txt"
     
-    # Mstari wa kwanza
+    # === YOUR DECORATIONS (TOP) ===
     echo -e "<H3 style=\"text-align:center\">" >> "$BANNER_DIR/${user}.txt"
     echo -e "  <span style=\"padding: 8px 15px; display: inline-block; margin: 3px; width: 180px;\">" >> "$BANNER_DIR/${user}.txt"
     echo -e "    ===============================" >> "$BANNER_DIR/${user}.txt"
     echo -e "  </span>" >> "$BANNER_DIR/${user}.txt"
     echo -e "</H3>" >> "$BANNER_DIR/${user}.txt"
     
-    # Nafasi
     echo -e "<H3 style=\"text-align:center\">" >> "$BANNER_DIR/${user}.txt"
     echo -e "  <span style=\"padding: 8px 15px; display: inline-block; margin: 3px;\"></span>" >> "$BANNER_DIR/${user}.txt"
     echo -e "</H3>" >> "$BANNER_DIR/${user}.txt"
     
-    # WELCOME TO VOLTRON TECH
     echo -e "<H3 style=\"text-align:center\">" >> "$BANNER_DIR/${user}.txt"
     echo -e "  <span style=\"padding: 8px 15px; display: inline-block; margin: 3px;\">" >> "$BANNER_DIR/${user}.txt"
     echo -e "    WELCOME TO VOLTRON TECH" >> "$BANNER_DIR/${user}.txt"
     echo -e "  </span>" >> "$BANNER_DIR/${user}.txt"
     echo -e "</H3>" >> "$BANNER_DIR/${user}.txt"
     
-    # Mstari wa pili
     echo -e "<H3 style=\"text-align:center\">" >> "$BANNER_DIR/${user}.txt"
     echo -e "  <span style=\"padding: 8px 15px; display: inline-block; margin: 3px; width: 180px;\">" >> "$BANNER_DIR/${user}.txt"
     echo -e "    ===============================" >> "$BANNER_DIR/${user}.txt"
     echo -e "  </span>" >> "$BANNER_DIR/${user}.txt"
     echo -e "</H3>" >> "$BANNER_DIR/${user}.txt"
     
-    # SOUTH AFRICA SERVER
+    echo -e "<H3 style=\"text-align:center\">" >> "$BANNER_DIR/${user}.txt"
+    echo -e "  <span style=\"padding: 8px 15px; display: inline-block; margin: 3px;\"></span>" >> "$BANNER_DIR/${user}.txt"
+    echo -e "</H3>" >> "$BANNER_DIR/${user}.txt"
+    
     echo -e "<H3 style=\"text-align:center\">" >> "$BANNER_DIR/${user}.txt"
     echo -e "  <span style=\"padding: 8px 15px; display: inline-block; margin: 3px;\">" >> "$BANNER_DIR/${user}.txt"
     echo -e "    🇿🇦 SOUTH AFRICA SERVER 🇿🇦" >> "$BANNER_DIR/${user}.txt"
     echo -e "  </span>" >> "$BANNER_DIR/${user}.txt"
     echo -e "</H3>" >> "$BANNER_DIR/${user}.txt"
     
-    # HALOTEL UNLIMITED
     echo -e "<H3 style=\"text-align:center\">" >> "$BANNER_DIR/${user}.txt"
     echo -e "  <span style=\"padding: 8px 15px; display: inline-block; margin: 3px;\">" >> "$BANNER_DIR/${user}.txt"
     echo -e "    📱 HALOTEL UNLIMITED" >> "$BANNER_DIR/${user}.txt"
     echo -e "  </span>" >> "$BANNER_DIR/${user}.txt"
     echo -e "</H3>" >> "$BANNER_DIR/${user}.txt"
     
-    # ACCOUNT STATUS
+    echo -e "<H3 style=\"text-align:center\">" >> "$BANNER_DIR/${user}.txt"
+    echo -e "  <span style=\"padding: 8px 15px; display: inline-block; margin: 3px;\"></span>" >> "$BANNER_DIR/${user}.txt"
+    echo -e "</H3>" >> "$BANNER_DIR/${user}.txt"
+    
+    # === FALCON ACCOUNT STATUS ===
     echo -e "<br><font color=\"yellow\"><b>      ✨ ACCOUNT STATUS ✨      </b></font><br><br>" >> "$BANNER_DIR/${user}.txt"
     echo -e "<font color=\"white\">👤 <b>Username   :</b> ${user}</font><br>" >> "$BANNER_DIR/${user}.txt"
     echo -e "<font color=\"white\">📅 <b>Expiration :</b> ${expiry} (${days_left})</font><br>" >> "$BANNER_DIR/${user}.txt"
     echo -e "<font color=\"white\">📊 <b>Bandwidth  :</b> ${bw_info}</font><br>" >> "$BANNER_DIR/${user}.txt"
     echo -e "<font color=\"white\">🔌 <b>Sessions   :</b> ${online_count}/${limit}</font><br><br>" >> "$BANNER_DIR/${user}.txt"
     
-    # RULES
+    # === YOUR DECORATIONS (BOTTOM) ===
     echo -e "<H3 style=\"text-align:left\">" >> "$BANNER_DIR/${user}.txt"
     echo -e "  <span style=\"padding: 8px 15px; display: inline-block; margin: 3px; margin-left: 20px;\">" >> "$BANNER_DIR/${user}.txt"
     echo -e "    ⚠️ RULES:" >> "$BANNER_DIR/${user}.txt"
     echo -e "  </span>" >> "$BANNER_DIR/${user}.txt"
     echo -e "</H3>" >> "$BANNER_DIR/${user}.txt"
     
-    # NO SPAM
     echo -e "<H3 style=\"text-align:left\">" >> "$BANNER_DIR/${user}.txt"
     echo -e "  <span style=\"padding: 8px 15px; display: inline-block; margin: 3px; margin-left: 30px;\">" >> "$BANNER_DIR/${user}.txt"
     echo -e "    ❌ NO SPAM" >> "$BANNER_DIR/${user}.txt"
     echo -e "  </span>" >> "$BANNER_DIR/${user}.txt"
     echo -e "</H3>" >> "$BANNER_DIR/${user}.txt"
     
-    # NO DDOS
     echo -e "<H3 style=\"text-align:left\">" >> "$BANNER_DIR/${user}.txt"
     echo -e "  <span style=\"padding: 8px 15px; display: inline-block; margin: 3px; margin-left: 30px;\">" >> "$BANNER_DIR/${user}.txt"
     echo -e "    ❌ NO DDOS" >> "$BANNER_DIR/${user}.txt"
     echo -e "  </span>" >> "$BANNER_DIR/${user}.txt"
     echo -e "</H3>" >> "$BANNER_DIR/${user}.txt"
     
-    # NO HACKING
     echo -e "<H3 style=\"text-align:left\">" >> "$BANNER_DIR/${user}.txt"
     echo -e "  <span style=\"padding: 8px 15px; display: inline-block; margin: 3px; margin-left: 30px;\">" >> "$BANNER_DIR/${user}.txt"
     echo -e "    ❌ NO HACKING" >> "$BANNER_DIR/${user}.txt"
     echo -e "  </span>" >> "$BANNER_DIR/${user}.txt"
     echo -e "</H3>" >> "$BANNER_DIR/${user}.txt"
     
-    # NO CARDING
     echo -e "<H3 style=\"text-align:left\">" >> "$BANNER_DIR/${user}.txt"
     echo -e "  <span style=\"padding: 8px 15px; display: inline-block; margin: 3px; margin-left: 30px;\">" >> "$BANNER_DIR/${user}.txt"
     echo -e "    ❌ NO CARDING" >> "$BANNER_DIR/${user}.txt"
     echo -e "  </span>" >> "$BANNER_DIR/${user}.txt"
     echo -e "</H3>" >> "$BANNER_DIR/${user}.txt"
     
-    # NO TORRENT
     echo -e "<H3 style=\"text-align:left\">" >> "$BANNER_DIR/${user}.txt"
     echo -e "  <span style=\"padding: 8px 15px; display: inline-block; margin: 3px; margin-left: 30px;\">" >> "$BANNER_DIR/${user}.txt"
     echo -e "    ❌ NO TORRENT" >> "$BANNER_DIR/${user}.txt"
     echo -e "  </span>" >> "$BANNER_DIR/${user}.txt"
     echo -e "</H3>" >> "$BANNER_DIR/${user}.txt"
     
-    # NO OVER DOWNLOAD
     echo -e "<H3 style=\"text-align:left\">" >> "$BANNER_DIR/${user}.txt"
     echo -e "  <span style=\"padding: 8px 15px; display: inline-block; margin: 3px; margin-left: 30px;\">" >> "$BANNER_DIR/${user}.txt"
     echo -e "    ❌ NO OVER DOWNLOAD" >> "$BANNER_DIR/${user}.txt"
     echo -e "  </span>" >> "$BANNER_DIR/${user}.txt"
     echo -e "</H3>" >> "$BANNER_DIR/${user}.txt"
     
-    # JOIN GROUP
+    echo -e "<H3 style=\"text-align:center\">" >> "$BANNER_DIR/${user}.txt"
+    echo -e "  <span style=\"padding: 8px 15px; display: inline-block; margin: 3px;\"></span>" >> "$BANNER_DIR/${user}.txt"
+    echo -e "</H3>" >> "$BANNER_DIR/${user}.txt"
+    
     echo -e "<H3 style=\"text-align:center\">" >> "$BANNER_DIR/${user}.txt"
     echo -e "  <span style=\"padding: 8px 15px; display: inline-block; margin: 3px;\">" >> "$BANNER_DIR/${user}.txt"
     echo -e "    📞 JOIN GROUP:" >> "$BANNER_DIR/${user}.txt"
     echo -e "  </span>" >> "$BANNER_DIR/${user}.txt"
     echo -e "</H3>" >> "$BANNER_DIR/${user}.txt"
     
-    # WhatsApp Link
     echo -e "<H3 style=\"text-align:center\">" >> "$BANNER_DIR/${user}.txt"
     echo -e "  <span style=\"padding: 8px 15px; display: inline-block; margin: 3px; word-break: break-all;\">" >> "$BANNER_DIR/${user}.txt"
     echo -e "    https://chat.whatsapp.com/KVMPv89XSu83UnBWUZCIQf" >> "$BANNER_DIR/${user}.txt"
     echo -e "  </span>" >> "$BANNER_DIR/${user}.txt"
     echo -e "</H3>" >> "$BANNER_DIR/${user}.txt"
     
-    # Signature
+    echo -e "<H3 style=\"text-align:center\">" >> "$BANNER_DIR/${user}.txt"
+    echo -e "  <span style=\"padding: 8px 15px; display: inline-block; margin: 3px;\"></span>" >> "$BANNER_DIR/${user}.txt"
+    echo -e "</H3>" >> "$BANNER_DIR/${user}.txt"
+    
     echo -e "<H3 style=\"text-align:center\">" >> "$BANNER_DIR/${user}.txt"
     echo -e "  <span style=\"padding: 8px 15px; display: inline-block; margin: 3px;\">" >> "$BANNER_DIR/${user}.txt"
     echo -e "    @CONFIG BY ꧁༺VOLTRON BOY༻꧂™" >> "$BANNER_DIR/${user}.txt"
@@ -1364,7 +1366,6 @@ ssh_banner_menu() {
         echo -e "  ${C_RED}2)${C_RESET} Disable Banner"
         echo -e "  ${C_GREEN}3)${C_RESET} Preview Banner (for a user)"
         echo -e "  ${C_GREEN}4)${C_RESET} Test IP Information"
-        echo -e "  ${C_GREEN}5)${C_RESET} Fix Banner Permissions"
         echo ""
         echo -e "  ${C_RED}0)${C_RESET} Return"
         echo ""
@@ -1401,15 +1402,6 @@ ssh_banner_menu() {
                 ;;
             4)
                 test_ip_info
-                ;;
-            5)
-                echo -e "\n${C_BLUE}Fixing banner permissions...${C_RESET}"
-                chmod 755 "$BANNER_DIR"
-                chmod 644 "$BANNER_DIR"/*.txt 2>/dev/null
-                systemctl restart voltrontech-limiter.service
-                systemctl restart sshd 2>/dev/null || systemctl restart ssh 2>/dev/null
-                echo -e "${C_GREEN}✅ Banner permissions fixed${C_RESET}"
-                safe_read "" dummy
                 ;;
             0) return ;;
             *) echo -e "\n${C_RED}❌ Invalid option${C_RESET}"; sleep 2 ;;
@@ -2551,7 +2543,7 @@ mtu_selection_during_install() {
     echo "$MTU" > "$CONFIG_DIR/mtu"
 }
 
-# Firewall configuration
+# Firewall configuration (FIXED FOR DNSTT)
 configure_firewall() {
     echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
     echo -e "${C_BLUE}           🔥 FIREWALL CONFIGURATION${C_RESET}"
@@ -2591,14 +2583,19 @@ EOF
     iptables -A INPUT -i lo -j ACCEPT
     iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
     
-    iptables -I INPUT 1 -p udp --dport 5300 -j ACCEPT
-    iptables -I OUTPUT 1 -p udp --sport 5300 -j ACCEPT
-    iptables -I INPUT 1 -p udp --dport 53 -j ACCEPT
-    iptables -I OUTPUT 1 -p udp --sport 53 -j ACCEPT
+    # UDP 53 redirect to 5300
+    iptables -t nat -A PREROUTING -p udp --dport 53 -j REDIRECT --to-ports 5300
     
-    iptables -t nat -I PREROUTING 1 -p udp --dport 53 -j REDIRECT --to-ports 5300
+    # Allow UDP 5300 (DNSTT)
+    iptables -A INPUT -p udp --dport 5300 -j ACCEPT
+    iptables -A OUTPUT -p udp --sport 5300 -j ACCEPT
     
-    iptables -I INPUT 2 -p tcp --dport 22 -j ACCEPT
+    # Allow UDP 53 (DNS)
+    iptables -A INPUT -p udp --dport 53 -j ACCEPT
+    iptables -A OUTPUT -p udp --sport 53 -j ACCEPT
+    
+    # Allow SSH
+    iptables -A INPUT -p tcp --dport 22 -j ACCEPT
     
     echo -e "${C_GREEN}[5/5] Saving iptables rules...${C_RESET}"
     mkdir -p /etc/iptables
@@ -3068,11 +3065,11 @@ install_dnstt() {
     echo -e "\n${C_BLUE}[4/10] Applying ULTRA BOOST optimizations (10x speed)...${C_RESET}"
     apply_ultra_boost
     
-    # Step 5: Configure firewall
+    # Step 5: Configure firewall (FIXED)
     echo -e "\n${C_BLUE}[5/10] Configuring firewall...${C_RESET}"
     configure_firewall
     
-    # Step 6: Choose forwarding destination (FALCON STYLE)
+    # Step 6: Choose forwarding destination
     echo -e "\n${C_BLUE}[6/10] Choose forwarding destination:${C_RESET}"
     echo -e "  ${C_GREEN}[1]${C_RESET} ➡️ Forward to SSH (port 22)"
     echo -e "  ${C_GREEN}[2]${C_RESET} ➡️ Forward to V2Ray (port 8787)"
