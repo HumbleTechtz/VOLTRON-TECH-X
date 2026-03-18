@@ -7,7 +7,7 @@
 # Author: Voltron Tech
 
 # ========== VOLTRONTECH DESEC.IO CONFIG ==========
-DESEC_TOKEN="73c0f39c-da35-47f2-859f-f16355e2c734"
+DESEC_TOKEN="37f99348-48ba-45af-af8b-baa143f33b39"
 DESEC_DOMAIN="voltrontechtx.shop"
 DNS_INFO_FILE="/etc/voltrontech/dns_info.conf"
 
