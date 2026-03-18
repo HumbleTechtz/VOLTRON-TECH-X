@@ -3,11 +3,10 @@
 # ========== VOLTRON TECH MANAGER ==========
 # Version: 10.0 Premium Edition
 # Description: Complete Server Management Script
-# Based on: FirewallFalcon Manager + Voltron Tech DNSTT
 # Author: Voltron Tech
 
 # ========== VOLTRONTECH DESEC.IO CONFIG ==========
-DESEC_TOKEN="37f99348-48ba-45af-af8b-baa143f33b39"
+DESEC_TOKEN="3WxD4Hkiu5VYBLWVizVhf1rzyKbz"
 DESEC_DOMAIN="voltrontechtx.shop"
 DNS_INFO_FILE="/etc/voltrontech/dns_info.conf"
 
@@ -92,7 +91,7 @@ create_directories() {
     touch "$BANNER_ENABLED"
 }
 
-# ========== GET IP, LOCATION, ISP (FIXED) ==========
+# ========== GET IP, LOCATION, ISP ==========
 get_ip_info() {
     mkdir -p "$DB_DIR/cache"
     
@@ -174,91 +173,6 @@ safe_read() {
     local prompt="$1"
     local var_name="$2"
     read -p "$prompt" "$var_name"
-}
-
-# ========== CHECK AND OPEN FIREWALL PORT ==========
-check_and_open_firewall_port() {
-    local port="$1"
-    local protocol="${2:-tcp}"
-    local firewall_detected=false
-
-    if command -v ufw &> /dev/null && ufw status | grep -q "Status: active"; then
-        firewall_detected=true
-        if ! ufw status | grep -qw "$port/$protocol"; then
-            echo -e "${C_YELLOW}🔥 UFW firewall is active and port ${port}/${protocol} is closed.${C_RESET}"
-            read -p "👉 Do you want to open this port now? (y/n): " confirm
-            if [[ "$confirm" == "y" || "$confirm" == "Y" ]]; then
-                ufw allow "$port/$protocol"
-                echo -e "${C_GREEN}✅ Port ${port}/${protocol} has been opened in UFW.${C_RESET}"
-            else
-                echo -e "${C_RED}❌ Warning: Port ${port}/${protocol} was not opened. The service may not work correctly.${C_RESET}"
-                return 1
-            fi
-        else
-             echo -e "${C_GREEN}✅ Port ${port}/${protocol} is already open in UFW.${C_RESET}"
-        fi
-    fi
-
-    if command -v firewall-cmd &> /dev/null && systemctl is-active --quiet firewalld; then
-        firewall_detected=true
-        if ! firewall-cmd --list-ports --permanent | grep -qw "$port/$protocol"; then
-            echo -e "${C_YELLOW}🔥 firewalld is active and port ${port}/${protocol} is not open.${C_RESET}"
-            read -p "👉 Do you want to open this port now? (y/n): " confirm
-            if [[ "$confirm" == "y" || "$confirm" == "Y" ]]; then
-                firewall-cmd --add-port="$port/$protocol" --permanent
-                firewall-cmd --reload
-                echo -e "${C_GREEN}✅ Port ${port}/${protocol} has been opened in firewalld.${C_RESET}"
-            else
-                echo -e "${C_RED}❌ Warning: Port ${port}/${protocol} was not opened. The service may not work correctly.${C_RESET}"
-                return 1
-            fi
-        else
-            echo -e "${C_GREEN}✅ Port ${port}/${protocol} is already open in firewalld.${C_RESET}"
-        fi
-    fi
-
-    if ! $firewall_detected; then
-        echo -e "${C_BLUE}ℹ️ No active firewall detected. Assuming ports are open.${C_RESET}"
-    fi
-    return 0
-}
-
-# ========== CHECK AND FREE PORTS ==========
-check_and_free_ports() {
-    local ports_to_check=("$@")
-    for port in "${ports_to_check[@]}"; do
-        echo -e "\n${C_BLUE}🔎 Checking if port $port is available...${C_RESET}"
-        local conflicting_process_info
-        conflicting_process_info=$(ss -lntp | grep ":$port\s" || ss -lunp | grep ":$port\s")
-        
-        if [[ -n "$conflicting_process_info" ]]; then
-            local conflicting_pid
-            conflicting_pid=$(echo "$conflicting_process_info" | grep -oP 'pid=\K[0-9]+' | head -n 1)
-            local conflicting_name
-            conflicting_name=$(echo "$conflicting_process_info" | grep -oP 'users:\(\("(\K[^"]+)' | head -n 1)
-            
-            echo -e "${C_YELLOW}⚠️ Warning: Port $port is in use by process '${conflicting_name:-unknown}' (PID: ${conflicting_pid:-N/A}).${C_RESET}"
-            read -p "👉 Do you want to attempt to stop this process? (y/n): " kill_confirm
-            if [[ "$kill_confirm" == "y" || "$kill_confirm" == "Y" ]]; then
-                echo -e "${C_GREEN}🛑 Stopping process PID $conflicting_pid...${C_RESET}"
-                systemctl stop "$(ps -p "$conflicting_pid" -o comm=)" &>/dev/null || kill -9 "$conflicting_pid"
-                sleep 2
-                
-                if ss -lntp | grep -q ":$port\s" || ss -lunp | grep -q ":$port\s"; then
-                     echo -e "${C_RED}❌ Failed to free port $port. Please handle it manually. Aborting.${C_RESET}"
-                     return 1
-                else
-                     echo -e "${C_GREEN}✅ Port $port has been successfully freed.${C_RESET}"
-                fi
-            else
-                echo -e "${C_RED}❌ Cannot proceed without freeing port $port. Aborting.${C_RESET}"
-                return 1
-            fi
-        else
-            echo -e "${C_GREEN}✅ Port $port is free to use.${C_RESET}"
-        fi
-    done
-    return 0
 }
 
 # ========== SELECT USER INTERFACE ==========
@@ -1699,8 +1613,6 @@ install_badvpn() {
         return
     fi
     
-    check_and_open_firewall_port 7300 udp || return
-    
     echo -e "\n${C_GREEN}🔄 Updating package lists...${C_RESET}"
     apt-get update
     echo -e "\n${C_GREEN}📦 Installing required packages...${C_RESET}"
@@ -1903,8 +1815,6 @@ install_voltron_proxy() {
             echo -e "\n${C_RED}❌ Invalid port: $port${C_RESET}"
             return
         fi
-        check_and_free_ports "$port" || return
-        check_and_open_firewall_port "$port" tcp || return
     done
 
     echo -e "\n${C_GREEN}📥 Downloading Voltron Proxy...${C_RESET}"
@@ -2506,6 +2416,127 @@ auto_reboot_menu() {
     esac
 }
 
+# ========== ULTRA BOOST FUNCTIONS ==========
+apply_ultra_boost() {
+    echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    echo -e "${C_BLUE}           🚀 APPLYING ULTRA BOOST (10x SPEED)${C_RESET}"
+    echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    
+    enable_bbr_v3
+    optimize_ultra_buffers
+    optimize_aggressive_keepalive
+    optimize_advanced_tcp
+    optimize_ultra_filedesc
+    
+    echo -e "\n${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
+    echo -e "${C_GREEN}           ✅ ULTRA BOOST ACTIVATED - 10x SPEED!${C_RESET}"
+    echo -e "${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
+    echo -e "  ${C_CYAN}• BBR v3 with fq_codel:${C_RESET} Active"
+    echo -e "  ${C_CYAN}• Ultra Buffers:${C_RESET} 32MB"
+    echo -e "  ${C_CYAN}• Aggressive Keepalive:${C_RESET} 10s"
+    echo -e "  ${C_CYAN}• Advanced TCP Tuning:${C_RESET} 12 parameters"
+    echo -e "  ${C_CYAN}• File Descriptors:${C_RESET} 8M"
+    
+    sleep 2
+}
+
+enable_bbr_v3() {
+    echo -e "${C_GREEN}[1/5] Enabling BBR v3...${C_RESET}"
+    modprobe tcp_bbr 2>/dev/null
+    echo "tcp_bbr" >> /etc/modules-load.d/modules.conf 2>/dev/null
+    sysctl -w net.ipv4.tcp_congestion_control=bbr > /dev/null 2>&1
+    sysctl -w net.core.default_qdisc=fq_codel > /dev/null 2>&1
+    
+    cat >> /etc/sysctl.conf << EOF
+
+# BBR v3 Congestion Control with fq_codel
+net.ipv4.tcp_congestion_control = bbr
+net.core.default_qdisc = fq_codel
+EOF
+}
+
+optimize_ultra_buffers() {
+    echo -e "${C_GREEN}[2/5] Setting ultra buffers (32MB)...${C_RESET}"
+    sysctl -w net.core.rmem_max=33554432 > /dev/null 2>&1
+    sysctl -w net.core.wmem_max=33554432 > /dev/null 2>&1
+    sysctl -w net.ipv4.tcp_rmem="4096 87380 33554432" > /dev/null 2>&1
+    sysctl -w net.ipv4.tcp_wmem="4096 65536 33554432" > /dev/null 2>&1
+    sysctl -w net.core.optmem_max=33554432 > /dev/null 2>&1
+    
+    cat >> /etc/sysctl.conf << EOF
+
+# Ultra Network Buffers for MTU 512 (32MB) - 10x speed
+net.core.rmem_max = 33554432
+net.core.wmem_max = 33554432
+net.ipv4.tcp_rmem = 4096 87380 33554432
+net.ipv4.tcp_wmem = 4096 65536 33554432
+net.core.optmem_max = 33554432
+EOF
+}
+
+optimize_aggressive_keepalive() {
+    echo -e "${C_GREEN}[3/5] Setting aggressive keepalive (10s)...${C_RESET}"
+    sysctl -w net.ipv4.tcp_keepalive_time=10 > /dev/null 2>&1
+    sysctl -w net.ipv4.tcp_keepalive_intvl=2 > /dev/null 2>&1
+    sysctl -w net.ipv4.tcp_keepalive_probes=2 > /dev/null 2>&1
+    
+    cat >> /etc/sysctl.conf << EOF
+
+# Aggressive TCP Keepalive for MTU 512 (10s) - 10x speed
+net.ipv4.tcp_keepalive_time = 10
+net.ipv4.tcp_keepalive_intvl = 2
+net.ipv4.tcp_keepalive_probes = 2
+EOF
+}
+
+optimize_advanced_tcp() {
+    echo -e "${C_GREEN}[4/5] Applying advanced TCP tuning...${C_RESET}"
+    sysctl -w net.ipv4.tcp_sack=1 > /dev/null 2>&1
+    sysctl -w net.ipv4.tcp_dsack=1 > /dev/null 2>&1
+    sysctl -w net.ipv4.tcp_fack=1 > /dev/null 2>&1
+    sysctl -w net.ipv4.tcp_window_scaling=1 > /dev/null 2>&1
+    sysctl -w net.ipv4.tcp_timestamps=1 > /dev/null 2>&1
+    sysctl -w net.ipv4.tcp_slow_start_after_idle=0 > /dev/null 2>&1
+    sysctl -w net.ipv4.tcp_no_metrics_save=1 > /dev/null 2>&1
+    sysctl -w net.ipv4.tcp_moderate_rcvbuf=1 > /dev/null 2>&1
+    sysctl -w net.ipv4.tcp_low_latency=1 > /dev/null 2>&1
+    sysctl -w net.ipv4.tcp_early_retrans=3 > /dev/null 2>&1
+    sysctl -w net.ipv4.tcp_thin_linear_timeouts=1 > /dev/null 2>&1
+    sysctl -w net.ipv4.tcp_autocorking=0 > /dev/null 2>&1
+    
+    cat >> /etc/sysctl.conf << EOF
+
+# Advanced TCP Tuning for MTU 512 - 10x speed
+net.ipv4.tcp_sack = 1
+net.ipv4.tcp_dsack = 1
+net.ipv4.tcp_fack = 1
+net.ipv4.tcp_window_scaling = 1
+net.ipv4.tcp_timestamps = 1
+net.ipv4.tcp_slow_start_after_idle = 0
+net.ipv4.tcp_no_metrics_save = 1
+net.ipv4.tcp_moderate_rcvbuf = 1
+net.ipv4.tcp_low_latency = 1
+net.ipv4.tcp_early_retrans = 3
+net.ipv4.tcp_thin_linear_timeouts = 1
+net.ipv4.tcp_autocorking = 0
+EOF
+}
+
+optimize_ultra_filedesc() {
+    echo -e "${C_GREEN}[5/5] Setting ultra file descriptors (8M)...${C_RESET}"
+    ulimit -n 8388608 2>/dev/null || ulimit -n 4194304 2>/dev/null || true
+    
+    cat > /etc/security/limits.d/99-ultra-boost.conf << 'EOF'
+# Ultra file descriptors for MTU 512 - 10x speed
+* soft nofile 8388608
+* hard nofile 8388608
+root soft nofile 8388608
+root hard nofile 8388608
+* soft nproc 8388608
+* hard nproc 8388608
+EOF
+}
+
 # ========== DNSTT FUNCTIONS ==========
 
 # MTU selection
@@ -3105,127 +3136,6 @@ install_dnstt() {
     show_client_commands "$DOMAIN" "$MTU" "$forward_port"
     
     safe_read "" dummy
-}
-
-# ========== ULTRA BOOST FUNCTIONS ==========
-apply_ultra_boost() {
-    echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "${C_BLUE}           🚀 APPLYING ULTRA BOOST (10x SPEED)${C_RESET}"
-    echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
-    
-    enable_bbr_v3
-    optimize_ultra_buffers
-    optimize_aggressive_keepalive
-    optimize_advanced_tcp
-    optimize_ultra_filedesc
-    
-    echo -e "\n${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "${C_GREEN}           ✅ ULTRA BOOST ACTIVATED - 10x SPEED!${C_RESET}"
-    echo -e "${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "  ${C_CYAN}• BBR v3 with fq_codel:${C_RESET} Active"
-    echo -e "  ${C_CYAN}• Ultra Buffers:${C_RESET} 32MB"
-    echo -e "  ${C_CYAN}• Aggressive Keepalive:${C_RESET} 10s"
-    echo -e "  ${C_CYAN}• Advanced TCP Tuning:${C_RESET} 12 parameters"
-    echo -e "  ${C_CYAN}• File Descriptors:${C_RESET} 8M"
-    
-    sleep 2
-}
-
-enable_bbr_v3() {
-    echo -e "${C_GREEN}[1/5] Enabling BBR v3...${C_RESET}"
-    modprobe tcp_bbr 2>/dev/null
-    echo "tcp_bbr" >> /etc/modules-load.d/modules.conf 2>/dev/null
-    sysctl -w net.ipv4.tcp_congestion_control=bbr > /dev/null 2>&1
-    sysctl -w net.core.default_qdisc=fq_codel > /dev/null 2>&1
-    
-    cat >> /etc/sysctl.conf << EOF
-
-# BBR v3 Congestion Control with fq_codel
-net.ipv4.tcp_congestion_control = bbr
-net.core.default_qdisc = fq_codel
-EOF
-}
-
-optimize_ultra_buffers() {
-    echo -e "${C_GREEN}[2/5] Setting ultra buffers (32MB)...${C_RESET}"
-    sysctl -w net.core.rmem_max=33554432 > /dev/null 2>&1
-    sysctl -w net.core.wmem_max=33554432 > /dev/null 2>&1
-    sysctl -w net.ipv4.tcp_rmem="4096 87380 33554432" > /dev/null 2>&1
-    sysctl -w net.ipv4.tcp_wmem="4096 65536 33554432" > /dev/null 2>&1
-    sysctl -w net.core.optmem_max=33554432 > /dev/null 2>&1
-    
-    cat >> /etc/sysctl.conf << EOF
-
-# Ultra Network Buffers for MTU 512 (32MB) - 10x speed
-net.core.rmem_max = 33554432
-net.core.wmem_max = 33554432
-net.ipv4.tcp_rmem = 4096 87380 33554432
-net.ipv4.tcp_wmem = 4096 65536 33554432
-net.core.optmem_max = 33554432
-EOF
-}
-
-optimize_aggressive_keepalive() {
-    echo -e "${C_GREEN}[3/5] Setting aggressive keepalive (10s)...${C_RESET}"
-    sysctl -w net.ipv4.tcp_keepalive_time=10 > /dev/null 2>&1
-    sysctl -w net.ipv4.tcp_keepalive_intvl=2 > /dev/null 2>&1
-    sysctl -w net.ipv4.tcp_keepalive_probes=2 > /dev/null 2>&1
-    
-    cat >> /etc/sysctl.conf << EOF
-
-# Aggressive TCP Keepalive for MTU 512 (10s) - 10x speed
-net.ipv4.tcp_keepalive_time = 10
-net.ipv4.tcp_keepalive_intvl = 2
-net.ipv4.tcp_keepalive_probes = 2
-EOF
-}
-
-optimize_advanced_tcp() {
-    echo -e "${C_GREEN}[4/5] Applying advanced TCP tuning...${C_RESET}"
-    sysctl -w net.ipv4.tcp_sack=1 > /dev/null 2>&1
-    sysctl -w net.ipv4.tcp_dsack=1 > /dev/null 2>&1
-    sysctl -w net.ipv4.tcp_fack=1 > /dev/null 2>&1
-    sysctl -w net.ipv4.tcp_window_scaling=1 > /dev/null 2>&1
-    sysctl -w net.ipv4.tcp_timestamps=1 > /dev/null 2>&1
-    sysctl -w net.ipv4.tcp_slow_start_after_idle=0 > /dev/null 2>&1
-    sysctl -w net.ipv4.tcp_no_metrics_save=1 > /dev/null 2>&1
-    sysctl -w net.ipv4.tcp_moderate_rcvbuf=1 > /dev/null 2>&1
-    sysctl -w net.ipv4.tcp_low_latency=1 > /dev/null 2>&1
-    sysctl -w net.ipv4.tcp_early_retrans=3 > /dev/null 2>&1
-    sysctl -w net.ipv4.tcp_thin_linear_timeouts=1 > /dev/null 2>&1
-    sysctl -w net.ipv4.tcp_autocorking=0 > /dev/null 2>&1
-    
-    cat >> /etc/sysctl.conf << EOF
-
-# Advanced TCP Tuning for MTU 512 - 10x speed
-net.ipv4.tcp_sack = 1
-net.ipv4.tcp_dsack = 1
-net.ipv4.tcp_fack = 1
-net.ipv4.tcp_window_scaling = 1
-net.ipv4.tcp_timestamps = 1
-net.ipv4.tcp_slow_start_after_idle = 0
-net.ipv4.tcp_no_metrics_save = 1
-net.ipv4.tcp_moderate_rcvbuf = 1
-net.ipv4.tcp_low_latency = 1
-net.ipv4.tcp_early_retrans = 3
-net.ipv4.tcp_thin_linear_timeouts = 1
-net.ipv4.tcp_autocorking = 0
-EOF
-}
-
-optimize_ultra_filedesc() {
-    echo -e "${C_GREEN}[5/5] Setting ultra file descriptors (8M)...${C_RESET}"
-    ulimit -n 8388608 2>/dev/null || ulimit -n 4194304 2>/dev/null || true
-    
-    cat > /etc/security/limits.d/99-ultra-boost.conf << 'EOF'
-# Ultra file descriptors for MTU 512 - 10x speed
-* soft nofile 8388608
-* hard nofile 8388608
-root soft nofile 8388608
-root hard nofile 8388608
-* soft nproc 8388608
-* hard nproc 8388608
-EOF
 }
 
 # ========== PROTOCOL MENU ==========
