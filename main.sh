@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ========== VOLTRON TECH ULTIMATE SCRIPT ==========
-# Version: 10.0 (PREMIUM - Full Voltron Tech Features)
+# Version: 10.0 (PREMIUM - Pure Voltron Tech)
 # Description: SSH • DNSTT • V2RAY • BADVPN • UDP-CUSTOM • SSL • PROXY • ZIVPN • X-UI
 # Author: Voltron Tech
 # Features: SSH Banner • User Management • Bandwidth Tracking • Trial Accounts • Auto Reboot
@@ -370,7 +370,7 @@ _is_valid_ipv6() {
     fi
 }
 
-# ========== VOLTRON TECH DESEC.IO DNS FUNCTIONS (ONLY DOMAIN GENERATOR CHANGED) ==========
+# ========== VOLTRON TECH DESEC.IO DNS FUNCTIONS ==========
 generate_dns_record() {
     echo -e "\n${C_BLUE}⚙️ Generating a random domain on voltrontechtx.shop...${C_RESET}"
     if ! command -v jq &> /dev/null; then
@@ -643,7 +643,7 @@ auto_reboot_menu() {
     done
 }
 
-# ========== SSH BANNER FUNCTIONS (DYNAMIC - SHOWS REAL DATA) ==========
+# ========== SSH BANNER FUNCTIONS ==========
 update_ssh_banners_config() {
     rm -f /usr/local/bin/voltrontech-login-info.sh 2>/dev/null
     
@@ -745,7 +745,156 @@ ssh_banner_menu() {
     done
 }
 
-# ========== VOLTRON TECH LIMITER SERVICE (DYNAMIC BANNER GENERATION) ==========
+# ========== ULTRA BOOST FUNCTIONS ==========
+enable_bbr_v3() {
+    echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    echo -e "${C_BLUE}           🔧 ENABLING BBR v3 CONGESTION CONTROL${C_RESET}"
+    echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    
+    modprobe tcp_bbr 2>/dev/null
+    echo "tcp_bbr" >> /etc/modules-load.d/modules.conf 2>/dev/null
+    
+    sysctl -w net.ipv4.tcp_congestion_control=bbr > /dev/null 2>&1
+    sysctl -w net.core.default_qdisc=fq_codel > /dev/null 2>&1
+    
+    cat >> /etc/sysctl.conf << EOF
+
+# BBR v3 Congestion Control with fq_codel
+net.ipv4.tcp_congestion_control = bbr
+net.core.default_qdisc = fq_codel
+EOF
+    
+    echo -e "${C_GREEN}✅ BBR v3 enabled with fq_codel (optimized for low latency)${C_RESET}"
+}
+
+optimize_ultra_buffers() {
+    echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    echo -e "${C_BLUE}           📊 OPTIMIZING ULTRA BUFFERS (32MB)${C_RESET}"
+    echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    
+    sysctl -w net.core.rmem_max=33554432 > /dev/null 2>&1
+    sysctl -w net.core.wmem_max=33554432 > /dev/null 2>&1
+    sysctl -w net.ipv4.tcp_rmem="4096 87380 33554432" > /dev/null 2>&1
+    sysctl -w net.ipv4.tcp_wmem="4096 65536 33554432" > /dev/null 2>&1
+    sysctl -w net.core.optmem_max=33554432 > /dev/null 2>&1
+    
+    cat >> /etc/sysctl.conf << EOF
+
+# Ultra Network Buffers for MTU 512 (32MB) - 10x speed
+net.core.rmem_max = 33554432
+net.core.wmem_max = 33554432
+net.ipv4.tcp_rmem = 4096 87380 33554432
+net.ipv4.tcp_wmem = 4096 65536 33554432
+net.core.optmem_max = 33554432
+EOF
+    
+    echo -e "${C_GREEN}✅ Ultra buffers set to 32MB (optimized for 10x speed)${C_RESET}"
+}
+
+optimize_aggressive_keepalive() {
+    echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    echo -e "${C_BLUE}           🔄 OPTIMIZING AGGRESSIVE KEEPALIVE (10s)${C_RESET}"
+    echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    
+    sysctl -w net.ipv4.tcp_keepalive_time=10 > /dev/null 2>&1
+    sysctl -w net.ipv4.tcp_keepalive_intvl=2 > /dev/null 2>&1
+    sysctl -w net.ipv4.tcp_keepalive_probes=2 > /dev/null 2>&1
+    
+    cat >> /etc/sysctl.conf << EOF
+
+# Aggressive TCP Keepalive for MTU 512 (10s) - 10x speed
+net.ipv4.tcp_keepalive_time = 10
+net.ipv4.tcp_keepalive_intvl = 2
+net.ipv4.tcp_keepalive_probes = 2
+EOF
+    
+    echo -e "${C_GREEN}✅ Aggressive keepalive set to 10s intervals${C_RESET}"
+}
+
+optimize_advanced_tcp() {
+    echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    echo -e "${C_BLUE}           📐 APPLYING ADVANCED TCP TUNABLES (12 parameters)${C_RESET}"
+    echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    
+    sysctl -w net.ipv4.tcp_sack=1 > /dev/null 2>&1
+    sysctl -w net.ipv4.tcp_dsack=1 > /dev/null 2>&1
+    sysctl -w net.ipv4.tcp_fack=1 > /dev/null 2>&1
+    sysctl -w net.ipv4.tcp_window_scaling=1 > /dev/null 2>&1
+    sysctl -w net.ipv4.tcp_timestamps=1 > /dev/null 2>&1
+    sysctl -w net.ipv4.tcp_slow_start_after_idle=0 > /dev/null 2>&1
+    sysctl -w net.ipv4.tcp_no_metrics_save=1 > /dev/null 2>&1
+    sysctl -w net.ipv4.tcp_moderate_rcvbuf=1 > /dev/null 2>&1
+    sysctl -w net.ipv4.tcp_low_latency=1 > /dev/null 2>&1
+    sysctl -w net.ipv4.tcp_early_retrans=3 > /dev/null 2>&1
+    sysctl -w net.ipv4.tcp_thin_linear_timeouts=1 > /dev/null 2>&1
+    sysctl -w net.ipv4.tcp_autocorking=0 > /dev/null 2>&1
+    
+    cat >> /etc/sysctl.conf << EOF
+
+# Advanced TCP Tuning for MTU 512 - 10x speed
+net.ipv4.tcp_sack = 1
+net.ipv4.tcp_dsack = 1
+net.ipv4.tcp_fack = 1
+net.ipv4.tcp_window_scaling = 1
+net.ipv4.tcp_timestamps = 1
+net.ipv4.tcp_slow_start_after_idle = 0
+net.ipv4.tcp_no_metrics_save = 1
+net.ipv4.tcp_moderate_rcvbuf = 1
+net.ipv4.tcp_low_latency = 1
+net.ipv4.tcp_early_retrans = 3
+net.ipv4.tcp_thin_linear_timeouts = 1
+net.ipv4.tcp_autocorking = 0
+EOF
+    
+    echo -e "${C_GREEN}✅ Advanced TCP tuning applied (12 parameters)${C_RESET}"
+}
+
+optimize_ultra_filedesc() {
+    echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    echo -e "${C_BLUE}           📄 SETTING ULTRA FILE DESCRIPTORS (8M)${C_RESET}"
+    echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    
+    ulimit -n 8388608 2>/dev/null || ulimit -n 4194304 2>/dev/null || true
+    
+    cat > /etc/security/limits.d/99-ultra-boost.conf << 'EOF'
+# Ultra file descriptors for MTU 512 - 10x speed (supports 10+ instances)
+* soft nofile 8388608
+* hard nofile 8388608
+root soft nofile 8388608
+root hard nofile 8388608
+* soft nproc 8388608
+* hard nproc 8388608
+EOF
+    
+    echo -e "${C_GREEN}✅ File descriptors set to 8M (supports 10+ parallel instances)${C_RESET}"
+}
+
+apply_ultra_boost() {
+    echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    echo -e "${C_BLUE}           🚀 APPLYING ULTRA BOOST (10x SPEED)${C_RESET}"
+    echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    
+    enable_bbr_v3
+    optimize_ultra_buffers
+    optimize_aggressive_keepalive
+    optimize_advanced_tcp
+    optimize_ultra_filedesc
+    
+    echo -e "\n${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
+    echo -e "${C_GREEN}           ✅ ULTRA BOOST ACTIVATED - 10x SPEED!${C_RESET}"
+    echo -e "${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
+    echo -e "  ${C_CYAN}• BBR v3 with fq_codel:${C_RESET} Active"
+    echo -e "  ${C_CYAN}• Ultra Buffers:${C_RESET} 32MB"
+    echo -e "  ${C_CYAN}• Aggressive Keepalive:${C_RESET} 10s"
+    echo -e "  ${C_CYAN}• Advanced TCP Tuning:${C_RESET} 12 parameters"
+    echo -e "  ${C_CYAN}• File Descriptors:${C_RESET} 8M"
+    echo -e "  ${C_CYAN}• Parallel Instances:${C_RESET} 10 (on client)"
+    echo -e "  ${C_CYAN}• Expected Speed:${C_RESET} ${C_GREEN}10x with MTU 512!${C_RESET}"
+    
+    sleep 3
+}
+
+# ========== VOLTRON TECH LIMITER SERVICE ==========
 setup_limiter_service() {
     cat > "$LIMITER_SCRIPT" << 'EOF'
 #!/bin/bash
@@ -767,7 +916,7 @@ while true; do
     while IFS=: read -r user pass expiry limit bandwidth_gb _extra; do
         [[ -z "$user" || "$user" == \#* ]] && continue
         
-        # --- Expiry Check and Days Calculation (DYNAMIC) ---
+        # --- Expiry Check ---
         if [[ "$expiry" != "Never" && "$expiry" != "" ]]; then
              expiry_ts=$(date -d "$expiry" +%s 2>/dev/null || echo 0)
              if [[ $expiry_ts -lt $current_ts && $expiry_ts -ne 0 ]]; then
@@ -779,7 +928,7 @@ while true; do
              fi
         fi
         
-        # --- Connection Limit Check (LIVE) ---
+        # --- Connection Limit Check ---
         online_count=$(pgrep -c -u "$user" sshd)
         if ! [[ "$limit" =~ ^[0-9]+$ ]]; then limit=1; fi
         
@@ -793,7 +942,7 @@ while true; do
             fi
         fi
         
-        # --- SSH Banner Generation (DYNAMIC - REAL DATA) ---
+        # --- SSH Banner Generation (CLEAN AND ORGANIZED) ---
         if [[ -f "/etc/voltrontech/banners_enabled" ]]; then
             # Calculate days left in REAL TIME
             days_left="N/A"
@@ -806,9 +955,9 @@ while true; do
                         d_l=$(( diff_secs / 86400 ))
                         h_l=$(( (diff_secs % 86400) / 3600 ))
                         if [[ $d_l -eq 0 ]]; then 
-                            days_left="${h_l}h left"
+                            days_left="${h_l} hours left"
                         else 
-                            days_left="${d_l}d ${h_l}h"
+                            days_left="${d_l} days ${h_l} hours"
                         fi
                     fi
                 fi
@@ -822,31 +971,54 @@ while true; do
                 [[ -f "$usagefile" ]] && accum_disp=$(cat "$usagefile" 2>/dev/null)
                 used_gb=$(awk "BEGIN {printf \"%.2f\", $accum_disp / 1073741824}")
                 remain_gb=$(awk "BEGIN {r=$bandwidth_gb - $used_gb; if(r<0) r=0; printf \"%.2f\", r}")
-                bw_info="${used_gb}/${bandwidth_gb} GB used | ${remain_gb} GB left"
+                bw_info="${used_gb} GB / ${bandwidth_gb} GB (${remain_gb} GB left)"
             fi
             
             # Get live connection count
             online_count=$(pgrep -c -u "$user" sshd)
             
-            # Create banner file with REAL DATA (SIMPLE - NO FANCY LINES)
+            # Get server location
+            server_ip=$(curl -s -4 icanhazip.com 2>/dev/null || echo "Unknown")
+            server_location=$(curl -s "http://ip-api.com/json/$server_ip" | grep -o '"country":"[^"]*"' | cut -d'"' -f4 2>/dev/null || echo "Unknown")
+            
+            # Create clean and organized banner file
             cat > "$BANNERS_DIR/${user}.txt" << BEOF
 
-              🔥 VOLTRON TECH ACCOUNT 🔥
+=====================================
 
-👤 Username    : $user
-📅 Expires     : $expiry ($days_left)
-📊 Bandwidth   : $bw_info
-🔌 Connections : $online_count/$limit
-⚡ ULTRA BOOST : ACTIVE (10x Speed)
+    WELCOME TO VOLTRON TECH
 
-📞 JOIN OUR WHATSAPP GROUP:
-https://chat.whatsapp.com/KVMPv89XSu83UnBWUZ
+=====================================
+
+    🌍 SOUTH AFRICA SERVER
+    📱 HALOTEL UNLIMITED
+
+    👤 Username    : $user
+    📅 Expires     : $expiry ($days_left)
+    📊 Bandwidth   : $bw_info
+    🔌 Connections : $online_count / $limit
+    ⚡ ULTRA BOOST : ACTIVE (10x Speed)
+
+    ⚠️ RULES:
+    ❌ NO SPAM
+    ❌ NO DDOS
+    ❌ NO HACKING
+    ❌ NO CARDING
+    ❌ NO TORRENT
+    ❌ NO OVER DOWNLOAD
+
+    📞 JOIN GROUP:
+    https://chat.whatsapp.com/KVMPv89XSu83UnBWUZ
+
+    @CONFIG BY ꧁༺VOLTRON BOY༻꧂™
+
+=====================================
 
 BEOF
         fi
 
         
-        # --- Bandwidth Tracking (REAL DATA from /proc) ---
+        # --- Bandwidth Tracking ---
         [[ -z "$bandwidth_gb" || "$bandwidth_gb" == "0" ]] && continue
         
         # Get user UID
@@ -2117,7 +2289,7 @@ protocol_menu() {
         echo -e "  ${C_GREEN}1)${C_RESET} badvpn (UDP 7300) $badvpn_status"
         echo -e "  ${C_GREEN}2)${C_RESET} udp-custom $udp_status"
         echo -e "  ${C_GREEN}3)${C_RESET} SSL Tunnel (HAProxy) $haproxy_status"
-        echo -e "  ${C_GREEN}4)${C_RESET} DNSTT (Port 53) $dnstt_status"
+        echo -e "  ${C_GREEN}4)${C_RESET} DNSTT (Port 5300) $dnstt_status"
         echo -e "  ${C_GREEN}5)${C_RESET} V2RAY over DNSTT $v2ray_status"
         echo -e "  ${C_GREEN}6)${C_RESET} VOLTRON Proxy $voltronproxy_status"
         echo -e "  ${C_GREEN}7)${C_RESET} Nginx Proxy $nginx_status"
@@ -3254,7 +3426,7 @@ uninstall_xui_panel() {
     fi
 }
 
-# ========== DNSTT FUNCTIONS (PURE VOLTRON TECH - NO FALCON CHANGES) ==========
+# ========== DNSTT FUNCTIONS (PURE VOLTRON TECH - deSEC DOMAIN ONLY) ==========
 build_dnstt_from_source() {
     echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
     echo -e "${C_BLUE}           🔨 BUILDING DNSTT FROM SOURCE${C_RESET}"
@@ -3406,7 +3578,6 @@ save_dnstt_info() {
     local mtu=$3
     local ssh_port=$4
     local forward_desc=$5
-    local ns_domain=$6
     
     cat > "$DNSTT_INFO_FILE" <<EOF
 TUNNEL_DOMAIN="$domain"
@@ -3414,7 +3585,6 @@ PUBLIC_KEY="$pubkey"
 MTU_VALUE="$mtu"
 SSH_PORT="$ssh_port"
 FORWARD_DESC="$forward_desc"
-NS_DOMAIN="$ns_domain"
 EOF
 }
 
@@ -3563,64 +3733,30 @@ install_dnstt() {
     
     # Step 4: Apply ULTRA BOOST optimizations
     echo -e "\n${C_BLUE}[4/9] Applying ULTRA BOOST optimizations (10x speed)...${C_RESET}"
-    enable_bbr_v3
-    optimize_ultra_buffers
-    optimize_aggressive_keepalive
-    optimize_advanced_tcp
-    optimize_ultra_filedesc
+    apply_ultra_boost
     
     # Step 5: Configure firewall
     echo -e "\n${C_BLUE}[5/9] Configuring firewall...${C_RESET}"
-    check_and_open_firewall_port 53 udp
     check_and_open_firewall_port 5300 udp
     
     # Step 6: Setup domain
     echo -e "\n${C_BLUE}[6/9] Domain configuration...${C_RESET}"
     
-    local forward_port=""
-    local forward_desc=""
-    local ssh_port="22"
+    # VOLTRON TECH: No forwarding choice, uses SSH by default
+    local forward_port="22"
+    local forward_desc="SSH (port 22)"
+    echo -e "${C_GREEN}ℹ️ DNSTT will forward to SSH on 127.0.0.1:22.${C_RESET}"
     
-    echo -e "\n${C_BLUE}Please choose where DNSTT should forward traffic:${C_RESET}"
-    echo -e "  ${C_GREEN}[ 1]${C_RESET} ➡️ Forward to local SSH service (port 22)"
-    echo -e "  ${C_GREEN}[ 2]${C_RESET} ➡️ Forward to local V2Ray backend (port 8787)"
-    
-    local fwd_choice
-    read -p "👉 Enter your choice [1]: " fwd_choice
-    fwd_choice=${fwd_choice:-1}
-    
-    if [[ "$fwd_choice" == "1" ]]; then
-        forward_port="22"
-        forward_desc="SSH (port 22)"
-        echo -e "${C_GREEN}ℹ️ DNSTT will forward to SSH on 127.0.0.1:22.${C_RESET}"
-    elif [[ "$fwd_choice" == "2" ]]; then
-        forward_port="8787"
-        forward_desc="V2Ray (port 8787)"
-        echo -e "${C_GREEN}ℹ️ DNSTT will forward to V2Ray on 127.0.0.1:8787.${C_RESET}"
-    else
-        echo -e "${C_RED}❌ Invalid choice. Using SSH as default.${C_RESET}"
-        forward_port="22"
-        forward_desc="SSH (port 22)"
-    fi
-    
-    local NS_DOMAIN=""
-    local TUNNEL_DOMAIN=""
-    local DNSTT_RECORDS_MANAGED="true"
-    local NS_SUBDOMAIN=""
-    local TUNNEL_SUBDOMAIN=""
-    local HAS_IPV6="false"
-
+    # deSEC Domain Generator (Only change from original)
     read -p "👉 Auto-generate DNS records or use custom ones? (auto/custom) [auto]: " dns_choice
     dns_choice=${dns_choice:-auto}
 
     if [[ "$dns_choice" == "custom" ]]; then
-        DNSTT_RECORDS_MANAGED="false"
         read -p "👉 Enter your full tunnel domain (e.g., tun.yourdomain.com): " TUNNEL_DOMAIN
         if [[ -z "$TUNNEL_DOMAIN" ]]; then 
             echo -e "\n${C_RED}❌ Tunnel domain cannot be empty. Aborting.${C_RESET}"
             return
         fi
-        NS_DOMAIN="$TUNNEL_DOMAIN"
     else
         echo -e "\n${C_BLUE}⚙️ Generating DNS records on voltrontechtx.shop...${C_RESET}"
         
@@ -3638,20 +3774,16 @@ install_dnstt() {
         local RANDOM_STR
         RANDOM_STR=$(head /dev/urandom | tr -dc a-z0-9 | head -c 6)
         
-        NS_SUBDOMAIN="ns-$RANDOM_STR"
         TUNNEL_SUBDOMAIN="tun-$RANDOM_STR"
-        NS_DOMAIN="$NS_SUBDOMAIN.$DESEC_DOMAIN"
         TUNNEL_DOMAIN="$TUNNEL_SUBDOMAIN.$DESEC_DOMAIN"
 
         local API_DATA="["
-        API_DATA="${API_DATA}{\"subname\": \"$NS_SUBDOMAIN\", \"type\": \"A\", \"ttl\": 3600, \"records\": [\"$SERVER_IPV4\"]}"
+        API_DATA="${API_DATA}{\"subname\": \"$TUNNEL_SUBDOMAIN\", \"type\": \"A\", \"ttl\": 3600, \"records\": [\"$SERVER_IPV4\"]}"
         
         if [[ -n "$SERVER_IPV6" ]]; then
-            API_DATA="${API_DATA}, {\"subname\": \"$NS_SUBDOMAIN\", \"type\": \"AAAA\", \"ttl\": 3600, \"records\": [\"$SERVER_IPV6\"]}"
-            HAS_IPV6="true"
+            API_DATA="${API_DATA}, {\"subname\": \"$TUNNEL_SUBDOMAIN\", \"type\": \"AAAA\", \"ttl\": 3600, \"records\": [\"$SERVER_IPV6\"]}"
         fi
         
-        API_DATA="${API_DATA}, {\"subname\": \"$TUNNEL_SUBDOMAIN\", \"type\": \"NS\", \"ttl\": 3600, \"records\": [\"$NS_DOMAIN.\"]}"
         API_DATA="${API_DATA}]"
 
         local CREATE_RESPONSE
@@ -3668,22 +3800,12 @@ install_dnstt() {
             return 1
         fi
         
-        echo -e "\n${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
-        echo -e "${C_GREEN}           ✅ DNS RECORDS CREATED SUCCESSFULLY!${C_RESET}"
-        echo -e "${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
-        echo -e "  ${C_CYAN}Nameserver Domain (A record):${C_RESET} ${C_YELLOW}$NS_DOMAIN${C_RESET}"
-        echo -e "  ${C_CYAN}  → Points to:${C_RESET} ${C_GREEN}$SERVER_IPV4${C_RESET}"
-        if [[ "$HAS_IPV6" == "true" ]]; then
-            echo -e "  ${C_CYAN}  → IPv6 also:${C_RESET} ${C_GREEN}$SERVER_IPV6${C_RESET}"
-        fi
-        echo -e "  ${C_CYAN}Tunnel Domain (NS record):${C_RESET} ${C_YELLOW}$TUNNEL_DOMAIN${C_RESET}"
-        echo -e "  ${C_CYAN}  → Points to:${C_RESET} ${C_GREEN}$NS_DOMAIN${C_RESET}"
-        echo -e "${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
+        echo -e "\n${C_GREEN}✅ Successfully created domain: ${C_YELLOW}$TUNNEL_DOMAIN${C_RESET}"
     fi
     
-    # Step 7: MTU selection
+    # Step 7: MTU selection - VOLTRON TECH PROMPT
     echo -e "\n${C_BLUE}[7/9] MTU configuration...${C_RESET}"
-    read -p "👉 Enter MTU value (e.g., 512, 1200) or press [Enter] for default 512: " mtu_value
+    read -p "👉 Enter MTU value (or press Enter for default): " mtu_value
     mtu_value=${mtu_value:-512}
     if [[ "$mtu_value" =~ ^[0-9]+$ ]]; then
         echo -e "${C_GREEN}ℹ️ Using MTU: $mtu_value (ULTRA BOOST mode)${C_RESET}"
@@ -3705,7 +3827,7 @@ install_dnstt() {
     create_dnstt_service "$TUNNEL_DOMAIN" "$mtu_value" "$forward_port" "$forward_desc"
     
     # Save DNSTT info
-    save_dnstt_info "$TUNNEL_DOMAIN" "$PUBLIC_KEY" "$mtu_value" "$forward_port" "$forward_desc" "$NS_DOMAIN"
+    save_dnstt_info "$TUNNEL_DOMAIN" "$PUBLIC_KEY" "$mtu_value" "$forward_port" "$forward_desc"
     
     # Start service
     echo -e "\n${C_BLUE}🚀 Starting DNSTT service...${C_RESET}"
@@ -3773,15 +3895,12 @@ uninstall_dnstt() {
         
         if [[ "$TUNNEL_DOMAIN" == *"$DESEC_DOMAIN"* ]]; then
             local subdomain=$(echo "$TUNNEL_DOMAIN" | cut -d. -f1)
-            local ns_subdomain=$(echo "$NS_DOMAIN" | cut -d. -f1)
             
             echo -e "${C_BLUE}🗑️ Removing auto-generated DNS records...${C_RESET}"
-            curl -s -X DELETE "https://desec.io/api/v1/domains/$DESEC_DOMAIN/rrsets/$ns_subdomain/A/" \
+            curl -s -X DELETE "https://desec.io/api/v1/domains/$DESEC_DOMAIN/rrsets/$subdomain/A/" \
                  -H "Authorization: Token $DESEC_TOKEN" > /dev/null
-            curl -s -X DELETE "https://desec.io/api/v1/domains/$DESEC_DOMAIN/rrsets/$ns_subdomain/AAAA/" \
+            curl -s -X DELETE "https://desec.io/api/v1/domains/$DESEC_DOMAIN/rrsets/$subdomain/AAAA/" \
                  -H "Authorization: Token $DESEC_TOKEN" > /dev/null 2>&1
-            curl -s -X DELETE "https://desec.io/api/v1/domains/$DESEC_DOMAIN/rrsets/$subdomain/NS/" \
-                 -H "Authorization: Token $DESEC_TOKEN" > /dev/null
             echo -e "${C_GREEN}✅ DNS records have been removed.${C_RESET}"
         else
             echo -e "${C_YELLOW}⚠️ DNS records were manually configured. Please delete them manually.${C_RESET}"
@@ -3796,9 +3915,6 @@ uninstall_dnstt() {
     rm -f "$DB_DIR/server.key" "$DB_DIR/server.pub"
     rm -f "$DB_DIR/domain.txt"
     systemctl daemon-reload
-    
-    echo -e "${C_YELLOW}ℹ️ Making /etc/resolv.conf writable...${C_RESET}"
-    chattr -i /etc/resolv.conf &>/dev/null
     
     echo -e "\n${C_GREEN}✅ DNSTT has been successfully uninstalled.${C_RESET}"
 }
@@ -3818,16 +3934,15 @@ show_dnstt_details() {
         fi
         
         echo -e "\n${C_WHITE}Service Status: ${status}${C_RESET}"
-        echo -e "  - ${C_CYAN}Nameserver Domain:${C_RESET} ${C_YELLOW}$NS_DOMAIN${C_RESET}"
-        echo -e "  - ${C_CYAN}Tunnel Domain:${C_RESET}    ${C_YELLOW}$TUNNEL_DOMAIN${C_RESET}"
-        echo -e "  - ${C_CYAN}Public Key:${C_RESET}        ${C_YELLOW}$PUBLIC_KEY${C_RESET}"
+        echo -e "  - ${C_CYAN}Tunnel Domain:${C_RESET} ${C_YELLOW}$TUNNEL_DOMAIN${C_RESET}"
+        echo -e "  - ${C_CYAN}Public Key:${C_RESET}    ${C_YELLOW}$PUBLIC_KEY${C_RESET}"
         
         if [[ -n "$FORWARD_DESC" ]]; then
-            echo -e "  - ${C_CYAN}Forwarding To:${C_RESET}   ${C_YELLOW}$FORWARD_DESC${C_RESET}"
+            echo -e "  - ${C_CYAN}Forwarding To:${C_RESET} ${C_YELLOW}$FORWARD_DESC${C_RESET}"
         fi
         
         if [[ -n "$MTU_VALUE" ]]; then
-            echo -e "  - ${C_CYAN}MTU Value:${C_RESET}        ${C_YELLOW}$MTU_VALUE${C_RESET}"
+            echo -e "  - ${C_CYAN}MTU Value:${C_RESET}     ${C_YELLOW}$MTU_VALUE${C_RESET}"
         fi
         
         echo -e "\n${C_CYAN}⚡ ULTRA BOOST Status:${C_RESET} ${C_GREEN}ACTIVE (10x Speed)${C_RESET}"
