@@ -119,7 +119,7 @@ TRIAL_CLEANUP_SCRIPT="/usr/local/bin/voltrontech-trial-cleanup.sh"
 SSHD_VOLTRON_CONFIG="/etc/ssh/sshd_config.d/voltrontech.conf"
 
 # WhatsApp Group Link
-WHATSAPP_GROUP="https://chat.whatsapp.com/KVMPv89XSu83UnBWUZ"
+WHATSAPP_GROUP="https://chat.whatsapp.com/KVMPv89XSu83UnBWUZCIQf"
 
 # Ports
 DNS_PORT=53
@@ -942,7 +942,7 @@ while true; do
             fi
         fi
         
-        # --- SSH Banner Generation (CLEAN AND ORGANIZED) ---
+        # --- SSH Banner Generation (BANNER ULIYONITUMIA) ---
         if [[ -f "/etc/voltrontech/banners_enabled" ]]; then
             # Calculate days left in REAL TIME
             days_left="N/A"
@@ -977,11 +977,190 @@ while true; do
             # Get live connection count
             online_count=$(pgrep -c -u "$user" sshd)
             
-            # Get server location
-            server_ip=$(curl -s -4 icanhazip.com 2>/dev/null || echo "Unknown")
-            server_location=$(curl -s "http://ip-api.com/json/$server_ip" | grep -o '"country":"[^"]*"' | cut -d'"' -f4 2>/dev/null || echo "Unknown")
-            
-            # Create clean and organized banner file
+            # ------------------------------------------------------------------
+            # HTML BANNER KWA HTTP CUSTOM (BANNER ULIYONITUMIA)
+            # ------------------------------------------------------------------
+            cat > "$BANNERS_DIR/${user}.html" << HTMLEOF
+<font color="white">
+
+<!-- Mstari wa kwanza -->
+<H3 style="text-align:center">
+  <span style="padding: 8px 15px; display: inline-block; margin: 3px; width: 180px;">
+    ===============================
+  </span>
+</H3>
+
+<!-- Nafasi -->
+<H3 style="text-align:center">
+  <span style="padding: 8px 15px; display: inline-block; margin: 3px;"></span>
+</H3>
+
+<!-- WELCOME TO VOLTRON TECH -->
+<H3 style="text-align:center">
+  <span style="padding: 8px 15px; display: inline-block; margin: 3px;">
+    WELCOME TO VOLTRON TECH
+  </span>
+</H3>
+
+<!-- Mstari wa pili -->
+<H3 style="text-align:center">
+  <span style="padding: 8px 15px; display: inline-block; margin: 3px; width: 180px;">
+    ===============================
+  </span>
+</H3>
+
+<!-- Nafasi -->
+<H3 style="text-align:center">
+  <span style="padding: 8px 15px; display: inline-block; margin: 3px;"></span>
+</H3>
+
+<!-- SOUTH AFRICA SERVER -->
+<H3 style="text-align:center">
+  <span style="padding: 8px 15px; display: inline-block; margin: 3px;">
+    🌍 SOUTH AFRICA SERVER
+  </span>
+</H3>
+
+<!-- HALOTEL UNLIMITED -->
+<H3 style="text-align:center">
+  <span style="padding: 8px 15px; display: inline-block; margin: 3px;">
+    📱 HALOTEL UNLIMITED
+  </span>
+</H3>
+
+<!-- Nafasi -->
+<H3 style="text-align:center">
+  <span style="padding: 8px 15px; display: inline-block; margin: 3px;"></span>
+</H3>
+
+<!-- ACCOUNT INFORMATION (Dynamic) -->
+<H3 style="text-align:center">
+  <span style="padding: 8px 15px; display: inline-block; margin: 3px;">
+    👤 Username    : $user
+  </span>
+</H3>
+
+<H3 style="text-align:center">
+  <span style="padding: 8px 15px; display: inline-block; margin: 3px;">
+    📅 Expires     : $expiry ($days_left)
+  </span>
+</H3>
+
+<H3 style="text-align:center">
+  <span style="padding: 8px 15px; display: inline-block; margin: 3px;">
+    📊 Bandwidth   : $bw_info
+  </span>
+</H3>
+
+<H3 style="text-align:center">
+  <span style="padding: 8px 15px; display: inline-block; margin: 3px;">
+    🔌 Connections : $online_count / $limit
+  </span>
+</H3>
+
+<H3 style="text-align:center">
+  <span style="padding: 8px 15px; display: inline-block; margin: 3px;">
+    ⚡ ULTRA BOOST : ACTIVE (10x Speed)
+  </span>
+</H3>
+
+<!-- Nafasi -->
+<H3 style="text-align:center">
+  <span style="padding: 8px 15px; display: inline-block; margin: 3px;"></span>
+</H3>
+
+<!-- RULES (Center) -->
+<H3 style="text-align:center">
+  <span style="padding: 8px 15px; display: inline-block; margin: 3px;">
+    ⚠️ RULES:
+  </span>
+</H3>
+
+<H3 style="text-align:center">
+  <span style="padding: 8px 15px; display: inline-block; margin: 3px;">
+    ❌ NO SPAM
+  </span>
+</H3>
+
+<H3 style="text-align:center">
+  <span style="padding: 8px 15px; display: inline-block; margin: 3px;">
+    ❌ NO DDOS
+  </span>
+</H3>
+
+<H3 style="text-align:center">
+  <span style="padding: 8px 15px; display: inline-block; margin: 3px;">
+    ❌ NO HACKING
+  </span>
+</H3>
+
+<H3 style="text-align:center">
+  <span style="padding: 8px 15px; display: inline-block; margin: 3px;">
+    ❌ NO CARDING
+  </span>
+</H3>
+
+<H3 style="text-align:center">
+  <span style="padding: 8px 15px; display: inline-block; margin: 3px;">
+    ❌ NO TORRENT
+  </span>
+</H3>
+
+<H3 style="text-align:center">
+  <span style="padding: 8px 15px; display: inline-block; margin: 3px;">
+    ❌ NO OVER DOWNLOAD
+  </span>
+</H3>
+
+<!-- Nafasi -->
+<H3 style="text-align:center">
+  <span style="padding: 8px 15px; display: inline-block; margin: 3px;"></span>
+</H3>
+
+<!-- JOIN GROUP (Center) -->
+<H3 style="text-align:center">
+  <span style="padding: 8px 15px; display: inline-block; margin: 3px;">
+    📞 JOIN GROUP:
+  </span>
+</H3>
+
+<!-- WhatsApp Link (mstari mmoja) -->
+<H3 style="text-align:center">
+  <span style="padding: 8px 15px; display: inline-block; margin: 3px; word-break: break-all;">
+    https://chat.whatsapp.com/KVMPv89XSu83UnBWUZCIQf
+  </span>
+</H3>
+
+<!-- Nafasi -->
+<H3 style="text-align:center">
+  <span style="padding: 8px 15px; display: inline-block; margin: 3px;"></span>
+</H3>
+
+<!-- Signature (Center) -->
+<H3 style="text-align:center">
+  <span style="padding: 8px 15px; display: inline-block; margin: 3px;">
+    @CONFIG BY ꧁༺VOLTRON BOY༻꧂™
+  </span>
+</H3>
+
+<!-- Nafasi -->
+<H3 style="text-align:center">
+  <span style="padding: 8px 15px; display: inline-block; margin: 3px;"></span>
+</H3>
+
+<!-- Mstari wa mwisho -->
+<H3 style="text-align:center">
+  <span style="padding: 8px 15px; display: inline-block; margin: 3px; width: 180px;">
+    ===============================
+  </span>
+</H3>
+
+</font>
+HTMLEOF
+
+            # ------------------------------------------------------------------
+            # TEXT BANNER KWA SSH TERMINAL (SAWA KABISA NA HTML)
+            # ------------------------------------------------------------------
             cat > "$BANNERS_DIR/${user}.txt" << BEOF
 
 =====================================
@@ -1008,7 +1187,7 @@ while true; do
     ❌ NO OVER DOWNLOAD
 
     📞 JOIN GROUP:
-    https://chat.whatsapp.com/KVMPv89XSu83UnBWUZ
+    https://chat.whatsapp.com/KVMPv89XSu83UnBWUZCIQf
 
     @CONFIG BY ꧁༺VOLTRON BOY༻꧂™
 
@@ -1181,6 +1360,7 @@ sed -i "/^${username}:/d" "$DB_FILE"
 rm -f "$BW_DIR/${username}.usage"
 rm -rf "$BW_DIR/pidtrack/${username}"
 rm -f "$BANNERS_DIR/${username}.txt"
+rm -f "$BANNERS_DIR/${username}.html"
 TREOF
     chmod +x "$TRIAL_CLEANUP_SCRIPT"
 }
@@ -1365,6 +1545,7 @@ delete_user() {
     rm -f "$BANDWIDTH_DIR/${username}.usage"
     rm -rf "$BANDWIDTH_DIR/pidtrack/${username}"
     rm -f "$BANNERS_DIR/${username}.txt"
+    rm -f "$BANNERS_DIR/${username}.html"
 
     sed -i "/^$username:/d" "$DB_FILE"
     echo -e "${C_GREEN}✅ User '$username' has been completely removed.${C_RESET}"
@@ -1664,6 +1845,7 @@ cleanup_expired() {
             rm -f "$BANDWIDTH_DIR/${user}.usage"
             rm -rf "$BANDWIDTH_DIR/pidtrack/${user}"
             rm -f "$BANNERS_DIR/${user}.txt"
+            rm -f "$BANNERS_DIR/${user}.html"
             userdel -r "$user" &>/dev/null
             sed -i "/^$user:/d" "$DB_FILE"
         done
@@ -3578,6 +3760,7 @@ save_dnstt_info() {
     local mtu=$3
     local ssh_port=$4
     local forward_desc=$5
+    local ns_domain=$6
     
     cat > "$DNSTT_INFO_FILE" <<EOF
 TUNNEL_DOMAIN="$domain"
@@ -3585,6 +3768,7 @@ PUBLIC_KEY="$pubkey"
 MTU_VALUE="$mtu"
 SSH_PORT="$ssh_port"
 FORWARD_DESC="$forward_desc"
+NS_DOMAIN="$ns_domain"
 EOF
 }
 
@@ -3707,6 +3891,18 @@ install_dnstt() {
         systemctl stop dnstt.service 2>/dev/null
     fi
     
+    # --- VOLTRON TECH: Angalia PORT 5300 TU (SI 53!) ---
+    echo -e "\n${C_BLUE}🔎 Checking if port 5300 is available...${C_RESET}"
+    if ss -lunp | grep -q ':5300\s'; then
+        echo -e "${C_RED}❌ Port 5300 is in use. Please free it manually.${C_RESET}"
+        return
+    else
+        echo -e "${C_GREEN}✅ Port 5300 is free to use.${C_RESET}"
+    fi
+
+    # --- VOLTRON TECH: Fungua PORT 5300 TU ---
+    check_and_open_firewall_port 5300 udp || return
+
     # Step 1: Install dependencies
     echo -e "\n${C_BLUE}[1/9] Installing dependencies...${C_RESET}"
     $PKG_UPDATE
@@ -3735,19 +3931,19 @@ install_dnstt() {
     echo -e "\n${C_BLUE}[4/9] Applying ULTRA BOOST optimizations (10x speed)...${C_RESET}"
     apply_ultra_boost
     
-    # Step 5: Configure firewall
+    # Step 5: Configure firewall - VOLTRON TECH: PORT 5300 TU!
     echo -e "\n${C_BLUE}[5/9] Configuring firewall...${C_RESET}"
     check_and_open_firewall_port 5300 udp
     
     # Step 6: Setup domain
     echo -e "\n${C_BLUE}[6/9] Domain configuration...${C_RESET}"
     
-    # VOLTRON TECH: No forwarding choice, uses SSH by default
+    # VOLTRON TECH: HAKUNA forwarding choice - SSH default
     local forward_port="22"
     local forward_desc="SSH (port 22)"
     echo -e "${C_GREEN}ℹ️ DNSTT will forward to SSH on 127.0.0.1:22.${C_RESET}"
     
-    # deSEC Domain Generator (Only change from original)
+    # --- deSEC Domain Generator (SAHIHI - A + NS records) ---
     read -p "👉 Auto-generate DNS records or use custom ones? (auto/custom) [auto]: " dns_choice
     dns_choice=${dns_choice:-auto}
 
@@ -3774,16 +3970,24 @@ install_dnstt() {
         local RANDOM_STR
         RANDOM_STR=$(head /dev/urandom | tr -dc a-z0-9 | head -c 6)
         
-        TUNNEL_SUBDOMAIN="tun-$RANDOM_STR"
+        # --- SAHIHI: Nameserver na Tunnel domain ---
+        local NS_SUBDOMAIN="ns-$RANDOM_STR"
+        local TUNNEL_SUBDOMAIN="tun-$RANDOM_STR"
+        local NS_DOMAIN="$NS_SUBDOMAIN.$DESEC_DOMAIN"
         TUNNEL_DOMAIN="$TUNNEL_SUBDOMAIN.$DESEC_DOMAIN"
 
+        # --- API data sahihi: A record kwa nameserver, NS record kwa tunnel ---
         local API_DATA="["
-        API_DATA="${API_DATA}{\"subname\": \"$TUNNEL_SUBDOMAIN\", \"type\": \"A\", \"ttl\": 3600, \"records\": [\"$SERVER_IPV4\"]}"
+        # A record kwa nameserver
+        API_DATA="${API_DATA}{\"subname\": \"$NS_SUBDOMAIN\", \"type\": \"A\", \"ttl\": 3600, \"records\": [\"$SERVER_IPV4\"]}"
         
+        # AAAA record kwa nameserver (kama IPv6 ipo)
         if [[ -n "$SERVER_IPV6" ]]; then
-            API_DATA="${API_DATA}, {\"subname\": \"$TUNNEL_SUBDOMAIN\", \"type\": \"AAAA\", \"ttl\": 3600, \"records\": [\"$SERVER_IPV6\"]}"
+            API_DATA="${API_DATA}, {\"subname\": \"$NS_SUBDOMAIN\", \"type\": \"AAAA\", \"ttl\": 3600, \"records\": [\"$SERVER_IPV6\"]}"
         fi
         
+        # NS record kwa tunnel (inayoelekeza kwa nameserver)
+        API_DATA="${API_DATA}, {\"subname\": \"$TUNNEL_SUBDOMAIN\", \"type\": \"NS\", \"ttl\": 3600, \"records\": [\"$NS_DOMAIN.\"]}"
         API_DATA="${API_DATA}]"
 
         local CREATE_RESPONSE
@@ -3800,7 +4004,17 @@ install_dnstt() {
             return 1
         fi
         
-        echo -e "\n${C_GREEN}✅ Successfully created domain: ${C_YELLOW}$TUNNEL_DOMAIN${C_RESET}"
+        echo -e "\n${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
+        echo -e "${C_GREEN}           ✅ DNS RECORDS CREATED SUCCESSFULLY!${C_RESET}"
+        echo -e "${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
+        echo -e "  ${C_CYAN}Nameserver Domain (A record):${C_RESET} ${C_YELLOW}$NS_DOMAIN${C_RESET}"
+        echo -e "  ${C_CYAN}  → Points to:${C_RESET} ${C_GREEN}$SERVER_IPV4${C_RESET}"
+        if [[ -n "$SERVER_IPV6" ]]; then
+            echo -e "  ${C_CYAN}  → IPv6 also:${C_RESET} ${C_GREEN}$SERVER_IPV6${C_RESET}"
+        fi
+        echo -e "  ${C_CYAN}Tunnel Domain (NS record):${C_RESET} ${C_YELLOW}$TUNNEL_DOMAIN${C_RESET}"
+        echo -e "  ${C_CYAN}  → Points to:${C_RESET} ${C_GREEN}$NS_DOMAIN${C_RESET}"
+        echo -e "${C_GREEN}═══════════════════════════════════════════════════════════════${C_RESET}"
     fi
     
     # Step 7: MTU selection - VOLTRON TECH PROMPT
@@ -3822,12 +4036,12 @@ install_dnstt() {
         return 1
     fi
     
-    # Step 9: Create service
+    # Step 9: Create service - PORT 5300!
     echo -e "\n${C_BLUE}[9/9] Creating service...${C_RESET}"
     create_dnstt_service "$TUNNEL_DOMAIN" "$mtu_value" "$forward_port" "$forward_desc"
     
-    # Save DNSTT info
-    save_dnstt_info "$TUNNEL_DOMAIN" "$PUBLIC_KEY" "$mtu_value" "$forward_port" "$forward_desc"
+    # Save DNSTT info (tuna save NS domain pia)
+    save_dnstt_info "$TUNNEL_DOMAIN" "$PUBLIC_KEY" "$mtu_value" "$forward_port" "$forward_desc" "$NS_DOMAIN"
     
     # Start service
     echo -e "\n${C_BLUE}🚀 Starting DNSTT service...${C_RESET}"
@@ -3894,13 +4108,17 @@ uninstall_dnstt() {
         source "$DNSTT_INFO_FILE"
         
         if [[ "$TUNNEL_DOMAIN" == *"$DESEC_DOMAIN"* ]]; then
-            local subdomain=$(echo "$TUNNEL_DOMAIN" | cut -d. -f1)
+            # Tunafuta A record ya nameserver na NS record ya tunnel
+            local ns_subdomain=$(echo "$NS_DOMAIN" | cut -d. -f1)
+            local tun_subdomain=$(echo "$TUNNEL_DOMAIN" | cut -d. -f1)
             
             echo -e "${C_BLUE}🗑️ Removing auto-generated DNS records...${C_RESET}"
-            curl -s -X DELETE "https://desec.io/api/v1/domains/$DESEC_DOMAIN/rrsets/$subdomain/A/" \
+            curl -s -X DELETE "https://desec.io/api/v1/domains/$DESEC_DOMAIN/rrsets/$ns_subdomain/A/" \
                  -H "Authorization: Token $DESEC_TOKEN" > /dev/null
-            curl -s -X DELETE "https://desec.io/api/v1/domains/$DESEC_DOMAIN/rrsets/$subdomain/AAAA/" \
+            curl -s -X DELETE "https://desec.io/api/v1/domains/$DESEC_DOMAIN/rrsets/$ns_subdomain/AAAA/" \
                  -H "Authorization: Token $DESEC_TOKEN" > /dev/null 2>&1
+            curl -s -X DELETE "https://desec.io/api/v1/domains/$DESEC_DOMAIN/rrsets/$tun_subdomain/NS/" \
+                 -H "Authorization: Token $DESEC_TOKEN" > /dev/null
             echo -e "${C_GREEN}✅ DNS records have been removed.${C_RESET}"
         else
             echo -e "${C_YELLOW}⚠️ DNS records were manually configured. Please delete them manually.${C_RESET}"
@@ -3934,15 +4152,16 @@ show_dnstt_details() {
         fi
         
         echo -e "\n${C_WHITE}Service Status: ${status}${C_RESET}"
-        echo -e "  - ${C_CYAN}Tunnel Domain:${C_RESET} ${C_YELLOW}$TUNNEL_DOMAIN${C_RESET}"
-        echo -e "  - ${C_CYAN}Public Key:${C_RESET}    ${C_YELLOW}$PUBLIC_KEY${C_RESET}"
+        echo -e "  - ${C_CYAN}Nameserver Domain:${C_RESET} ${C_YELLOW}$NS_DOMAIN${C_RESET}"
+        echo -e "  - ${C_CYAN}Tunnel Domain:${C_RESET}    ${C_YELLOW}$TUNNEL_DOMAIN${C_RESET}"
+        echo -e "  - ${C_CYAN}Public Key:${C_RESET}        ${C_YELLOW}$PUBLIC_KEY${C_RESET}"
         
         if [[ -n "$FORWARD_DESC" ]]; then
-            echo -e "  - ${C_CYAN}Forwarding To:${C_RESET} ${C_YELLOW}$FORWARD_DESC${C_RESET}"
+            echo -e "  - ${C_CYAN}Forwarding To:${C_RESET}   ${C_YELLOW}$FORWARD_DESC${C_RESET}"
         fi
         
         if [[ -n "$MTU_VALUE" ]]; then
-            echo -e "  - ${C_CYAN}MTU Value:${C_RESET}     ${C_YELLOW}$MTU_VALUE${C_RESET}"
+            echo -e "  - ${C_CYAN}MTU Value:${C_RESET}        ${C_YELLOW}$MTU_VALUE${C_RESET}"
         fi
         
         echo -e "\n${C_CYAN}⚡ ULTRA BOOST Status:${C_RESET} ${C_GREEN}ACTIVE (10x Speed)${C_RESET}"
