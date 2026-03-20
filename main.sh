@@ -334,49 +334,55 @@ show_banner() {
     echo ""
 }
 
-# ========== SSH COMPRESSOR (THE KING) ==========
-ssh_compressor() {
+# ========== DNSTT ULTRA BOOSTER (THE KING) ==========
+dnstt_ultra_booster() {
     echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "${C_BLUE}           🔧 SSH COMPRESSOR (THE KING)${C_RESET}"
+    echo -e "${C_BLUE}           🚀 DNSTT ULTRA BOOSTER (THE KING)${C_RESET}"
     echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
     
-    # Backup original sshd_config
-    if [[ ! -f /etc/ssh/sshd_config.backup ]]; then
-        cp /etc/ssh/sshd_config /etc/ssh/sshd_config.backup
-        echo -e "${C_GREEN}✓ SSH config backed up${C_RESET}"
-    fi
+    # 1. BBR v2 Congestion Control
+    echo -e "${C_CYAN}[1/6]${C_RESET} Enabling BBR v2..."
+    modprobe tcp_bbr 2>/dev/null
+    sysctl -w net.ipv4.tcp_congestion_control=bbr >/dev/null 2>&1
+    sysctl -w net.core.default_qdisc=fq_codel >/dev/null 2>&1
+    echo -e "${C_GREEN}✓ BBR v2 + FQ-CoDel enabled${C_RESET}"
     
-    # Check if already optimized
-    if ! grep -q "SSH COMPRESSOR - THE KING" /etc/ssh/sshd_config 2>/dev/null; then
-        echo -e "\n${C_CYAN}Adding SSH compressor optimizations...${C_RESET}"
-        
-        cat >> /etc/ssh/sshd_config << 'EOF'
-
-# ========== SSH COMPRESSOR - THE KING ==========
-# Performance optimizations for maximum speed
-TCPKeepAlive yes
-ClientAliveInterval 30
-ClientAliveCountMax 10
-Compression yes
-MaxSessions 1000
-MaxStartups 1000:30:2000
-
-# Fastest ciphers for SSH tunneling
-Ciphers chacha20-poly1305@openssh.com,aes128-gcm@openssh.com,aes256-gcm@openssh.com
-MACs hmac-sha2-256-etm@openssh.com,hmac-sha2-512-etm@openssh.com
-KexAlgorithms curve25519-sha256,curve25519-sha256@libssh.org
-
-# Large window for high bandwidth
-# No limit on packet size
-EOF
-        echo -e "${C_GREEN}✓ SSH compressor optimizations added${C_RESET}"
-    else
-        echo -e "${C_GREEN}✓ SSH compressor already applied${C_RESET}"
-    fi
+    # 2. 1GB Network Buffers
+    echo -e "${C_CYAN}[2/6]${C_RESET} Setting 1GB network buffers..."
+    sysctl -w net.core.rmem_max=1073741824 >/dev/null 2>&1
+    sysctl -w net.core.wmem_max=1073741824 >/dev/null 2>&1
+    sysctl -w net.core.rmem_default=134217728 >/dev/null 2>&1
+    sysctl -w net.core.wmem_default=134217728 >/dev/null 2>&1
+    sysctl -w net.ipv4.tcp_rmem="16384 1048576 1073741824" >/dev/null 2>&1
+    sysctl -w net.ipv4.tcp_wmem="16384 1048576 1073741824" >/dev/null 2>&1
+    echo -e "${C_GREEN}✓ 1GB buffers configured${C_RESET}"
     
-    # Restart SSH
-    systemctl restart sshd 2>/dev/null || systemctl restart ssh 2>/dev/null
-    echo -e "${C_GREEN}✓ SSH service restarted${C_RESET}"
+    # 3. UDP Optimization for DNS
+    echo -e "${C_CYAN}[3/6]${C_RESET} Optimizing UDP for DNS..."
+    sysctl -w net.ipv4.udp_rmem_min=524288 >/dev/null 2>&1
+    sysctl -w net.ipv4.udp_wmem_min=524288 >/dev/null 2>&1
+    sysctl -w net.ipv4.udp_mem="524288 1048576 2097152" >/dev/null 2>&1
+    echo -e "${C_GREEN}✓ UDP: 512KB buffers (EDNS0 ready)${C_RESET}"
+    
+    # 4. Packet Backlog
+    echo -e "${C_CYAN}[4/6]${C_RESET} Setting packet backlog..."
+    sysctl -w net.core.netdev_max_backlog=300000 >/dev/null 2>&1
+    sysctl -w net.core.somaxconn=262144 >/dev/null 2>&1
+    echo -e "${C_GREEN}✓ Backlog: 300K packets${C_RESET}"
+    
+    # 5. Connection Tracking
+    echo -e "${C_CYAN}[5/6]${C_RESET} Increasing connection tracking..."
+    sysctl -w net.netfilter.nf_conntrack_max=8000000 >/dev/null 2>&1
+    sysctl -w net.netfilter.nf_conntrack_udp_timeout=600 >/dev/null 2>&1
+    echo -e "${C_GREEN}✓ Connection tracking: 8M${C_RESET}"
+    
+    # 6. File Descriptors
+    echo -e "${C_CYAN}[6/6]${C_RESET} Setting file descriptors..."
+    ulimit -n 1048576 2>/dev/null
+    echo -e "${C_GREEN}✓ File descriptors: 1M${C_RESET}"
+    
+    echo -e "\n${C_GREEN}✅ DNSTT ULTRA BOOSTER APPLIED!${C_RESET}"
+    sleep 2
 }
 
 # ========== BUILD DNSTT FROM SOURCE ==========
@@ -3003,81 +3009,7 @@ install_dnstt() {
     
     # Step 4: Apply DNSTT ULTRA BOOSTER (HAPA NDANI YA DNSTT)
     echo -e "\n${C_BLUE}[4/9] Applying DNSTT ULTRA BOOSTER...${C_RESET}"
-    
-    # 4.1 BBR v2 Congestion Control
-    echo -e "${C_CYAN}  [1/6] Enabling BBR v2...${C_RESET}"
-    modprobe tcp_bbr 2>/dev/null
-    sysctl -w net.ipv4.tcp_congestion_control=bbr >/dev/null 2>&1
-    sysctl -w net.core.default_qdisc=fq_codel >/dev/null 2>&1
-    echo -e "${C_GREEN}  ✓ BBR v2 + FQ-CoDel enabled${C_RESET}"
-    
-    # 4.2 1GB Network Buffers
-    echo -e "${C_CYAN}  [2/6] Setting 1GB network buffers...${C_RESET}"
-    sysctl -w net.core.rmem_max=1073741824 >/dev/null 2>&1
-    sysctl -w net.core.wmem_max=1073741824 >/dev/null 2>&1
-    sysctl -w net.core.rmem_default=134217728 >/dev/null 2>&1
-    sysctl -w net.core.wmem_default=134217728 >/dev/null 2>&1
-    sysctl -w net.ipv4.tcp_rmem="16384 1048576 1073741824" >/dev/null 2>&1
-    sysctl -w net.ipv4.tcp_wmem="16384 1048576 1073741824" >/dev/null 2>&1
-    echo -e "${C_GREEN}  ✓ 1GB buffers configured${C_RESET}"
-    
-    # 4.3 UDP Optimization for DNS
-    echo -e "${C_CYAN}  [3/6] Optimizing UDP for DNS...${C_RESET}"
-    sysctl -w net.ipv4.udp_rmem_min=524288 >/dev/null 2>&1
-    sysctl -w net.ipv4.udp_wmem_min=524288 >/dev/null 2>&1
-    sysctl -w net.ipv4.udp_mem="524288 1048576 2097152" >/dev/null 2>&1
-    echo -e "${C_GREEN}  ✓ UDP: 512KB buffers (EDNS0 ready)${C_RESET}"
-    
-    # 4.4 Packet Backlog
-    echo -e "${C_CYAN}  [4/6] Setting packet backlog...${C_RESET}"
-    sysctl -w net.core.netdev_max_backlog=300000 >/dev/null 2>&1
-    sysctl -w net.core.somaxconn=262144 >/dev/null 2>&1
-    echo -e "${C_GREEN}  ✓ Backlog: 300K packets${C_RESET}"
-    
-    # 4.5 Connection Tracking
-    echo -e "${C_CYAN}  [5/6] Increasing connection tracking...${C_RESET}"
-    sysctl -w net.netfilter.nf_conntrack_max=8000000 >/dev/null 2>&1
-    sysctl -w net.netfilter.nf_conntrack_udp_timeout=600 >/dev/null 2>&1
-    echo -e "${C_GREEN}  ✓ Connection tracking: 8M${C_RESET}"
-    
-    # 4.6 File Descriptors
-    echo -e "${C_CYAN}  [6/6] Setting file descriptors...${C_RESET}"
-    ulimit -n 1048576 2>/dev/null
-    echo -e "${C_GREEN}  ✓ File descriptors: 1M${C_RESET}"
-    
-    # Save permanent config for DNSTT only
-    cat > /etc/sysctl.d/99-dnstt-ultra.conf << 'EOF'
-# DNSTT ULTRA BOOSTER - THE KING
-# Applied by Voltron Tech DNSTT Installation
-
-# BBR v2 Congestion Control
-net.ipv4.tcp_congestion_control = bbr
-net.core.default_qdisc = fq_codel
-
-# 1GB Network Buffers
-net.core.rmem_max = 1073741824
-net.core.wmem_max = 1073741824
-net.core.rmem_default = 134217728
-net.core.wmem_default = 134217728
-net.ipv4.tcp_rmem = 16384 1048576 1073741824
-net.ipv4.tcp_wmem = 16384 1048576 1073741824
-
-# UDP Optimization for DNS
-net.ipv4.udp_rmem_min = 524288
-net.ipv4.udp_wmem_min = 524288
-net.ipv4.udp_mem = 524288 1048576 2097152
-
-# Packet Backlog
-net.core.netdev_max_backlog = 300000
-net.core.somaxconn = 262144
-
-# Connection Tracking
-net.netfilter.nf_conntrack_max = 8000000
-net.netfilter.nf_conntrack_udp_timeout = 600
-EOF
-    
-    sysctl -p /etc/sysctl.d/99-dnstt-ultra.conf >/dev/null 2>&1
-    echo -e "${C_GREEN}✅ DNSTT ULTRA BOOSTER APPLIED!${C_RESET}"
+    dnstt_ultra_booster
     
     # Step 5: Configure firewall
     echo -e "\n${C_BLUE}[5/9] Configuring firewall...${C_RESET}"
@@ -3194,10 +3126,6 @@ initial_setup() {
     create_limiter_service
     create_traffic_monitor
     
-    # Apply SSH Compressor (THE KING)
-    echo -e "\n${C_BLUE}🔧 Applying SSH Compressor (THE KING)...${C_RESET}"
-    ssh_compressor
-    
     get_ip_info
 }
 
@@ -3258,10 +3186,7 @@ uninstall_script() {
     echo "nameserver 8.8.8.8" > /etc/resolv.conf
     echo "nameserver 1.1.1.1" >> /etc/resolv.conf
     
-    # Restore SSH config
-    if [ -f /etc/ssh/sshd_config.backup ]; then
-        mv /etc/ssh/sshd_config.backup /etc/ssh/sshd_config
-    fi
+    # Restart SSH
     systemctl restart sshd
     
     # Remove script
@@ -3292,17 +3217,18 @@ main_menu() {
         printf "  ${C_GREEN}%2s${C_RESET}) %-25s  ${C_GREEN}%2s${C_RESET}) %-25s\n" "3" "Edit User" "8" "Renew User"
         printf "  ${C_GREEN}%2s${C_RESET}) %-25s  ${C_GREEN}%2s${C_RESET}) %-25s\n" "4" "Lock User" "9" "Cleanup Expired"
         printf "  ${C_GREEN}%2s${C_RESET}) %-25s\n" "5" "Bulk Create Users"
+        printf "  ${C_GREEN}%2s${C_RESET}) %-25s\n" "10" "📊 View Bandwidth"
         
         echo ""
         echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
         echo -e "${C_BOLD}${C_PURPLE}                    ⚙️ SYSTEM UTILITIES${C_RESET}"
         echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
-        printf "  ${C_GREEN}%2s${C_RESET}) %-25s  ${C_GREEN}%2s${C_RESET}) %-25s\n" "10" "Protocols & Panels" "15" "SSH Banner"
-        printf "  ${C_GREEN}%2s${C_RESET}) %-25s  ${C_GREEN}%2s${C_RESET}) %-25s\n" "11" "Backup Users" "16" "Auto HTML Banner"
-        printf "  ${C_GREEN}%2s${C_RESET}) %-25s  ${C_GREEN}%2s${C_RESET}) %-25s\n" "12" "Restore Users" "17" "Auto Reboot"
-        printf "  ${C_GREEN}%2s${C_RESET}) %-25s  ${C_GREEN}%2s${C_RESET}) %-25s\n" "13" "DNS Domain" "18" "View Bandwidth"
-        printf "  ${C_GREEN}%2s${C_RESET}) %-25s  ${C_GREEN}%2s${C_RESET}) %-25s\n" "14" "V2Ray Management" "19" "Cache Cleaner"
-        printf "  ${C_GREEN}%2s${C_RESET}) %-25s  ${C_GREEN}%2s${C_RESET}) %-25s\n" "20" "Connection Forcer" "21" "DT Proxy"
+        printf "  ${C_GREEN}%2s${C_RESET}) %-25s  ${C_GREEN}%2s${C_RESET}) %-25s\n" "11" "Protocols & Panels" "16" "SSH Banner"
+        printf "  ${C_GREEN}%2s${C_RESET}) %-25s  ${C_GREEN}%2s${C_RESET}) %-25s\n" "12" "Backup Users" "17" "Auto HTML Banner"
+        printf "  ${C_GREEN}%2s${C_RESET}) %-25s  ${C_GREEN}%2s${C_RESET}) %-25s\n" "13" "Restore Users" "18" "Auto Reboot"
+        printf "  ${C_GREEN}%2s${C_RESET}) %-25s  ${C_GREEN}%2s${C_RESET}) %-25s\n" "14" "DNS Domain" "19" "Cache Cleaner"
+        printf "  ${C_GREEN}%2s${C_RESET}) %-25s  ${C_GREEN}%2s${C_RESET}) %-25s\n" "15" "V2Ray Management" "20" "Connection Forcer"
+        printf "  ${C_GREEN}%2s${C_RESET}) %-25s\n" "21" "DT Proxy"
 
         echo ""
         echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
@@ -3324,18 +3250,20 @@ main_menu() {
             7) _list_users ;;
             8) _renew_user ;;
             9) _cleanup_expired ;;
-            10) protocol_menu ;;
-            11) backup_user_data ;;
-            12) restore_user_data ;;
-            13) generate_cloudflare_dns ;;
-            14) v2ray_main_menu ;;
-            15) ssh_banner_menu ;;
-            16) auto_banner_menu ;;
-            17) auto_reboot_menu ;;
-            18) _view_user_bandwidth ;;
+            10) _view_user_bandwidth ;;
+            
+            11) protocol_menu ;;
+            12) backup_user_data ;;
+            13) restore_user_data ;;
+            14) generate_cloudflare_dns ;;
+            15) v2ray_main_menu ;;
+            16) ssh_banner_menu ;;
+            17) auto_banner_menu ;;
+            18) auto_reboot_menu ;;
             19) cache_cleaner_menu ;;
             20) connection_forcer_menu ;;
             21) dt_proxy_menu ;;
+            
             99) uninstall_script ;;
             0) echo -e "\n${C_BLUE}👋 Goodbye!${C_RESET}"; exit 0 ;;
             *) echo -e "\n${C_RED}❌ Invalid option${C_RESET}"; sleep 2 ;;
