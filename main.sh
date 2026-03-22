@@ -4,7 +4,7 @@
 # Version: 10.0 (FALCON STYLE)
 # Description: SSH • DNSTT • V2RAY • BADVPN • UDP-CUSTOM • SSL • PROXY • ZIVPN • X-UI
 # Author: Voltron Tech
-# Features: DNSTT with Falcon Style, Auto HTML Banner, User Manager
+# Features: DNSTT with Falcon Style, Auto HTML Banner, User Manager, Speed Boosters
 
 # ========== COLOR CODES ==========
 C_RESET='\033[0m'
@@ -41,6 +41,7 @@ SSL_CERT_FILE="$SSL_CERT_DIR/voltrontech.pem"
 SSH_BANNER_FILE="/etc/voltrontech/banner"
 TRAFFIC_DIR="$DB_DIR/traffic"
 BANNER_DIR="$DB_DIR/banners"
+BANDWIDTH_DIR="$DB_DIR/bandwidth"
 
 # DNS Protocols Directories
 DNSTT_KEYS_DIR="$DB_DIR/dnstt"
@@ -115,7 +116,7 @@ UNINSTALL_MODE="interactive"
 # ========== CREATE DIRECTORIES ==========
 create_directories() {
     echo -e "${C_BLUE}📁 Creating directories...${C_RESET}"
-    mkdir -p $DB_DIR $DNSTT_KEYS_DIR $V2RAY_KEYS_DIR $V2RAY_DIR $BACKUP_DIR $LOGS_DIR $CONFIG_DIR $SSL_CERT_DIR $FEC_DIR $TRAFFIC_DIR $BANNER_DIR
+    mkdir -p $DB_DIR $DNSTT_KEYS_DIR $V2RAY_KEYS_DIR $V2RAY_DIR $BACKUP_DIR $LOGS_DIR $CONFIG_DIR $SSL_CERT_DIR $FEC_DIR $TRAFFIC_DIR $BANNER_DIR $BANDWIDTH_DIR
     mkdir -p $V2RAY_DIR/dnstt $V2RAY_DIR/v2ray $V2RAY_DIR/users
     mkdir -p $UDP_CUSTOM_DIR $ZIVPN_DIR
     mkdir -p $(dirname "$SSH_BANNER_FILE")
@@ -365,7 +366,6 @@ download_dnstt_binary() {
     
     chmod +x "$DNSTT_SERVER"
     
-    # Verify binary
     if [ ! -f "$DNSTT_SERVER" ]; then
         echo -e "${C_RED}❌ Binary download failed${C_RESET}"
         return 1
@@ -384,134 +384,158 @@ download_dnstt_binary() {
     return 0
 }
 
-# ========== DNSTT ULTRA BOOSTER (FALCON STYLE) ==========
-apply_dnstt_ultra_booster() {
+# ========== SPEED BOOSTERS ==========
+apply_dnstt_standard() {
     echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "${C_BLUE}           🚀 DNSTT ULTRA BOOSTER (FALCON STYLE)${C_RESET}"
+    echo -e "${C_BLUE}           ⚡ STANDARD BOOSTER (32MB)${C_RESET}"
     echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
     
-    # 1. BBR v2 + fq_codel
-    echo -e "${C_CYAN}[1/6]${C_RESET} Enabling BBR v2..."
     modprobe tcp_bbr 2>/dev/null
     sysctl -w net.ipv4.tcp_congestion_control=bbr >/dev/null 2>&1
     sysctl -w net.core.default_qdisc=fq_codel >/dev/null 2>&1
-    echo -e "${C_GREEN}✓ BBR v2 + FQ-CoDel enabled${C_RESET}"
+    echo -e "${C_GREEN}✓ BBR enabled${C_RESET}"
     
-    # 2. Ultra Network Buffers (32MB)
-    echo -e "${C_CYAN}[2/6]${C_RESET} Setting ultra network buffers..."
-    sysctl -w net.core.rmem_max=33554432 >/dev/null 2>&1
-    sysctl -w net.core.wmem_max=33554432 >/dev/null 2>&1
-    sysctl -w net.core.rmem_default=16777216 >/dev/null 2>&1
-    sysctl -w net.core.wmem_default=16777216 >/dev/null 2>&1
-    echo -e "${C_GREEN}✓ Ultra buffers: 32MB${C_RESET}"
-    
-    # 3. UDP Optimization for DNS
-    echo -e "${C_CYAN}[3/6]${C_RESET} Optimizing UDP for DNS..."
-    sysctl -w net.ipv4.udp_rmem_min=524288 >/dev/null 2>&1
-    sysctl -w net.ipv4.udp_wmem_min=524288 >/dev/null 2>&1
-    sysctl -w net.ipv4.udp_mem="524288 1048576 2097152" >/dev/null 2>&1
-    echo -e "${C_GREEN}✓ UDP: 512KB buffers (EDNS0 ready)${C_RESET}"
-    
-    # 4. Packet Backlog
-    echo -e "${C_CYAN}[4/6]${C_RESET} Setting packet backlog..."
-    sysctl -w net.core.netdev_max_backlog=300000 >/dev/null 2>&1
-    sysctl -w net.core.somaxconn=262144 >/dev/null 2>&1
-    echo -e "${C_GREEN}✓ Backlog: 300K packets${C_RESET}"
-    
-    # 5. Connection Tracking
-    echo -e "${C_CYAN}[5/6]${C_RESET} Increasing connection tracking..."
-    sysctl -w net.netfilter.nf_conntrack_max=2000000 >/dev/null 2>&1
-    sysctl -w net.netfilter.nf_conntrack_udp_timeout=600 >/dev/null 2>&1
-    echo -e "${C_GREEN}✓ Connection tracking: 2M${C_RESET}"
-    
-    # 6. File Descriptors
-    echo -e "${C_CYAN}[6/6]${C_RESET} Setting file descriptors..."
-    ulimit -n 524288 2>/dev/null
-    echo -e "${C_GREEN}✓ File descriptors: 512K${C_RESET}"
-    
-    # Save config
-    cat > /etc/sysctl.d/99-dnstt-ultra.conf << 'EOF'
-# DNSTT ULTRA BOOSTER - Falcon Style
-net.ipv4.tcp_congestion_control = bbr
-net.core.default_qdisc = fq_codel
-net.core.rmem_max = 33554432
-net.core.wmem_max = 33554432
-net.core.rmem_default = 16777216
-net.core.wmem_default = 16777216
-net.ipv4.udp_rmem_min = 524288
-net.ipv4.udp_wmem_min = 524288
-net.ipv4.udp_mem = 524288 1048576 2097152
-net.core.netdev_max_backlog = 300000
-net.core.somaxconn = 262144
-net.netfilter.nf_conntrack_max = 2000000
-net.netfilter.nf_conntrack_udp_timeout = 600
-EOF
-    
-    sysctl -p /etc/sysctl.d/99-dnstt-ultra.conf >/dev/null 2>&1
-    
-    echo -e "\n${C_GREEN}✅ DNSTT ULTRA BOOSTER APPLIED!${C_RESET}"
-    echo -e "  • BBR v2: Active"
-    echo -e "  • Ultra Buffers: 32MB"
-    echo -e "  • UDP Buffers: 512KB (EDNS0 ready)"
-    echo -e "  • Packet Backlog: 300K"
-    echo -e "  • Connection Tracking: 2M"
-    echo -e "  • File Descriptors: 512K"
-    echo -e "  • Expected Speed: 15-25 Mbps 🚀"
-    
-    sleep 2
-}
-
-# ========== DNSTT SPEED BOOSTER (STANDARD) ==========
-apply_dnstt_speed_booster() {
-    echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "${C_BLUE}           ⚡ DNSTT SPEED BOOSTER (STANDARD)${C_RESET}"
-    echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
-    
-    # 1. BBR Congestion Control
-    echo -e "${C_CYAN}[1/4]${C_RESET} Enabling BBR congestion control..."
-    modprobe tcp_bbr 2>/dev/null
-    sysctl -w net.ipv4.tcp_congestion_control=bbr >/dev/null 2>&1
-    sysctl -w net.core.default_qdisc=fq_codel >/dev/null 2>&1
-    echo -e "${C_GREEN}✓ BBR + FQ-CoDel enabled${C_RESET}"
-    
-    # 2. UDP Buffers (512KB)
-    echo -e "${C_CYAN}[2/4]${C_RESET} Optimizing UDP buffers..."
     sysctl -w net.ipv4.udp_rmem_min=524288 >/dev/null 2>&1
     sysctl -w net.ipv4.udp_wmem_min=524288 >/dev/null 2>&1
     echo -e "${C_GREEN}✓ UDP buffers: 512KB${C_RESET}"
     
-    # 3. Network Buffers (32MB)
-    echo -e "${C_CYAN}[3/4]${C_RESET} Setting network buffers..."
     sysctl -w net.core.rmem_max=33554432 >/dev/null 2>&1
     sysctl -w net.core.wmem_max=33554432 >/dev/null 2>&1
     echo -e "${C_GREEN}✓ Network buffers: 32MB${C_RESET}"
     
-    # 4. Packet Backlog
-    echo -e "${C_CYAN}[4/4]${C_RESET} Setting packet backlog..."
     sysctl -w net.core.netdev_max_backlog=100000 >/dev/null 2>&1
     echo -e "${C_GREEN}✓ Packet backlog: 100K${C_RESET}"
     
-    # Save config
-    cat > /etc/sysctl.d/99-dnstt-speed.conf << 'EOF'
-# DNSTT Speed Booster - Falcon Style
-net.ipv4.tcp_congestion_control = bbr
-net.core.default_qdisc = fq_codel
-net.ipv4.udp_rmem_min = 524288
-net.ipv4.udp_wmem_min = 524288
-net.core.rmem_max = 33554432
-net.core.wmem_max = 33554432
-net.core.netdev_max_backlog = 100000
-EOF
+    echo -e "\n${C_GREEN}✅ Standard Booster applied! (10-15 Mbps)${C_RESET}"
+    sleep 1
+}
+
+apply_dnstt_medium() {
+    echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    echo -e "${C_BLUE}           ⚡ MEDIUM BOOSTER (64MB)${C_RESET}"
+    echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
     
-    sysctl -p /etc/sysctl.d/99-dnstt-speed.conf >/dev/null 2>&1
+    modprobe tcp_bbr 2>/dev/null
+    sysctl -w net.ipv4.tcp_congestion_control=bbr >/dev/null 2>&1
+    sysctl -w net.core.default_qdisc=fq_codel >/dev/null 2>&1
+    echo -e "${C_GREEN}✓ BBR v2 enabled${C_RESET}"
     
-    echo -e "\n${C_GREEN}✅ DNSTT Speed Booster applied!${C_RESET}"
-    echo -e "  • BBR: Active"
-    echo -e "  • UDP Buffers: 512KB"
-    echo -e "  • Network Buffers: 32MB"
-    echo -e "  • Expected Speed: 10-15 Mbps"
+    sysctl -w net.ipv4.udp_rmem_min=1048576 >/dev/null 2>&1
+    sysctl -w net.ipv4.udp_wmem_min=1048576 >/dev/null 2>&1
+    echo -e "${C_GREEN}✓ UDP buffers: 1MB${C_RESET}"
     
-    sleep 2
+    sysctl -w net.core.rmem_max=67108864 >/dev/null 2>&1
+    sysctl -w net.core.wmem_max=67108864 >/dev/null 2>&1
+    echo -e "${C_GREEN}✓ Network buffers: 64MB${C_RESET}"
+    
+    sysctl -w net.core.netdev_max_backlog=200000 >/dev/null 2>&1
+    sysctl -w net.core.somaxconn=524288 >/dev/null 2>&1
+    echo -e "${C_GREEN}✓ Packet backlog: 200K${C_RESET}"
+    
+    sysctl -w net.netfilter.nf_conntrack_max=4000000 >/dev/null 2>&1
+    echo -e "${C_GREEN}✓ Connection tracking: 4M${C_RESET}"
+    
+    ulimit -n 1048576 2>/dev/null
+    echo -e "${C_GREEN}✓ File descriptors: 1M${C_RESET}"
+    
+    echo -e "\n${C_GREEN}✅ Medium Booster applied! (15-20 Mbps) 🚀${C_RESET}"
+    sleep 1
+}
+
+apply_dnstt_high() {
+    echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    echo -e "${C_BLUE}           ⚡ HIGH BOOSTER (128MB)${C_RESET}"
+    echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    
+    modprobe tcp_bbr 2>/dev/null
+    sysctl -w net.ipv4.tcp_congestion_control=bbr >/dev/null 2>&1
+    sysctl -w net.core.default_qdisc=fq_codel >/dev/null 2>&1
+    echo -e "${C_GREEN}✓ BBR v2 enabled${C_RESET}"
+    
+    sysctl -w net.ipv4.udp_rmem_min=2097152 >/dev/null 2>&1
+    sysctl -w net.ipv4.udp_wmem_min=2097152 >/dev/null 2>&1
+    echo -e "${C_GREEN}✓ UDP buffers: 2MB${C_RESET}"
+    
+    sysctl -w net.core.rmem_max=134217728 >/dev/null 2>&1
+    sysctl -w net.core.wmem_max=134217728 >/dev/null 2>&1
+    echo -e "${C_GREEN}✓ Network buffers: 128MB${C_RESET}"
+    
+    sysctl -w net.core.netdev_max_backlog=400000 >/dev/null 2>&1
+    sysctl -w net.core.somaxconn=1048576 >/dev/null 2>&1
+    echo -e "${C_GREEN}✓ Packet backlog: 400K${C_RESET}"
+    
+    sysctl -w net.netfilter.nf_conntrack_max=8000000 >/dev/null 2>&1
+    echo -e "${C_GREEN}✓ Connection tracking: 8M${C_RESET}"
+    
+    ulimit -n 2097152 2>/dev/null
+    echo -e "${C_GREEN}✓ File descriptors: 2M${C_RESET}"
+    
+    echo -e "\n${C_GREEN}✅ High Booster applied! (20-25 Mbps) 🚀🚀${C_RESET}"
+    sleep 1
+}
+
+apply_dnstt_ultra() {
+    echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    echo -e "${C_BLUE}           🚀 ULTRA BOOSTER (256MB)${C_RESET}"
+    echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    
+    modprobe tcp_bbr 2>/dev/null
+    sysctl -w net.ipv4.tcp_congestion_control=bbr >/dev/null 2>&1
+    sysctl -w net.core.default_qdisc=fq_codel >/dev/null 2>&1
+    echo -e "${C_GREEN}✓ BBR v2 enabled${C_RESET}"
+    
+    sysctl -w net.ipv4.udp_rmem_min=4194304 >/dev/null 2>&1
+    sysctl -w net.ipv4.udp_wmem_min=4194304 >/dev/null 2>&1
+    echo -e "${C_GREEN}✓ UDP buffers: 4MB${C_RESET}"
+    
+    sysctl -w net.core.rmem_max=268435456 >/dev/null 2>&1
+    sysctl -w net.core.wmem_max=268435456 >/dev/null 2>&1
+    echo -e "${C_GREEN}✓ Network buffers: 256MB${C_RESET}"
+    
+    sysctl -w net.core.netdev_max_backlog=600000 >/dev/null 2>&1
+    sysctl -w net.core.somaxconn=2097152 >/dev/null 2>&1
+    echo -e "${C_GREEN}✓ Packet backlog: 600K${C_RESET}"
+    
+    sysctl -w net.netfilter.nf_conntrack_max=16000000 >/dev/null 2>&1
+    echo -e "${C_GREEN}✓ Connection tracking: 16M${C_RESET}"
+    
+    ulimit -n 4194304 2>/dev/null
+    echo -e "${C_GREEN}✓ File descriptors: 4M${C_RESET}"
+    
+    echo -e "\n${C_GREEN}✅ ULTRA Booster applied! (25-35 Mbps) 🚀🚀🚀${C_RESET}"
+    sleep 1
+}
+
+apply_dnstt_extreme() {
+    echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    echo -e "${C_BLUE}           💥 EXTREME BOOSTER (512MB)${C_RESET}"
+    echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    
+    modprobe tcp_bbr 2>/dev/null
+    sysctl -w net.ipv4.tcp_congestion_control=bbr >/dev/null 2>&1
+    sysctl -w net.core.default_qdisc=fq_codel >/dev/null 2>&1
+    echo -e "${C_GREEN}✓ BBR v3 enabled${C_RESET}"
+    
+    sysctl -w net.ipv4.udp_rmem_min=8388608 >/dev/null 2>&1
+    sysctl -w net.ipv4.udp_wmem_min=8388608 >/dev/null 2>&1
+    echo -e "${C_GREEN}✓ UDP buffers: 8MB${C_RESET}"
+    
+    sysctl -w net.core.rmem_max=536870912 >/dev/null 2>&1
+    sysctl -w net.core.wmem_max=536870912 >/dev/null 2>&1
+    echo -e "${C_GREEN}✓ Network buffers: 512MB${C_RESET}"
+    
+    sysctl -w net.core.netdev_max_backlog=1000000 >/dev/null 2>&1
+    sysctl -w net.core.somaxconn=4194304 >/dev/null 2>&1
+    echo -e "${C_GREEN}✓ Packet backlog: 1M${C_RESET}"
+    
+    sysctl -w net.netfilter.nf_conntrack_max=32000000 >/dev/null 2>&1
+    echo -e "${C_GREEN}✓ Connection tracking: 32M${C_RESET}"
+    
+    ulimit -n 8388608 2>/dev/null
+    echo -e "${C_GREEN}✓ File descriptors: 8M${C_RESET}"
+    
+    echo -e "\n${C_GREEN}✅ EXTREME Booster applied! (35-50 Mbps) 💥💥💥${C_RESET}"
+    sleep 1
 }
 
 # ========== KEY GENERATION ==========
@@ -846,6 +870,27 @@ show_client_commands_falcon_style() {
 }
 
 # ========== AUTO HTML BANNER FUNCTIONS ==========
+_connect_auto_banner_to_ssh() {
+    echo -e "\n${C_BLUE}🔗 Connecting Auto HTML Banner to SSH...${C_RESET}"
+    
+    mkdir -p /etc/ssh/sshd_config.d
+    
+    cat > /etc/ssh/sshd_config.d/voltron-auto-banner.conf << 'EOF'
+# Voltron Tech Auto HTML Banner
+# This banner is generated automatically by the limiter service
+Match User *
+    Banner /etc/voltrontech/banners/%u.txt
+EOF
+
+    if ! grep -q "Include /etc/ssh/sshd_config.d/" /etc/ssh/sshd_config 2>/dev/null; then
+        echo "Include /etc/ssh/sshd_config.d/*.conf" >> /etc/ssh/sshd_config
+    fi
+    
+    systemctl reload sshd 2>/dev/null || systemctl reload ssh 2>/dev/null
+    
+    echo -e "${C_GREEN}✅ Auto HTML Banner connected to SSH${C_RESET}"
+}
+
 _enable_auto_banner() {
     echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
     echo -e "${C_BLUE}           🎨 ENABLING AUTO HTML BANNER${C_RESET}"
@@ -853,6 +898,8 @@ _enable_auto_banner() {
     
     touch "/etc/voltrontech/banners_enabled"
     mkdir -p "/etc/voltrontech/banners"
+    
+    _connect_auto_banner_to_ssh
     
     echo -e "${C_GREEN}✅ Auto HTML Banner enabled!${C_RESET}"
     echo -e "${C_CYAN}📌 Users will see account status when connecting via SSH tunnel${C_RESET}"
@@ -865,6 +912,8 @@ _disable_auto_banner() {
     echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
     
     rm -f "/etc/voltrontech/banners_enabled"
+    rm -f /etc/ssh/sshd_config.d/voltron-auto-banner.conf
+    systemctl reload sshd 2>/dev/null || systemctl reload ssh 2>/dev/null
     
     echo -e "${C_GREEN}✅ Auto HTML Banner disabled!${C_RESET}"
     safe_read "" dummy
@@ -877,6 +926,7 @@ _view_auto_banner_status() {
     
     if [ -f "/etc/voltrontech/banners_enabled" ]; then
         echo -e "\n${C_GREEN}✅ Auto HTML Banner: ENABLED${C_RESET}"
+        echo -e "${C_CYAN}📌 Banner location: /etc/voltrontech/banners/{username}.txt${C_RESET}"
         
         local first_user=$(head -1 "$DB_FILE" 2>/dev/null | cut -d: -f1)
         if [ -n "$first_user" ] && [ -f "/etc/voltrontech/banners/${first_user}.txt" ]; then
@@ -1011,7 +1061,7 @@ auto_reboot_menu() {
     done
 }
 
-# ========== SSH BANNER (PLAIN TEXT) - FALCON STYLE ==========
+# ========== SSH BANNER (PLAIN TEXT) ==========
 _set_ssh_banner() {
     clear
     show_banner
@@ -1132,420 +1182,342 @@ ssh_banner_menu() {
 
 # ========== USER MANAGEMENT ==========
 _create_user() {
-    clear
-    show_banner
+    clear; show_banner
     echo -e "${C_BOLD}${C_PURPLE}--- ✨ Create New SSH User ---${C_RESET}"
-    
-    local username
     read -p "👉 Enter username (or '0' to cancel): " username
     if [[ "$username" == "0" ]]; then
         echo -e "\n${C_YELLOW}❌ User creation cancelled.${C_RESET}"
         return
     fi
-    
     if [[ -z "$username" ]]; then
         echo -e "\n${C_RED}❌ Error: Username cannot be empty.${C_RESET}"
         return
     fi
-    
     if id "$username" &>/dev/null || grep -q "^$username:" "$DB_FILE"; then
-        echo -e "\n${C_RED}❌ Error: User '$username' already exists.${C_RESET}"
-        return
+        echo -e "\n${C_RED}❌ Error: User '$username' already exists.${C_RESET}"; return
     fi
-    
     local password=""
     while true; do
-        read -p "🔑 Enter new password: " password
+        read -p "🔑 Enter password (or press Enter for auto-generated): " password
         if [[ -z "$password" ]]; then
-            echo -e "${C_RED}❌ Password cannot be empty.${C_RESET}"
+            password=$(head /dev/urandom | tr -dc 'A-Za-z0-9' | head -c 8)
+            echo -e "${C_GREEN}🔑 Auto-generated password: ${C_YELLOW}$password${C_RESET}"
+            break
         else
             break
         fi
     done
-    
-    read -p "🗓️ Enter account duration (in days): " days
-    if ! [[ "$days" =~ ^[0-9]+$ ]]; then
-        echo -e "\n${C_RED}❌ Invalid number.${C_RESET}"
-        return
-    fi
-    
-    read -p "📶 Enter simultaneous connection limit: " limit
-    if ! [[ "$limit" =~ ^[0-9]+$ ]]; then
-        echo -e "\n${C_RED}❌ Invalid number.${C_RESET}"
-        return
-    fi
-    
-    read -p "📊 Traffic limit (GB) [0=unlimited]: " traffic_limit
-    traffic_limit=${traffic_limit:-0}
-    
-    local expire_date=$(date -d "+$days days" +%Y-%m-%d)
-    
+    read -p "🗓️ Enter account duration (in days) [30]: " days
+    days=${days:-30}
+    if ! [[ "$days" =~ ^[0-9]+$ ]]; then echo -e "\n${C_RED}❌ Invalid number.${C_RESET}"; return; fi
+    read -p "📶 Enter simultaneous connection limit [1]: " limit
+    limit=${limit:-1}
+    if ! [[ "$limit" =~ ^[0-9]+$ ]]; then echo -e "\n${C_RED}❌ Invalid number.${C_RESET}"; return; fi
+    read -p "📦 Enter bandwidth limit in GB (0 = unlimited) [0]: " bandwidth_gb
+    bandwidth_gb=${bandwidth_gb:-0}
+    if ! [[ "$bandwidth_gb" =~ ^[0-9]+\.?[0-9]*$ ]]; then echo -e "\n${C_RED}❌ Invalid number.${C_RESET}"; return; fi
+    local expire_date
+    expire_date=$(date -d "+$days days" +%Y-%m-%d)
     useradd -m -s /usr/sbin/nologin "$username"
-    echo "$username:$password" | chpasswd
-    chage -E "$expire_date" "$username"
-    echo "$username:$password:$expire_date:$limit:$traffic_limit:0:ACTIVE" >> "$DB_FILE"
+    usermod -aG ffusers "$username" 2>/dev/null
+    echo "$username:$password" | chpasswd; chage -E "$expire_date" "$username"
+    echo "$username:$password:$expire_date:$limit:$bandwidth_gb:0:ACTIVE" >> "$DB_FILE"
     
-    clear
-    show_banner
+    local bw_display="Unlimited"
+    if [[ "$bandwidth_gb" != "0" ]]; then bw_display="${bandwidth_gb} GB"; fi
+    
+    clear; show_banner
     echo -e "${C_GREEN}✅ User '$username' created successfully!${C_RESET}\n"
     echo -e "  - 👤 Username:          ${C_YELLOW}$username${C_RESET}"
     echo -e "  - 🔑 Password:          ${C_YELLOW}$password${C_RESET}"
     echo -e "  - 🗓️ Expires on:        ${C_YELLOW}$expire_date${C_RESET}"
     echo -e "  - 📶 Connection Limit:  ${C_YELLOW}$limit${C_RESET}"
-    echo -e "  - 📊 Traffic Limit:     ${C_YELLOW}$traffic_limit GB${C_RESET}"
-    safe_read "" dummy
+    echo -e "  - 📦 Bandwidth Limit:   ${C_YELLOW}$bw_display${C_RESET}"
+    echo -e "    ${C_DIM}(Active monitoring service will enforce these limits)${C_RESET}"
+
+    echo
+    read -p "👉 Do you want to generate a client connection config for this user? (y/n): " gen_conf
+    if [[ "$gen_conf" == "y" || "$gen_conf" == "Y" ]]; then
+        generate_client_config "$username" "$password"
+    fi
+    
+    _update_ssh_banners_config
 }
 
 _delete_user() {
-    clear
-    show_banner
-    echo -e "${C_BOLD}${C_PURPLE}--- 🗑️ Delete User ---${C_RESET}"
+    _select_multi_user_interface "--- 🗑️ Delete Users (from DB) ---"
+    if [[ ${#SELECTED_USERS[@]} -eq 0 || "${SELECTED_USERS[0]}" == "NO_USERS" ]]; then return; fi
     
-    local username
-    read -p "👉 Username: " username
+    echo -e "\n${C_RED}⚠️ You selected ${#SELECTED_USERS[@]} user(s) to delete: ${C_YELLOW}${SELECTED_USERS[*]}${C_RESET}"
+    read -p "👉 Are you sure you want to PERMANENTLY delete them? (y/n): " confirm
+    if [[ "$confirm" != "y" ]]; then echo -e "\n${C_YELLOW}❌ Deletion cancelled.${C_RESET}"; return; fi
     
-    if ! id "$username" &>/dev/null; then
-        echo -e "\n${C_RED}❌ User not found.${C_RESET}"
-        safe_read "" dummy
-        return
-    fi
+    echo -e "\n${C_BLUE}🗑️ Deleting selected users...${C_RESET}"
+    for username in "${SELECTED_USERS[@]}"; do
+        killall -u "$username" -9 &>/dev/null
+        sleep 0.2
+        userdel -r "$username" &>/dev/null
+        if [ $? -eq 0 ]; then
+             echo -e " ✅ System user '${C_YELLOW}$username${C_RESET}' deleted."
+        else
+             echo -e " ❌ Failed to delete system user '${C_YELLOW}$username${C_RESET}'."
+        fi
+        rm -f "$BANDWIDTH_DIR/${username}.usage"
+        rm -rf "$BANDWIDTH_DIR/pidtrack/${username}"
+        sed -i "/^$username:/d" "$DB_FILE"
+    done
     
-    local confirm
-    read -p "Confirm delete? (y/n): " confirm
-    [[ "$confirm" != "y" ]] && return
-    
-    killall -u "$username" 2>/dev/null
-    userdel -r "$username" 2>/dev/null
-    sed -i "/^$username:/d" "$DB_FILE"
-    rm -f "$TRAFFIC_DIR/$username" 2>/dev/null
-    
-    echo -e "\n${C_GREEN}✅ User deleted${C_RESET}"
-    safe_read "" dummy
+    _update_ssh_banners_config
 }
 
 _edit_user() {
-    clear
-    show_banner
-    echo -e "${C_BOLD}${C_PURPLE}--- ✏️ Edit User ---${C_RESET}"
-    
-    local username
-    read -p "👉 Username: " username
-    
-    if ! id "$username" &>/dev/null; then
-        echo -e "\n${C_RED}❌ User not found.${C_RESET}"
-        safe_read "" dummy
-        return
-    fi
-    
-    local line=$(grep "^$username:" "$DB_FILE")
-    if [ -z "$line" ]; then
-        echo -e "\n${C_RED}❌ User not in database.${C_RESET}"
-        safe_read "" dummy
-        return
-    fi
-    
-    IFS=: read -r user pass expiry limit traffic_limit traffic_used status <<< "$line"
-    status=${status:-ACTIVE}
-    
+    _select_user_interface "--- ✏️ Edit a User ---"
+    local username=$SELECTED_USER
+    if [[ "$username" == "NO_USERS" ]] || [[ -z "$username" ]]; then return; fi
     while true; do
-        clear
-        show_banner
-        echo -e "${C_BOLD}${C_PURPLE}--- Editing User: ${C_YELLOW}$username${C_PURPLE} ---${C_RESET}"
-        echo -e "\nCurrent Details:"
-        echo -e "  Expiry:        $expiry"
-        echo -e "  Connection:    $limit"
-        echo -e "  Traffic Limit: $traffic_limit GB"
-        echo -e "  Traffic Used:  $traffic_used GB"
-        echo -e "  Status:        $status"
-        echo -e "\nSelect a detail to edit:\n"
-        echo -e "  ${C_GREEN}1)${C_RESET} 🔑 Change Password"
-        echo -e "  ${C_GREEN}2)${C_RESET} 🗓️ Change Expiration"
-        echo -e "  ${C_GREEN}3)${C_RESET} 📶 Change Connection Limit"
-        echo -e "  ${C_GREEN}4)${C_RESET} 📊 Change Traffic Limit"
-        echo -e "  ${C_GREEN}5)${C_RESET} 🔓 Unlock User (if locked)"
-        echo -e "\n  ${C_RED}0)${C_RESET} ✅ Finish Editing"
-        echo
-        read -p "👉 Enter your choice: " edit_choice
+        clear; show_banner; echo -e "${C_BOLD}${C_PURPLE}--- Editing User: ${C_YELLOW}$username${C_PURPLE} ---${C_RESET}"
         
+        local current_line; current_line=$(grep "^$username:" "$DB_FILE")
+        local cur_pass; cur_pass=$(echo "$current_line" | cut -d: -f2)
+        local cur_expiry; cur_expiry=$(echo "$current_line" | cut -d: -f3)
+        local cur_limit; cur_limit=$(echo "$current_line" | cut -d: -f4)
+        local cur_bw; cur_bw=$(echo "$current_line" | cut -d: -f5)
+        local cur_traffic; cur_traffic=$(echo "$current_line" | cut -d: -f6)
+        [[ -z "$cur_bw" ]] && cur_bw="0"
+        [[ -z "$cur_traffic" ]] && cur_traffic="0"
+        local cur_bw_display="Unlimited"; [[ "$cur_bw" != "0" ]] && cur_bw_display="${cur_bw} GB"
+        
+        echo -e "\n  ${C_DIM}Current: Pass=${C_YELLOW}$cur_pass${C_RESET}${C_DIM} Exp=${C_YELLOW}$cur_expiry${C_RESET}${C_DIM} Conn=${C_YELLOW}$cur_limit${C_RESET}${C_DIM} BW=${C_YELLOW}$cur_bw_display${C_RESET}${C_DIM} Used=${C_CYAN}$cur_traffic GB${C_RESET}"
+        echo -e "\nSelect a detail to edit:\n"
+        printf "  ${C_GREEN}[ 1]${C_RESET} %-35s\n" "🔑 Change Password"
+        printf "  ${C_GREEN}[ 2]${C_RESET} %-35s\n" "🗓️ Change Expiration Date"
+        printf "  ${C_GREEN}[ 3]${C_RESET} %-35s\n" "📶 Change Connection Limit"
+        printf "  ${C_GREEN}[ 4]${C_RESET} %-35s\n" "📦 Change Bandwidth Limit"
+        printf "  ${C_GREEN}[ 5]${C_RESET} %-35s\n" "🔄 Reset Bandwidth Counter"
+        echo -e "\n  ${C_RED}[ 0]${C_RESET} ✅ Finish Editing"; echo; read -p "👉 Enter your choice: " edit_choice
         case $edit_choice in
             1)
-                local new_pass=""
-                while true; do
-                    read -p "Enter new password: " new_pass
-                    if [[ -z "$new_pass" ]]; then
-                        echo -e "${C_RED}❌ Password cannot be empty.${C_RESET}"
-                    else
-                        break
-                    fi
-                done
-                echo "$username:$new_pass" | chpasswd
-                sed -i "s/^$username:.*/$username:$new_pass:$expiry:$limit:$traffic_limit:$traffic_used:$status/" "$DB_FILE"
-                echo -e "\n${C_GREEN}✅ Password changed.${C_RESET}"
-                ;;
-            2)
-                read -p "Enter new duration (days from today): " days
-                if [[ "$days" =~ ^[0-9]+$ ]]; then
-                    local new_expiry=$(date -d "+$days days" +%Y-%m-%d)
-                    chage -E "$new_expiry" "$username"
-                    sed -i "s/^$username:.*/$username:$pass:$new_expiry:$limit:$traffic_limit:$traffic_used:$status/" "$DB_FILE"
-                    expiry="$new_expiry"
-                    echo -e "\n${C_GREEN}✅ Expiration updated to $new_expiry${C_RESET}"
-                else
-                    echo -e "\n${C_RED}❌ Invalid number.${C_RESET}"
-                fi
-                ;;
-            3)
-                read -p "Enter new connection limit: " new_limit
-                if [[ "$new_limit" =~ ^[0-9]+$ ]]; then
-                    sed -i "s/^$username:.*/$username:$pass:$expiry:$new_limit:$traffic_limit:$traffic_used:$status/" "$DB_FILE"
-                    limit="$new_limit"
-                    echo -e "\n${C_GREEN}✅ Connection limit updated to $new_limit${C_RESET}"
-                else
-                    echo -e "\n${C_RED}❌ Invalid number.${C_RESET}"
-                fi
-                ;;
-            4)
-                read -p "Enter new traffic limit (GB) [0=unlimited]: " new_traffic
-                if [[ "$new_traffic" =~ ^[0-9]+$ ]]; then
-                    sed -i "s/^$username:.*/$username:$pass:$expiry:$limit:$new_traffic:$traffic_used:$status/" "$DB_FILE"
-                    traffic_limit="$new_traffic"
-                    echo -e "\n${C_GREEN}✅ Traffic limit updated to $new_traffic GB${C_RESET}"
-                else
-                    echo -e "\n${C_RED}❌ Invalid number.${C_RESET}"
-                fi
-                ;;
+               local new_pass=""
+               read -p "Enter new password (or press Enter for auto-generated): " new_pass
+               if [[ -z "$new_pass" ]]; then
+                   new_pass=$(head /dev/urandom | tr -dc 'A-Za-z0-9' | head -c 8)
+                   echo -e "${C_GREEN}🔑 Auto-generated: ${C_YELLOW}$new_pass${C_RESET}"
+               fi
+               echo "$username:$new_pass" | chpasswd
+               sed -i "s/^$username:.*/$username:$new_pass:$cur_expiry:$cur_limit:$cur_bw:$cur_traffic:ACTIVE/" "$DB_FILE"
+               echo -e "\n${C_GREEN}✅ Password for '$username' changed to: ${C_YELLOW}$new_pass${C_RESET}"
+               ;;
+            2) read -p "Enter new duration (in days from today): " days
+               if [[ "$days" =~ ^[0-9]+$ ]]; then
+                   local new_expire_date; new_expire_date=$(date -d "+$days days" +%Y-%m-%d); chage -E "$new_expire_date" "$username"
+                   sed -i "s/^$username:.*/$username:$cur_pass:$new_expire_date:$cur_limit:$cur_bw:$cur_traffic:ACTIVE/" "$DB_FILE"
+                   echo -e "\n${C_GREEN}✅ Expiration for '$username' set to ${C_YELLOW}$new_expire_date${C_RESET}."
+               else echo -e "\n${C_RED}❌ Invalid number of days.${C_RESET}"; fi ;;
+            3) read -p "Enter new simultaneous connection limit: " new_limit
+               if [[ "$new_limit" =~ ^[0-9]+$ ]]; then
+                   sed -i "s/^$username:.*/$username:$cur_pass:$cur_expiry:$new_limit:$cur_bw:$cur_traffic:ACTIVE/" "$DB_FILE"
+                   echo -e "\n${C_GREEN}✅ Connection limit for '$username' set to ${C_YELLOW}$new_limit${C_RESET}."
+               else echo -e "\n${C_RED}❌ Invalid limit.${C_RESET}"; fi ;;
+            4) read -p "Enter new bandwidth limit in GB (0 = unlimited): " new_bw
+               if [[ "$new_bw" =~ ^[0-9]+\.?[0-9]*$ ]]; then
+                   sed -i "s/^$username:.*/$username:$cur_pass:$cur_expiry:$cur_limit:$new_bw:$cur_traffic:ACTIVE/" "$DB_FILE"
+                   local bw_msg="Unlimited"; [[ "$new_bw" != "0" ]] && bw_msg="${new_bw} GB"
+                   echo -e "\n${C_GREEN}✅ Bandwidth limit for '$username' set to ${C_YELLOW}$bw_msg${C_RESET}."
+                   if [[ "$new_bw" == "0" ]] || [[ -f "$BANDWIDTH_DIR/${username}.usage" ]]; then
+                       local used_bytes; used_bytes=$(cat "$BANDWIDTH_DIR/${username}.usage" 2>/dev/null || echo 0)
+                       local new_quota_bytes; new_quota_bytes=$(awk "BEGIN {printf \"%.0f\", $new_bw * 1073741824}")
+                       if [[ "$new_bw" == "0" ]] || [[ "$used_bytes" -lt "$new_quota_bytes" ]]; then
+                           usermod -U "$username" &>/dev/null
+                       fi
+                   fi
+               else echo -e "\n${C_RED}❌ Invalid bandwidth value.${C_RESET}"; fi ;;
             5)
-                if [[ "$status" == "LIMIT" ]] || [[ "$status" == "LOCKED" ]]; then
-                    usermod -U "$username" 2>/dev/null
-                    sed -i "s/^$username:.*/$username:$pass:$expiry:$limit:$traffic_limit:$traffic_used:ACTIVE/" "$DB_FILE"
-                    echo -e "\n${C_GREEN}✅ User unlocked${C_RESET}"
-                    status="ACTIVE"
-                else
-                    echo -e "\n${C_YELLOW}⚠️ User is not locked${C_RESET}"
-                fi
-                ;;
-            0)
-                return
-                ;;
-            *)
-                echo -e "\n${C_RED}❌ Invalid option.${C_RESET}"
-                ;;
+               echo "0" > "$BANDWIDTH_DIR/${username}.usage"
+               sed -i "s/^$username:[^:]*:[^:]*:[^:]*:[^:]*:[^:]*:[^:]*/$username:$cur_pass:$cur_expiry:$cur_limit:$cur_bw:0:ACTIVE/" "$DB_FILE"
+               usermod -U "$username" &>/dev/null
+               echo -e "\n${C_GREEN}✅ Bandwidth counter for '$username' has been reset to 0.${C_RESET}"
+               ;;
+            0) return ;;
+            *) echo -e "\n${C_RED}❌ Invalid option.${C_RESET}" ;;
         esac
-        echo -e "\nPress ${C_YELLOW}[Enter]${C_RESET} to continue..."
-        read -r
+        echo -e "\nPress ${C_YELLOW}[Enter]${C_RESET} to continue editing..." && read -r
     done
 }
 
 _lock_user() {
-    clear
-    show_banner
-    echo -e "${C_BOLD}${C_PURPLE}--- 🔒 Lock User ---${C_RESET}"
+    _select_multi_user_interface "--- 🔒 Lock Users (from DB) ---"
+    if [[ ${#SELECTED_USERS[@]} -eq 0 || "${SELECTED_USERS[0]}" == "NO_USERS" ]]; then return; fi
     
-    local username
-    read -p "👉 Username: " username
-    
-    if ! id "$username" &>/dev/null; then
-        echo -e "\n${C_RED}❌ User not found.${C_RESET}"
-        safe_read "" dummy
-        return
-    fi
-    
-    usermod -L "$username"
-    killall -u "$username" -9 &>/dev/null
-    
-    local line=$(grep "^$username:" "$DB_FILE")
-    if [ -n "$line" ]; then
-        IFS=: read -r user pass expiry limit traffic_limit traffic_used status <<< "$line"
-        sed -i "s/^$username:.*/$username:$pass:$expiry:$limit:$traffic_limit:$traffic_used:LOCKED/" "$DB_FILE"
-    fi
-    
-    echo -e "\n${C_GREEN}✅ User locked.${C_RESET}"
-    safe_read "" dummy
+    echo -e "\n${C_BLUE}🔒 Locking selected users...${C_RESET}"
+    for u in "${SELECTED_USERS[@]}"; do
+        if ! id "$u" &>/dev/null; then
+             echo -e " ❌ User '${C_YELLOW}$u${C_RESET}' does not exist on this system."
+             continue
+        fi
+        
+        usermod -L "$u"
+        if [ $? -eq 0 ]; then
+            killall -u "$u" -9 &>/dev/null
+            echo -e " ✅ ${C_YELLOW}$u${C_RESET} locked and active sessions killed."
+        else
+            echo -e " ❌ Failed to lock ${C_YELLOW}$u${C_RESET}."
+        fi
+    done
 }
 
 _unlock_user() {
-    clear
-    show_banner
-    echo -e "${C_BOLD}${C_PURPLE}--- 🔓 Unlock User ---${C_RESET}"
+    _select_multi_user_interface "--- 🔓 Unlock Users (from DB) ---"
+    if [[ ${#SELECTED_USERS[@]} -eq 0 || "${SELECTED_USERS[0]}" == "NO_USERS" ]]; then return; fi
     
-    local username
-    read -p "👉 Username: " username
-    
-    if ! id "$username" &>/dev/null; then
-        echo -e "\n${C_RED}❌ User not found.${C_RESET}"
-        safe_read "" dummy
-        return
-    fi
-    
-    usermod -U "$username"
-    
-    local line=$(grep "^$username:" "$DB_FILE")
-    if [ -n "$line" ]; then
-        IFS=: read -r user pass expiry limit traffic_limit traffic_used status <<< "$line"
-        sed -i "s/^$username:.*/$username:$pass:$expiry:$limit:$traffic_limit:$traffic_used:ACTIVE/" "$DB_FILE"
-    fi
-    
-    echo -e "\n${C_GREEN}✅ User unlocked.${C_RESET}"
-    safe_read "" dummy
+    echo -e "\n${C_BLUE}🔓 Unlocking selected users...${C_RESET}"
+    for u in "${SELECTED_USERS[@]}"; do
+        if ! id "$u" &>/dev/null; then
+             echo -e " ❌ User '${C_YELLOW}$u${C_RESET}' does not exist on this system."
+             continue
+        fi
+        
+        usermod -U "$u"
+        if [ $? -eq 0 ]; then
+            echo -e " ✅ ${C_YELLOW}$u${C_RESET} unlocked."
+        else
+            echo -e " ❌ Failed to unlock ${C_YELLOW}$u${C_RESET}."
+        fi
+    done
 }
 
 _list_users() {
-    clear
-    show_banner
-    echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "${C_BOLD}${C_PURPLE}                      📋 SSH USERS LIST                        ${C_RESET}"
-    echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
-    
-    if [ ! -s "$DB_FILE" ]; then
-        echo -e "\n${C_YELLOW}No SSH users found${C_RESET}"
-        safe_read "" dummy
+    clear; show_banner
+    if [[ ! -s "$DB_FILE" ]]; then
+        echo -e "\n${C_YELLOW}ℹ️ No users are currently being managed.${C_RESET}"
         return
     fi
+    echo -e "${C_BOLD}${C_PURPLE}--- 📋 Managed Users ---${C_RESET}"
+    echo -e "${C_CYAN}=========================================================================================${C_RESET}"
+    printf "${C_BOLD}${C_WHITE}%-18s | %-12s | %-10s | %-15s | %-20s${C_RESET}\n" "USERNAME" "EXPIRES" "CONNS" "BANDWIDTH" "STATUS"
+    echo -e "${C_CYAN}-----------------------------------------------------------------------------------------${C_RESET}"
     
-    printf "${C_BOLD}%-15s | %-12s | %-8s | %-25s | %-10s${C_RESET}\n" "USERNAME" "EXPIRY" "LIMIT" "TRAFFIC" "STATUS"
-    echo -e "${C_CYAN}──────────────────────────────────────────────────────────────────────────${C_RESET}"
-    
-    while IFS=: read -r user pass expiry limit traffic_limit traffic_used status; do
+    while IFS=: read -r user pass expiry limit bandwidth_gb traffic_used status; do
         [[ -z "$user" ]] && continue
-        status=${status:-ACTIVE}
+        bandwidth_gb=${bandwidth_gb:-0}
+        traffic_used=${traffic_used:-0}
         
-        local online=0
-        if id "$user" &>/dev/null; then
-            online=$(pgrep -u "$user" sshd 2>/dev/null | wc -l)
+        local online_count
+        online_count=$(pgrep -u "$user" sshd | wc -l)
+        
+        local status_text
+        status_text=$(get_user_status "$user")
+        local plain_status
+        plain_status=$(echo -e "$status_text" | sed 's/\x1b\[[0-9;]*m//g')
+        
+        local connection_string="$online_count / $limit"
+        
+        local bw_string="Unlimited"
+        if [[ "$bandwidth_gb" != "0" ]]; then
+            bw_string="${traffic_used}/${bandwidth_gb}GB"
         fi
-        
-        local traffic_disp=""
-        if [[ "$traffic_limit" == "0" ]] || [[ -z "$traffic_limit" ]]; then
-            traffic_disp="$(printf "%.2f" $traffic_used) GB / ∞"
-        else
-            traffic_disp="$(printf "%.2f" $traffic_used) / $traffic_limit GB"
-        fi
-        
-        local status_color=""
-        case $status in
-            ACTIVE) status_color="${C_GREEN}" ;;
-            LOCKED|LIMIT) status_color="${C_YELLOW}" ;;
-            EXPIRED) status_color="${C_RED}" ;;
-            *) status_color="${C_WHITE}" ;;
+
+        local line_color="$C_WHITE"
+        case $plain_status in
+            *"Active"*) line_color="$C_GREEN" ;;
+            *"Locked"*) line_color="$C_YELLOW" ;;
+            *"Expired"*) line_color="$C_RED" ;;
+            *"Not Found"*) line_color="$C_DIM" ;;
         esac
-        
-        printf "%-15s | ${C_YELLOW}%-12s${C_RESET} | ${C_CYAN}%s/%s${C_RESET} | %-25s | ${status_color}%-10s${C_RESET}\n" \
-            "$user" "$expiry" "$online" "$limit" "$traffic_disp" "$status"
-            
-    done < "$DB_FILE"
-    
-    echo -e "${C_CYAN}──────────────────────────────────────────────────────────────────────────${C_RESET}"
-    echo ""
-    safe_read "" dummy
+
+        printf "${line_color}%-18s ${C_RESET}| ${C_YELLOW}%-12s ${C_RESET}| ${C_CYAN}%-10s ${C_RESET}| ${C_ORANGE}%-15s ${C_RESET}| %-20s\n" "$user" "$expiry" "$connection_string" "$bw_string" "$status_text"
+    done < <(sort "$DB_FILE")
+    echo -e "${C_CYAN}=========================================================================================${C_RESET}\n"
 }
 
 _renew_user() {
-    clear
-    show_banner
-    echo -e "${C_BOLD}${C_PURPLE}--- 🔄 Renew User ---${C_RESET}"
+    _select_multi_user_interface "--- 🔄 Renew Users ---"
+    if [[ ${#SELECTED_USERS[@]} -eq 0 || "${SELECTED_USERS[0]}" == "NO_USERS" ]]; then return; fi
+    read -p "👉 Enter number of days to extend the account(s): " days; if ! [[ "$days" =~ ^[0-9]+$ ]]; then echo -e "\n${C_RED}❌ Invalid number.${C_RESET}"; return; fi
+    local new_expire_date; new_expire_date=$(date -d "+$days days" +%Y-%m-%d)
     
-    local username
-    read -p "👉 Username: " username
-    
-    if ! id "$username" &>/dev/null; then
-        echo -e "\n${C_RED}❌ User not found.${C_RESET}"
-        safe_read "" dummy
-        return
-    fi
-    
-    local line=$(grep "^$username:" "$DB_FILE")
-    if [ -z "$line" ]; then
-        echo -e "\n${C_RED}❌ User not in database.${C_RESET}"
-        safe_read "" dummy
-        return
-    fi
-    
-    IFS=: read -r user pass expiry limit traffic_limit traffic_used status <<< "$line"
-    status=${status:-ACTIVE}
-    
-    read -p "📆 Additional days: " days
-    if ! [[ "$days" =~ ^[0-9]+$ ]]; then
-        echo -e "\n${C_RED}❌ Invalid number.${C_RESET}"
-        safe_read "" dummy
-        return
-    fi
-    
-    local new_expiry=$(date -d "+$days days" +%Y-%m-%d)
-    chage -E "$new_expiry" "$username"
-    sed -i "s/^$username:.*/$username:$pass:$new_expiry:$limit:$traffic_limit:$traffic_used:$status/" "$DB_FILE"
-    
-    echo -e "\n${C_GREEN}✅ User renewed until $new_expiry${C_RESET}"
-    safe_read "" dummy
+    echo -e "\n${C_BLUE}🔄 Renewing selected users for $days days...${C_RESET}"
+    for u in "${SELECTED_USERS[@]}"; do
+        chage -E "$new_expire_date" "$u"
+        local line; line=$(grep "^$u:" "$DB_FILE"); local pass; pass=$(echo "$line"|cut -d: -f2); local limit; limit=$(echo "$line"|cut -d: -f4); local bw; bw=$(echo "$line"|cut -d: -f5); local traffic; traffic=$(echo "$line"|cut -d: -f6)
+        [[ -z "$bw" ]] && bw="0"
+        [[ -z "$traffic" ]] && traffic="0"
+        sed -i "s/^$u:.*/$u:$pass:$new_expire_date:$limit:$bw:$traffic:ACTIVE/" "$DB_FILE"
+        echo -e " ✅ ${C_YELLOW}$u${C_RESET} renewed until ${C_GREEN}${new_expire_date}${C_RESET}."
+    done
 }
 
 _cleanup_expired() {
-    echo -e "\n${C_BLUE}🧹 Cleaning up expired users...${C_RESET}"
-    local current_ts=$(date +%s)
-    local count=0
+    clear; show_banner
+    echo -e "${C_BOLD}${C_PURPLE}--- 🧹 Cleanup Expired Users ---${C_RESET}"
     
-    while IFS=: read -r user pass expiry limit traffic_limit traffic_used status; do
-        local expiry_ts=$(date -d "$expiry" +%s 2>/dev/null || echo 0)
-        if [[ $expiry_ts -lt $current_ts && $expiry_ts -ne 0 ]]; then
-            killall -u "$user" 2>/dev/null
-            userdel -r "$user" 2>/dev/null
-            sed -i "/^$user:/d" "$DB_FILE"
-            rm -f "$TRAFFIC_DIR/$user" 2>/dev/null
-            echo "  Removed $user"
-            ((count++))
-        fi
-    done < "$DB_FILE"
-    
-    echo -e "${C_GREEN}✅ Removed $count expired users${C_RESET}"
-    safe_read "" dummy
-}
+    local expired_users=()
+    local current_ts
+    current_ts=$(date +%s)
 
-# ========== FALCON-STYLE USER MANAGEMENT ==========
-_bulk_create_users() {
-    clear
-    show_banner
-    echo -e "${C_BOLD}${C_PURPLE}--- 👥 Bulk Create Users ---${C_RESET}"
-    
-    read -p "👉 Enter username prefix (e.g., 'user'): " prefix
-    if [[ -z "$prefix" ]]; then 
-        echo -e "\n${C_RED}❌ Prefix cannot be empty.${C_RESET}"
-        safe_read "" dummy
+    if [[ ! -s "$DB_FILE" ]]; then
+        echo -e "\n${C_GREEN}✅ User database is empty. No expired users found.${C_RESET}"
         return
     fi
     
+    while IFS=: read -r user pass expiry limit bandwidth_gb traffic_used status; do
+        local expiry_ts
+        expiry_ts=$(date -d "$expiry" +%s 2>/dev/null || echo 0)
+        
+        if [[ $expiry_ts -lt $current_ts && $expiry_ts -ne 0 ]]; then
+            expired_users+=("$user")
+        fi
+    done < "$DB_FILE"
+
+    if [ ${#expired_users[@]} -eq 0 ]; then
+        echo -e "\n${C_GREEN}✅ No expired users found.${C_RESET}"
+        return
+    fi
+
+    echo -e "\nThe following users have expired: ${C_RED}${expired_users[*]}${C_RESET}"
+    read -p "👉 Do you want to delete all of them? (y/n): " confirm
+
+    if [[ "$confirm" == "y" || "$confirm" == "Y" ]]; then
+        for user in "${expired_users[@]}"; do
+            echo " - Deleting ${C_YELLOW}$user...${C_RESET}"
+            killall -u "$user" -9 &>/dev/null
+            rm -f "$BANDWIDTH_DIR/${user}.usage"
+            rm -rf "$BANDWIDTH_DIR/pidtrack/${user}"
+            userdel -r "$user" &>/dev/null
+            sed -i "/^$user:/d" "$DB_FILE"
+        done
+        echo -e "\n${C_GREEN}✅ Expired users have been cleaned up.${C_RESET}"
+    else
+        echo -e "\n${C_YELLOW}❌ Cleanup cancelled.${C_RESET}"
+    fi
+}
+
+_bulk_create_users() {
+    clear; show_banner
+    echo -e "${C_BOLD}${C_PURPLE}--- 👥 Bulk Create Users ---${C_RESET}"
+    
+    read -p "👉 Enter username prefix (e.g., 'user'): " prefix
+    if [[ -z "$prefix" ]]; then echo -e "\n${C_RED}❌ Prefix cannot be empty.${C_RESET}"; return; fi
+    
     read -p "🔢 How many users to create? " count
     if ! [[ "$count" =~ ^[0-9]+$ ]] || [[ "$count" -lt 1 ]] || [[ "$count" -gt 100 ]]; then
-        echo -e "\n${C_RED}❌ Invalid count (1-100).${C_RESET}"
-        safe_read "" dummy
-        return
+        echo -e "\n${C_RED}❌ Invalid count (1-100).${C_RESET}"; return
     fi
     
     read -p "🗓️ Account duration (in days) [30]: " days
     days=${days:-30}
-    if ! [[ "$days" =~ ^[0-9]+$ ]]; then 
-        echo -e "\n${C_RED}❌ Invalid number.${C_RESET}"
-        safe_read "" dummy
-        return
-    fi
+    if ! [[ "$days" =~ ^[0-9]+$ ]]; then echo -e "\n${C_RED}❌ Invalid number.${C_RESET}"; return; fi
     
     read -p "📶 Connection limit per user [1]: " limit
     limit=${limit:-1}
-    if ! [[ "$limit" =~ ^[0-9]+$ ]]; then 
-        echo -e "\n${C_RED}❌ Invalid number.${C_RESET}"
-        safe_read "" dummy
-        return
-    fi
+    if ! [[ "$limit" =~ ^[0-9]+$ ]]; then echo -e "\n${C_RED}❌ Invalid number.${C_RESET}"; return; fi
     
     read -p "📦 Bandwidth limit in GB per user (0 = unlimited) [0]: " bandwidth_gb
     bandwidth_gb=${bandwidth_gb:-0}
-    if ! [[ "$bandwidth_gb" =~ ^[0-9]+\.?[0-9]*$ ]]; then 
-        echo -e "\n${C_RED}❌ Invalid number.${C_RESET}"
-        safe_read "" dummy
-        return
-    fi
+    if ! [[ "$bandwidth_gb" =~ ^[0-9]+\.?[0-9]*$ ]]; then echo -e "\n${C_RED}❌ Invalid number.${C_RESET}"; return; fi
     
-    local expire_date=$(date -d "+$days days" +%Y-%m-%d)
-    local bw_display="Unlimited"
-    [[ "$bandwidth_gb" != "0" ]] && bw_display="${bandwidth_gb} GB"
+    local expire_date
+    expire_date=$(date -d "+$days days" +%Y-%m-%d)
+    local bw_display="Unlimited"; [[ "$bandwidth_gb" != "0" ]] && bw_display="${bandwidth_gb} GB"
     
     echo -e "\n${C_BLUE}⚙️ Creating $count users with prefix '${prefix}'...${C_RESET}\n"
     echo -e "${C_YELLOW}================================================================${C_RESET}"
@@ -1571,35 +1543,23 @@ _bulk_create_users() {
     
     echo -e "${C_YELLOW}================================================================${C_RESET}"
     echo -e "\n${C_GREEN}✅ Created $created users. Conn Limit: ${limit} | BW: ${bw_display}${C_RESET}"
-    safe_read "" dummy
 }
 
 _view_user_bandwidth() {
-    clear
-    show_banner
-    echo -e "${C_BOLD}${C_PURPLE}--- 📊 View User Bandwidth ---${C_RESET}"
+    _select_user_interface "--- 📊 View User Bandwidth ---"
+    local u=$SELECTED_USER
+    if [[ "$u" == "NO_USERS" || -z "$u" ]]; then return; fi
     
-    local username
-    read -p "👉 Username: " username
+    clear; show_banner
+    echo -e "${C_BOLD}${C_PURPLE}--- 📊 Bandwidth Details: ${C_YELLOW}$u${C_PURPLE} ---${C_RESET}\n"
     
-    if ! id "$username" &>/dev/null; then
-        echo -e "\n${C_RED}❌ User not found.${C_RESET}"
-        safe_read "" dummy
-        return
-    fi
+    local line; line=$(grep "^$u:" "$DB_FILE")
+    local bandwidth_gb; bandwidth_gb=$(echo "$line" | cut -d: -f5)
+    local traffic_used; traffic_used=$(echo "$line" | cut -d: -f6)
+    [[ -z "$bandwidth_gb" ]] && bandwidth_gb="0"
+    [[ -z "$traffic_used" ]] && traffic_used="0"
     
-    local line=$(grep "^$username:" "$DB_FILE")
-    if [ -z "$line" ]; then
-        echo -e "\n${C_RED}❌ User not in database.${C_RESET}"
-        safe_read "" dummy
-        return
-    fi
-    
-    IFS=: read -r user pass expiry limit bandwidth_gb traffic_used status <<< "$line"
-    bandwidth_gb=${bandwidth_gb:-0}
-    traffic_used=${traffic_used:-0}
-    
-    echo -e "\n  ${C_CYAN}Data Used:${C_RESET}        ${C_WHITE}${traffic_used} GB${C_RESET}"
+    echo -e "  ${C_CYAN}Data Used:${C_RESET}        ${C_WHITE}${traffic_used} GB${C_RESET}"
     
     if [[ "$bandwidth_gb" == "0" ]]; then
         echo -e "  ${C_CYAN}Bandwidth Limit:${C_RESET}  ${C_GREEN}Unlimited${C_RESET}"
@@ -1612,7 +1572,6 @@ _view_user_bandwidth() {
         echo -e "  ${C_CYAN}Remaining:${C_RESET}        ${C_WHITE}${remaining_gb} GB${C_RESET}"
         echo -e "  ${C_CYAN}Usage:${C_RESET}            ${C_WHITE}${percentage}%${C_RESET}"
         
-        # Progress bar
         local bar_width=30
         local filled=$(echo "scale=0; $percentage * $bar_width / 100" | bc 2>/dev/null || echo "0")
         if [[ "$filled" -gt "$bar_width" ]]; then filled=$bar_width; fi
@@ -1630,11 +1589,8 @@ _view_user_bandwidth() {
             echo -e "\n  ${C_RED}⚠️ USER HAS EXCEEDED BANDWIDTH QUOTA — ACCOUNT LOCKED${C_RESET}"
         fi
     fi
-    
-    safe_read "" dummy
 }
 
-# ========== GENERATE CLIENT CONFIG ==========
 generate_client_config() {
     local user=$1
     local pass=$2
@@ -1659,14 +1615,14 @@ generate_client_config() {
     echo -e "   • Host/IP : ${C_WHITE}$host_domain${C_RESET}"
     echo -e "${C_YELLOW}========================================${C_RESET}"
     
-    # 1. SSH Direct
+    # SSH Direct
     echo -e "\n🔹 ${C_BOLD}SSH Direct${C_RESET}:"
     echo -e "   • Host: $host_domain"
     echo -e "   • Port: 22"
     echo -e "   • Username: $user"
     echo -e "   • Password: $pass"
 
-    # 2. SSL/TLS Tunnel
+    # SSL/TLS Tunnel
     if systemctl is-active --quiet haproxy 2>/dev/null; then
         local haproxy_port=$(grep -oP 'bind \*:(\d+)' /etc/haproxy/haproxy.cfg 2>/dev/null | awk -F: '{print $2}' | head -1)
         if [[ -n "$haproxy_port" ]]; then
@@ -1678,7 +1634,7 @@ generate_client_config() {
         fi
     fi
 
-    # 3. UDP Custom
+    # UDP Custom
     if systemctl is-active --quiet udp-custom 2>/dev/null; then
         echo -e "\n🔹 ${C_BOLD}UDP Custom${C_RESET}:"
         echo -e "   • IP: $host_ip (Must use numeric IP)"
@@ -1687,7 +1643,7 @@ generate_client_config() {
         echo -e "   • Password: $pass"
     fi
 
-    # 4. DNSTT
+    # DNSTT
     if systemctl is-active --quiet dnstt 2>/dev/null; then
         if [ -f "$DNSTT_INFO_FILE" ]; then
             source "$DNSTT_INFO_FILE"
@@ -1700,7 +1656,7 @@ generate_client_config() {
         fi
     fi
     
-    # 5. ZiVPN
+    # ZiVPN
     if systemctl is-active --quiet zivpn 2>/dev/null; then
         echo -e "\n🔹 ${C_BOLD}ZiVPN${C_RESET}:"
         echo -e "   • UDP Port: 5667"
@@ -1710,7 +1666,6 @@ generate_client_config() {
     fi
     
     echo -e "${C_YELLOW}========================================${C_RESET}"
-    safe_read "" dummy
 }
 
 client_config_menu() {
@@ -1864,6 +1819,44 @@ _select_multi_user_interface() {
             selected_indices=()
         fi
     done
+}
+
+get_user_status() {
+    local username="$1"
+    if ! id "$username" &>/dev/null; then echo -e "${C_RED}Not Found${C_RESET}"; return; fi
+    local expiry_date=$(grep "^$username:" "$DB_FILE" | cut -d: -f3)
+    if passwd -S "$username" 2>/dev/null | grep -q " L "; then echo -e "${C_YELLOW}🔒 Locked${C_RESET}"; return; fi
+    local expiry_ts=$(date -d "$expiry_date" +%s 2>/dev/null || echo 0)
+    local current_ts=$(date +%s)
+    if [[ $expiry_ts -lt $current_ts ]]; then echo -e "${C_RED}🗓️ Expired${C_RESET}"; return; fi
+    echo -e "${C_GREEN}🟢 Active${C_RESET}"
+}
+
+_update_ssh_banners_config() {
+    if [[ ! -f "/etc/voltrontech/banners_enabled" ]]; then
+        return
+    fi
+    
+    mkdir -p "/etc/voltrontech/banners" /etc/ssh/sshd_config.d
+    
+    tmp_conf="/tmp/ff_banners_new.conf"
+    echo "# Voltron Tech - Show login info native banners" > "$tmp_conf"
+    
+    if [[ -f "$DB_FILE" ]]; then
+        while IFS=: read -r u _rest; do
+            [[ -z "$u" || "$u" == \#* ]] && continue
+            echo "Match User $u" >> "$tmp_conf"
+            echo "    Banner /etc/voltrontech/banners/${u}.txt" >> "$tmp_conf"
+        done < "$DB_FILE"
+    fi
+    
+    cat > /etc/ssh/sshd_config.d/voltron-banners.conf <<EOF
+# Voltron Tech Auto Banners
+Include /tmp/ff_banners_new.conf
+EOF
+    
+    systemctl reload sshd 2>/dev/null || systemctl reload ssh 2>/dev/null
+    rm -f "$tmp_conf"
 }
 
 # ========== PROTOCOLS ==========
@@ -2863,248 +2856,6 @@ connection_forcer_menu() {
     safe_read "" dummy
 }
 
-# ========== PROTOCOL MENU ==========
-protocol_menu() {
-    while true; do
-        clear
-        show_banner
-        
-        local badvpn_status=$(check_service "badvpn")
-        local udp_status=$(check_service "udp-custom")
-        local haproxy_status=$(check_service "haproxy")
-        local dnstt_status=$(check_service "dnstt")
-        local v2ray_status=$(check_service "v2ray-dnstt")
-        local voltronproxy_status=$(check_service "voltronproxy")
-        local nginx_status=$(check_service "nginx")
-        local zivpn_status=$(check_service "zivpn")
-        local xui_status=$(command -v x-ui &>/dev/null && echo -e "${C_BLUE}(installed)${C_RESET}" || echo "")
-        
-        echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
-        echo -e "${C_BOLD}${C_PURPLE}              🔌 PROTOCOL & PANEL MANAGEMENT${C_RESET}"
-        echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
-        echo ""
-        echo -e "  ${C_GREEN}1)${C_RESET} badvpn (UDP 7300) $badvpn_status"
-        echo -e "  ${C_GREEN}2)${C_RESET} udp-custom $udp_status"
-        echo -e "  ${C_GREEN}3)${C_RESET} SSL Tunnel (HAProxy) $haproxy_status"
-        echo -e "  ${C_GREEN}4)${C_RESET} DNSTT (Port 5300) $dnstt_status"
-        echo -e "  ${C_GREEN}5)${C_RESET} V2RAY over DNSTT $v2ray_status"
-        echo -e "  ${C_GREEN}6)${C_RESET} VOLTRON Proxy $voltronproxy_status"
-        echo -e "  ${C_GREEN}7)${C_RESET} Nginx Proxy $nginx_status"
-        echo -e "  ${C_GREEN}8)${C_RESET} ZiVPN $zivpn_status"
-        echo -e "  ${C_GREEN}9)${C_RESET} X-UI Panel $xui_status"
-        echo -e "  ${C_GREEN}10)${C_RESET} DT Proxy $(check_dt_proxy_status)"
-        echo ""
-        echo -e "  ${C_RED}0)${C_RESET} Return"
-        echo ""
-        
-        local choice
-        safe_read "$(echo -e ${C_PROMPT}"👉 Select protocol to manage: "${C_RESET})" choice
-        
-        case $choice in
-            1)
-                echo -e "\n  ${C_GREEN}1)${C_RESET} Install"
-                echo -e "  ${C_RED}2)${C_RESET} Uninstall"
-                safe_read "👉 Choose: " sub
-                [ "$sub" == "1" ] && install_badvpn || uninstall_badvpn
-                ;;
-            2)
-                echo -e "\n  ${C_GREEN}1)${C_RESET} Install"
-                echo -e "  ${C_RED}2)${C_RESET} Uninstall"
-                safe_read "👉 Choose: " sub
-                [ "$sub" == "1" ] && install_udp_custom || uninstall_udp_custom
-                ;;
-            3)
-                echo -e "\n  ${C_GREEN}1)${C_RESET} Install"
-                echo -e "  ${C_RED}2)${C_RESET} Uninstall"
-                safe_read "👉 Choose: " sub
-                [ "$sub" == "1" ] && install_ssl_tunnel || uninstall_ssl_tunnel
-                ;;
-            4)
-                echo -e "\n  ${C_GREEN}1)${C_RESET} Install DNSTT"
-                echo -e "  ${C_GREEN}2)${C_RESET} View Details"
-                echo -e "  ${C_RED}3)${C_RESET} Uninstall"
-                safe_read "👉 Choose: " sub
-                if [ "$sub" == "1" ]; then install_dnstt_falcon
-                elif [ "$sub" == "2" ]; then show_dnstt_details
-                elif [ "$sub" == "3" ]; then uninstall_dnstt
-                else echo -e "${C_RED}Invalid${C_RESET}"; sleep 2; fi
-                ;;
-            5)
-                echo -e "\n  ${C_GREEN}1)${C_RESET} Install V2RAY"
-                echo -e "  ${C_RED}2)${C_RESET} Uninstall V2RAY"
-                safe_read "👉 Choose: " sub
-                [ "$sub" == "1" ] && install_v2ray_dnstt || uninstall_v2ray_dnstt
-                ;;
-            6)
-                echo -e "\n  ${C_GREEN}1)${C_RESET} Install"
-                echo -e "  ${C_RED}2)${C_RESET} Uninstall"
-                safe_read "👉 Choose: " sub
-                [ "$sub" == "1" ] && install_voltron_proxy || uninstall_voltron_proxy
-                ;;
-            7)
-                echo -e "\n  ${C_GREEN}1)${C_RESET} Install"
-                echo -e "  ${C_RED}2)${C_RESET} Uninstall"
-                safe_read "👉 Choose: " sub
-                [ "$sub" == "1" ] && install_nginx_proxy || uninstall_nginx_proxy
-                ;;
-            8)
-                echo -e "\n  ${C_GREEN}1)${C_RESET} Install"
-                echo -e "  ${C_RED}2)${C_RESET} Uninstall"
-                safe_read "👉 Choose: " sub
-                [ "$sub" == "1" ] && install_zivpn || uninstall_zivpn
-                ;;
-            9)
-                echo -e "\n  ${C_GREEN}1)${C_RESET} Install"
-                echo -e "  ${C_RED}2)${C_RESET} Uninstall"
-                safe_read "👉 Choose: " sub
-                [ "$sub" == "1" ] && install_xui_panel || uninstall_xui_panel
-                ;;
-            10)
-                dt_proxy_menu
-                ;;
-            0) return ;;
-            *) echo -e "\n${C_RED}❌ Invalid option${C_RESET}"; sleep 2 ;;
-        esac
-    done
-}
-
-# ========== DNSTT INSTALLATION (FALCON STYLE) ==========
-install_dnstt_falcon() {
-    clear
-    show_banner
-    echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "${C_BOLD}${C_PURPLE}           📡 DNSTT INSTALLATION (FALCON STYLE)${C_RESET}"
-    echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
-    
-    if [ -f "$DNSTT_SERVICE" ]; then
-        echo -e "\n${C_YELLOW}ℹ️ DNSTT is already installed.${C_RESET}"
-        read -p "Reinstall? (y/n): " reinstall
-        if [[ "$reinstall" != "y" ]]; then
-            return
-        fi
-        systemctl stop dnstt.service 2>/dev/null
-    fi
-    
-    # Step 1: Install dependencies
-    echo -e "\n${C_BLUE}[1/7] Installing dependencies...${C_RESET}"
-    $PKG_INSTALL wget curl openssl
-    
-    # Step 2: Download binary (Falcon style)
-    echo -e "\n${C_BLUE}[2/7] Downloading DNSTT binary...${C_RESET}"
-    if ! download_dnstt_binary; then
-        echo -e "${C_RED}❌ Failed to download DNSTT binary${C_RESET}"
-        safe_read "" dummy
-        return 1
-    fi
-    
-    # Step 3: Configure firewall
-    echo -e "\n${C_BLUE}[3/7] Configuring firewall...${C_RESET}"
-    configure_firewall
-    
-    # Step 4: Setup domain
-    echo -e "\n${C_BLUE}[4/7] Domain configuration...${C_RESET}"
-    setup_domain
-    
-    # Step 5: MTU selection
-    echo -e "\n${C_BLUE}[5/7] MTU configuration...${C_RESET}"
-    mtu_selection_during_install
-    
-    # Step 6: Generate keys
-    echo -e "\n${C_BLUE}[6/7] Generating keys...${C_RESET}"
-    generate_keys
-    
-    # Step 7: Create service (LIVE MODE - no auto-restart)
-    echo -e "\n${C_BLUE}[7/7] Creating service...${C_RESET}"
-    SSH_PORT=$(ss -tlnp 2>/dev/null | grep sshd | awk '{print $4}' | cut -d: -f2 | head -1)
-    SSH_PORT=${SSH_PORT:-22}
-    
-    create_dnstt_service_live "$DOMAIN" "$MTU" "$SSH_PORT"
-    save_dnstt_info "$DOMAIN" "$PUBLIC_KEY" "$MTU" "$SSH_PORT"
-    
-    # Apply Speed Booster
-    echo -e "\n${C_BLUE}⚡ Apply Speed Booster?${C_RESET}"
-    echo -e "  ${C_GREEN}1)${C_RESET} Standard Speed Booster (10-15 Mbps)"
-    echo -e "  ${C_GREEN}2)${C_RESET} ULTRA Speed Booster (15-25 Mbps)"
-    echo -e "  ${C_GREEN}3)${C_RESET} Skip (No booster)"
-    echo ""
-    read -p "👉 Choose [1-3, default=2]: " booster_choice
-    booster_choice=${booster_choice:-2}
-    
-    case $booster_choice in
-        1) apply_dnstt_speed_booster ;;
-        2) apply_dnstt_ultra_booster ;;
-        3) echo -e "${C_YELLOW}⚠️ Skipping speed booster${C_RESET}" ;;
-        *) apply_dnstt_ultra_booster ;;
-    esac
-    
-    echo -e "\n${C_BLUE}🚀 Starting DNSTT service...${C_RESET}"
-    systemctl start dnstt.service
-    sleep 2
-    
-    if systemctl is-active --quiet dnstt.service; then
-        echo -e "${C_GREEN}✅ Service started successfully${C_RESET}"
-    else
-        echo -e "${C_RED}❌ Service failed to start${C_RESET}"
-        journalctl -u dnstt.service -n 20 --no-pager
-    fi
-    
-    show_client_commands_falcon_style "$DOMAIN" "$MTU" "$SSH_PORT"
-    
-    echo -e "\n${C_GREEN}✅ DNSTT installation complete (Falcon style - Live mode)!${C_RESET}"
-    safe_read "" dummy
-}
-
-uninstall_dnstt() {
-    echo -e "\n${C_BLUE}🗑️ Uninstalling DNSTT...${C_RESET}"
-    
-    systemctl stop dnstt.service 2>/dev/null
-    systemctl disable dnstt.service 2>/dev/null
-    rm -f "$DNSTT_SERVICE"
-    rm -f "$DNSTT_SERVER" "$DNSTT_CLIENT"
-    rm -f "$DB_DIR/server.key" "$DB_DIR/server.pub"
-    rm -f "$DB_DIR/domain.txt"
-    rm -f "$DNSTT_INFO_FILE"
-    rm -f /etc/sysctl.d/99-dnstt-*.conf
-    
-    systemctl daemon-reload
-    echo -e "${C_GREEN}✅ DNSTT uninstalled${C_RESET}"
-    safe_read "" dummy
-}
-
-show_dnstt_details() {
-    clear
-    echo -e "${C_BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
-    echo -e "${C_GREEN}           📡 DNSTT DETAILS (FALCON STYLE)${C_RESET}"
-    echo -e "${C_BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
-    
-    if [ ! -f "$DB_DIR/domain.txt" ]; then
-        echo -e "${C_YELLOW}DNSTT is not installed${C_RESET}"
-        safe_read "" dummy
-        return
-    fi
-    
-    DOMAIN=$(cat "$DB_DIR/domain.txt" 2>/dev/null || echo "unknown")
-    MTU=$(cat "$CONFIG_DIR/mtu" 2>/dev/null || echo "512")
-    SSH_PORT=$(ss -tlnp 2>/dev/null | grep sshd | awk '{print $4}' | cut -d: -f2 | head -1)
-    SSH_PORT=${SSH_PORT:-22}
-    PUBKEY=$(cat "$DB_DIR/server.pub" 2>/dev/null || echo "unknown")
-    
-    local status=""
-    if systemctl is-active dnstt.service &>/dev/null; then
-        status="${C_GREEN}● RUNNING${C_RESET}"
-    else
-        status="${C_RED}● STOPPED${C_RESET}"
-    fi
-    
-    echo -e "  Status:        $status"
-    echo -e "  Domain:        ${C_YELLOW}$DOMAIN${C_RESET}"
-    echo -e "  MTU:           ${C_YELLOW}$MTU${C_RESET}"
-    echo -e "  SSH Port:      ${C_YELLOW}$SSH_PORT${C_RESET}"
-    echo -e "  Public Key:    ${C_YELLOW}${PUBKEY:0:30}...${PUBKEY: -30}${C_RESET}"
-    
-    safe_read "" dummy
-}
-
 # ========== LEGACY CLOUDFLARE DNS ==========
 generate_cloudflare_dns() {
     clear
@@ -3116,67 +2867,101 @@ generate_cloudflare_dns() {
 
 # ========== LIMITER SERVICE ==========
 create_limiter_service() {
-    cat > "$LIMITER_SCRIPT" <<'EOF'
+    cat > "$LIMITER_SCRIPT" << 'EOF'
 #!/bin/bash
 DB_FILE="/etc/voltrontech/users.db"
-TRAFFIC_DIR="/etc/voltrontech/traffic"
+BW_DIR="/etc/voltrontech/bandwidth"
+PID_DIR="$BW_DIR/pidtrack"
 BANNER_DIR="/etc/voltrontech/banners"
-mkdir -p "$TRAFFIC_DIR" "$BANNER_DIR"
+
+mkdir -p "$BW_DIR" "$PID_DIR" "$BANNER_DIR"
+
+# ========== CONNECT AUTO HTML BANNER TO SSH ==========
+_connect_banner_to_ssh() {
+    mkdir -p /etc/ssh/sshd_config.d
+    
+    cat > /etc/ssh/sshd_config.d/voltron-auto-banner.conf << 'SSH_CONF'
+# Voltron Tech Auto HTML Banner
+# This banner is generated automatically by the limiter service
+Match User *
+    Banner /etc/voltrontech/banners/%u.txt
+SSH_CONF
+
+    if ! grep -q "Include /etc/ssh/sshd_config.d/" /etc/ssh/sshd_config 2>/dev/null; then
+        echo "Include /etc/ssh/sshd_config.d/*.conf" >> /etc/ssh/sshd_config
+    fi
+    
+    systemctl reload sshd 2>/dev/null || systemctl reload ssh 2>/dev/null
+}
+
+# Run once to connect banner to SSH
+_connect_banner_to_ssh
 
 while true; do
-    if [ -f "$DB_FILE" ]; then
-        current_ts=$(date +%s)
+    if [[ ! -f "$DB_FILE" ]]; then
+        sleep 30
+        continue
+    fi
+    
+    current_ts=$(date +%s)
+    
+    while IFS=: read -r user pass expiry limit traffic_limit traffic_used status; do
+        [[ -z "$user" || "$user" == \#* ]] && continue
+        status=${status:-ACTIVE}
         
-        while IFS=: read -r user pass expiry limit traffic_limit traffic_used status; do
-            [[ -z "$user" ]] && continue
-            status=${status:-ACTIVE}
-            
-            expiry_ts=$(date -d "$expiry" +%s 2>/dev/null || echo 0)
-            if [[ $expiry_ts -lt $current_ts && $expiry_ts -ne 0 ]]; then
-                usermod -L "$user" 2>/dev/null
-                killall -u "$user" -9 2>/dev/null
-                sed -i "s/^$user:.*/$user:$pass:$expiry:$limit:$traffic_limit:$traffic_used:EXPIRED/" "$DB_FILE" 2>/dev/null
+        # --- Expiry Check ---
+        if [[ "$expiry" != "Never" && "$expiry" != "" ]]; then
+             expiry_ts=$(date -d "$expiry" +%s 2>/dev/null || echo 0)
+             if [[ $expiry_ts -lt $current_ts && $expiry_ts -ne 0 ]]; then
+                if ! passwd -S "$user" | grep -q " L "; then
+                    usermod -L "$user" &>/dev/null
+                    killall -u "$user" -9 &>/dev/null
+                fi
                 continue
+             fi
+        fi
+        
+        # --- Connection Limit Check ---
+        online_count=$(pgrep -c -u "$user" sshd)
+        if ! [[ "$limit" =~ ^[0-9]+$ ]]; then limit=1; fi
+        
+        if [[ "$online_count" -gt "$limit" ]]; then
+            if ! passwd -S "$user" | grep -q " L "; then
+                usermod -L "$user" &>/dev/null
+                killall -u "$user" -9 &>/dev/null
+                (sleep 120; usermod -U "$user" &>/dev/null) & 
+            else
+                killall -u "$user" -9 &>/dev/null
             fi
-            
-            online=$(pgrep -u "$user" sshd 2>/dev/null | wc -l)
-            
-            if [[ "$online" -gt "$limit" && "$limit" -ne 0 ]]; then
-                usermod -L "$user" 2>/dev/null
-                killall -u "$user" -9 2>/dev/null
-                sed -i "s/^$user:.*/$user:$pass:$expiry:$limit:$traffic_limit:$traffic_used:LIMIT/" "$DB_FILE" 2>/dev/null
-                (sleep 120; usermod -U "$user" 2>/dev/null) &
-                continue
-            fi
-            
-            # ========== AUTO HTML BANNER GENERATION ==========
-            if [ -f "/etc/voltrontech/banners_enabled" ]; then
-                # Calculate days left
-                days_left="N/A"
-                if [[ "$expiry" != "Never" && -n "$expiry" ]]; then
-                    if [[ $expiry_ts -gt 0 ]]; then
-                        diff_secs=$((expiry_ts - current_ts))
-                        if [[ $diff_secs -le 0 ]]; then
-                            days_left="EXPIRED"
-                        else
-                            d_l=$(( diff_secs / 86400 ))
-                            h_l=$(( (diff_secs % 86400) / 3600 ))
-                            if [[ $d_l -eq 0 ]]; then days_left="${h_l}h left"
-                            else days_left="${d_l}d ${h_l}h"; fi
-                        fi
+        fi
+        
+        # --- AUTO HTML BANNER GENERATION (FALCON STYLE) ---
+        if [[ -f "/etc/voltrontech/banners_enabled" ]]; then
+            mkdir -p "$BANNER_DIR"
+            days_left="N/A"
+            if [[ "$expiry" != "Never" && -n "$expiry" ]]; then
+                if [[ $expiry_ts -gt 0 ]]; then
+                    diff_secs=$((expiry_ts - current_ts))
+                    if [[ $diff_secs -le 0 ]]; then
+                        days_left="EXPIRED"
+                    else
+                        d_l=$(( diff_secs / 86400 ))
+                        h_l=$(( (diff_secs % 86400) / 3600 ))
+                        if [[ $d_l -eq 0 ]]; then days_left="${h_l}h left"
+                        else days_left="${d_l}d ${h_l}h"; fi
                     fi
                 fi
-                
-                # Calculate bandwidth info
-                bw_info="Unlimited"
-                if [[ "$traffic_limit" != "0" && -n "$traffic_limit" ]]; then
-                    used_gb=$traffic_used
-                    remain_gb=$(echo "scale=2; $traffic_limit - $used_gb" | bc 2>/dev/null || echo "0")
-                    bw_info="${used_gb}/${traffic_limit} GB used | ${remain_gb} GB left"
-                fi
-                
-                # YOUR BANNER (TOP)
-                cat > "$BANNER_DIR/${user}.txt" <<BANNER_EOF
+            fi
+            
+            bw_info="Unlimited"
+            if [[ "$traffic_limit" != "0" && -n "$traffic_limit" ]]; then
+                used_gb=$traffic_used
+                remain_gb=$(echo "scale=2; $traffic_limit - $used_gb" | bc 2>/dev/null || echo "0")
+                bw_info="${used_gb}/${traffic_limit} GB used | ${remain_gb} GB left"
+            fi
+            
+            # YOUR BANNER (TOP SECTION - CENTER ALIGNED)
+            cat > "$BANNER_DIR/${user}.txt" << 'BANNER_TOP'
 <H3 style="text-align:center">
   <span style="padding: 8px 15px; display: inline-block; margin: 3px; width: 180px;">
     ===============================
@@ -3218,54 +3003,139 @@ while true; do
 <H3 style="text-align:center">
   <span style="padding: 8px 15px; display: inline-block; margin: 3px;"></span>
 </H3>
-BANNER_EOF
+BANNER_TOP
 
-                # FALCON ORIGINAL BANNER (CENTER)
-                echo -e "<div style=\"text-align:center\">" >> "$BANNER_DIR/${user}.txt"
-                echo -e "<br><font color=\"yellow\"><b>      ✨ ACCOUNT STATUS ✨      </b></font><br><br>" >> "$BANNER_DIR/${user}.txt"
-                echo -e "<font color=\"white\">👤 <b>Username   :</b> $user</font><br>" >> "$BANNER_DIR/${user}.txt"
-                echo -e "<font color=\"white\">📅 <b>Expiration :</b> $expiry ($days_left)</font><br>" >> "$BANNER_DIR/${user}.txt"
-                echo -e "<font color=\"white\">📊 <b>Bandwidth  :</b> $bw_info</font><br>" >> "$BANNER_DIR/${user}.txt"
-                echo -e "<font color=\"white\">🔌 <b>Sessions   :</b> $online/$limit</font><br><br>" >> "$BANNER_DIR/${user}.txt"
-                echo -e "</div>" >> "$BANNER_DIR/${user}.txt"
-                
-                # YOUR BANNER (FOOTER)
-                cat >> "$BANNER_DIR/${user}.txt" <<BANNER_EOF
+            # FALCON ORIGINAL BANNER (CENTER ALIGNED) - WITH echo -e
+            echo -e "<div style=\"text-align:center\">" >> "$BANNER_DIR/${user}.txt"
+            echo -e "<br><font color=\"yellow\"><b>      ✨ ACCOUNT STATUS ✨      </b></font><br><br>" >> "$BANNER_DIR/${user}.txt"
+            echo -e "<font color=\"white\">👤 <b>Username   :</b> $user</font><br>" >> "$BANNER_DIR/${user}.txt"
+            echo -e "<font color=\"white\">📅 <b>Expiration :</b> $expiry ($days_left)</font><br>" >> "$BANNER_DIR/${user}.txt"
+            echo -e "<font color=\"white\">📊 <b>Bandwidth  :</b> $bw_info</font><br>" >> "$BANNER_DIR/${user}.txt"
+            echo -e "<font color=\"white\">🔌 <b>Sessions   :</b> $online_count/$limit</font><br><br>" >> "$BANNER_DIR/${user}.txt"
+            echo -e "</div>" >> "$BANNER_DIR/${user}.txt"
+            
+            # YOUR BANNER (BOTTOM SECTION - CENTER ALIGNED)
+            cat >> "$BANNER_DIR/${user}.txt" << 'BANNER_BOTTOM'
 <H3 style="text-align:center">
   <span style="padding: 8px 15px; display: inline-block; margin: 3px; width: 180px;">
     ===============================
   </span>
 </H3>
-BANNER_EOF
-            fi
+BANNER_BOTTOM
+        fi
+
+        
+        # --- Bandwidth Check ---
+        [[ -z "$traffic_limit" || "$traffic_limit" == "0" ]] && continue
+        
+        # Get user UID
+        user_uid=$(id -u "$user" 2>/dev/null)
+        [[ -z "$user_uid" ]] && continue
+        
+        # Find sshd PIDs for this user via loginuid
+        pids=""
+        
+        # Method 1: pgrep
+        m1=$(pgrep -u "$user" sshd 2>/dev/null | tr '\n' ' ')
+        pids="$m1"
+        
+        # Method 2: loginuid scan
+        for p in /proc/[0-9]*/loginuid; do
+            [[ ! -f "$p" ]] && continue
+            luid=$(cat "$p" 2>/dev/null)
+            [[ -z "$luid" || "$luid" == "4294967295" ]] && continue
+            [[ "$luid" != "$user_uid" ]] && continue
             
-            traffic_file="$TRAFFIC_DIR/$user"
-            if [ -f "$traffic_file" ]; then
-                current_bytes=$(cat "$traffic_file" 2>/dev/null || echo "0")
-                current_gb=$(echo "scale=2; $current_bytes / 1073741824" | bc 2>/dev/null || echo "0")
+            pid_dir=$(dirname "$p")
+            pid_num=$(basename "$pid_dir")
+            
+            cname=$(cat "$pid_dir/comm" 2>/dev/null)
+            [[ "$cname" != "sshd" ]] && continue
+            
+            ppid_val=$(awk '/^PPid:/{print $2}' "$pid_dir/status" 2>/dev/null)
+            [[ "$ppid_val" == "1" ]] && continue
+            
+            pids="$pids $pid_num"
+        done
+        
+        # Deduplicate
+        pids=$(echo "$pids" | tr ' ' '\n' | sort -u | grep -v '^$' | tr '\n' ' ')
+        
+        # Read accumulated usage
+        usagefile="$BW_DIR/${user}.usage"
+        accumulated=0
+        if [[ -f "$usagefile" ]]; then
+            accumulated=$(cat "$usagefile" 2>/dev/null)
+            if ! [[ "$accumulated" =~ ^[0-9]+$ ]]; then accumulated=0; fi
+        fi
+        
+        if [[ -z "$pids" ]]; then
+            rm -f "$PID_DIR/${user}__"*.last 2>/dev/null
+            continue
+        fi
+        
+        delta_total=0
+        
+        for pid in $pids; do
+            [[ -z "$pid" ]] && continue
+            io_file="/proc/$pid/io"
+            if [[ -r "$io_file" ]]; then
+                rchar=$(awk '/^rchar:/{print $2}' "$io_file" 2>/dev/null)
+                wchar=$(awk '/^wchar:/{print $2}' "$io_file" 2>/dev/null)
+                [[ -z "$rchar" ]] && rchar=0
+                [[ -z "$wchar" ]] && wchar=0
+                cur=$((rchar + wchar))
             else
-                current_gb=0
+                cur=0
             fi
             
-            if [ "$traffic_limit" != "0" ] && [ -n "$traffic_limit" ]; then
-                if (( $(echo "$current_gb >= $traffic_limit" | bc -l 2>/dev/null) )); then
-                    usermod -L "$user" 2>/dev/null
-                    killall -u "$user" -9 2>/dev/null
-                    sed -i "s/^$user:.*/$user:$pass:$expiry:$limit:$traffic_limit:$current_gb:LIMIT/" "$DB_FILE" 2>/dev/null
-                    continue
+            pidfile="$PID_DIR/${user}__${pid}.last"
+            
+            if [[ -f "$pidfile" ]]; then
+                prev=$(cat "$pidfile" 2>/dev/null)
+                if ! [[ "$prev" =~ ^[0-9]+$ ]]; then prev=0; fi
+                
+                if [[ "$cur" -ge "$prev" ]]; then
+                    d=$((cur - prev))
+                else
+                    d=$cur
                 fi
+                delta_total=$((delta_total + d))
             fi
-            
-            sed -i "s/^$user:[^:]*:[^:]*:[^:]*:[^:]*:[^:]*:[^:]*/$user:$pass:$expiry:$limit:$traffic_limit:$current_gb:ACTIVE/" "$DB_FILE" 2>/dev/null
-            
-        done < "$DB_FILE"
-    fi
-    sleep 5
+            echo "$cur" > "$pidfile"
+        done
+        
+        # Clean up dead PID files
+        for f in "$PID_DIR/${user}__"*.last; do
+            [[ ! -f "$f" ]] && continue
+            fpid=$(basename "$f" .last)
+            fpid=${fpid#${user}__}
+            [[ ! -d "/proc/$fpid" ]] && rm -f "$f"
+        done
+        
+        # Update total
+        new_total=$((accumulated + delta_total))
+        echo "$new_total" > "$usagefile"
+        
+        # Check quota
+        quota_bytes=$(awk "BEGIN {printf \"%.0f\", $traffic_limit * 1073741824}")
+        
+        if [[ "$new_total" -ge "$quota_bytes" ]]; then
+            if ! passwd -S "$user" 2>/dev/null | grep -q " L "; then
+                usermod -L "$user" &>/dev/null
+                killall -u "$user" -9 &>/dev/null
+            fi
+        fi
+        
+    done < "$DB_FILE"
+    
+    sleep 15
 done
 EOF
     chmod +x "$LIMITER_SCRIPT"
-    
-    cat > "$LIMITER_SERVICE" <<EOF
+    sed -i 's/\r$//' "$LIMITER_SCRIPT" 2>/dev/null
+
+    cat > "$LIMITER_SERVICE" << EOF
 [Unit]
 Description=Voltron Connection & Traffic Limiter with Auto Banner
 After=network.target
@@ -3274,14 +3144,24 @@ After=network.target
 Type=simple
 ExecStart=$LIMITER_SCRIPT
 Restart=always
+RestartSec=5
 
 [Install]
 WantedBy=multi-user.target
 EOF
+    sed -i 's/\r$//' "$LIMITER_SERVICE" 2>/dev/null
 
-    systemctl daemon-reload
-    systemctl enable voltron-limiter.service 2>/dev/null
-    systemctl restart voltron-limiter.service 2>/dev/null
+    pkill -f "voltrontech-limiter" 2>/dev/null
+
+    if ! systemctl is-active --quiet voltrontech-limiter; then
+        systemctl daemon-reload
+        systemctl enable voltrontech-limiter &>/dev/null
+        systemctl start voltrontech-limiter --no-block &>/dev/null
+        
+    else
+        systemctl restart voltrontech-limiter --no-block &>/dev/null
+        
+    fi
 }
 
 # ========== TRAFFIC MONITOR ==========
@@ -3418,6 +3298,316 @@ uninstall_script() {
     echo -e "\nPress any key to exit..."
     read -n 1
     exit 0
+}
+
+# ========== DNSTT INSTALLATION ==========
+install_dnstt_falcon() {
+    clear
+    show_banner
+    echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    echo -e "${C_BOLD}${C_PURPLE}           📡 DNSTT INSTALLATION (FALCON STYLE)${C_RESET}"
+    echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    
+    if [ -f "$DNSTT_SERVICE" ]; then
+        echo -e "\n${C_YELLOW}ℹ️ DNSTT is already installed.${C_RESET}"
+        read -p "Reinstall? (y/n): " reinstall
+        if [[ "$reinstall" != "y" ]]; then
+            return
+        fi
+        systemctl stop dnstt.service 2>/dev/null
+    fi
+    
+    # Step 1: Install dependencies
+    echo -e "\n${C_BLUE}[1/8] Installing dependencies...${C_RESET}"
+    $PKG_INSTALL wget curl openssl
+    
+    # Step 2: Download binary (Falcon style)
+    echo -e "\n${C_BLUE}[2/8] Downloading DNSTT binary...${C_RESET}"
+    if ! download_dnstt_binary; then
+        echo -e "${C_RED}❌ Failed to download DNSTT binary${C_RESET}"
+        safe_read "" dummy
+        return 1
+    fi
+    
+    # Step 3: Configure firewall
+    echo -e "\n${C_BLUE}[3/8] Configuring firewall...${C_RESET}"
+    configure_firewall
+    
+    # Step 4: Setup domain
+    echo -e "\n${C_BLUE}[4/8] Domain configuration...${C_RESET}"
+    setup_domain
+    
+    # Step 5: MTU selection
+    echo -e "\n${C_BLUE}[5/8] MTU configuration...${C_RESET}"
+    mtu_selection_during_install
+    
+    # Step 6: Generate keys
+    echo -e "\n${C_BLUE}[6/8] Generating keys...${C_RESET}"
+    generate_keys
+    
+    # Step 7: Select Speed Booster
+    echo -e "\n${C_BLUE}[7/8] Select Speed Booster Level...${C_RESET}"
+    echo ""
+    echo -e "  ${C_GREEN}1)${C_RESET} Standard  (32MB)  → 10-15 Mbps"
+    echo -e "  ${C_GREEN}2)${C_RESET} Medium     (64MB)  → 15-20 Mbps  🚀"
+    echo -e "  ${C_GREEN}3)${C_RESET} High       (128MB) → 20-25 Mbps  🚀🚀"
+    echo -e "  ${C_GREEN}4)${C_RESET} Ultra      (256MB) → 25-35 Mbps  🚀🚀🚀"
+    echo -e "  ${C_GREEN}5)${C_RESET} Extreme    (512MB) → 35-50 Mbps  💥💥💥"
+    echo -e "  ${C_GREEN}6)${C_RESET} Skip (No booster)"
+    echo ""
+    read -p "👉 Choose booster level [1-6, default=3]: " booster_choice
+    booster_choice=${booster_choice:-3}
+    
+    case $booster_choice in
+        1) apply_dnstt_standard ;;
+        2) apply_dnstt_medium ;;
+        3) apply_dnstt_high ;;
+        4) apply_dnstt_ultra ;;
+        5) apply_dnstt_extreme ;;
+        6) echo -e "${C_YELLOW}⚠️ Skipping speed booster${C_RESET}" ;;
+        *) apply_dnstt_high ;;
+    esac
+    
+    # Step 8: Create service
+    echo -e "\n${C_BLUE}[8/8] Creating service...${C_RESET}"
+    SSH_PORT=$(ss -tlnp 2>/dev/null | grep sshd | awk '{print $4}' | cut -d: -f2 | head -1)
+    SSH_PORT=${SSH_PORT:-22}
+    
+    create_dnstt_service_live "$DOMAIN" "$MTU" "$SSH_PORT"
+    save_dnstt_info "$DOMAIN" "$PUBLIC_KEY" "$MTU" "$SSH_PORT"
+    
+    echo -e "\n${C_BLUE}🚀 Starting DNSTT service...${C_RESET}"
+    systemctl start dnstt.service
+    sleep 2
+    
+    if systemctl is-active --quiet dnstt.service; then
+        echo -e "${C_GREEN}✅ Service started successfully${C_RESET}"
+    else
+        echo -e "${C_RED}❌ Service failed to start${C_RESET}"
+        journalctl -u dnstt.service -n 20 --no-pager
+    fi
+    
+    show_client_commands_falcon_style "$DOMAIN" "$MTU" "$SSH_PORT"
+    
+    echo -e "\n${C_GREEN}✅ DNSTT installation complete!${C_RESET}"
+    safe_read "" dummy
+}
+
+uninstall_dnstt() {
+    echo -e "\n${C_BLUE}🗑️ Uninstalling DNSTT...${C_RESET}"
+    
+    systemctl stop dnstt.service 2>/dev/null
+    systemctl disable dnstt.service 2>/dev/null
+    rm -f "$DNSTT_SERVICE"
+    rm -f "$DNSTT_SERVER" "$DNSTT_CLIENT"
+    rm -f "$DB_DIR/server.key" "$DB_DIR/server.pub"
+    rm -f "$DB_DIR/domain.txt"
+    rm -f "$DNSTT_INFO_FILE"
+    rm -f /etc/sysctl.d/99-dnstt-*.conf
+    
+    systemctl daemon-reload
+    echo -e "${C_GREEN}✅ DNSTT uninstalled${C_RESET}"
+    safe_read "" dummy
+}
+
+show_dnstt_details() {
+    clear
+    echo -e "${C_BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+    echo -e "${C_GREEN}           📡 DNSTT DETAILS (FALCON STYLE)${C_RESET}"
+    echo -e "${C_BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+    
+    if [ ! -f "$DB_DIR/domain.txt" ]; then
+        echo -e "${C_YELLOW}DNSTT is not installed${C_RESET}"
+        safe_read "" dummy
+        return
+    fi
+    
+    DOMAIN=$(cat "$DB_DIR/domain.txt" 2>/dev/null || echo "unknown")
+    MTU=$(cat "$CONFIG_DIR/mtu" 2>/dev/null || echo "512")
+    SSH_PORT=$(ss -tlnp 2>/dev/null | grep sshd | awk '{print $4}' | cut -d: -f2 | head -1)
+    SSH_PORT=${SSH_PORT:-22}
+    PUBKEY=$(cat "$DB_DIR/server.pub" 2>/dev/null || echo "unknown")
+    
+    local status=""
+    if systemctl is-active dnstt.service &>/dev/null; then
+        status="${C_GREEN}● RUNNING${C_RESET}"
+    else
+        status="${C_RED}● STOPPED${C_RESET}"
+    fi
+    
+    echo -e "  Status:        $status"
+    echo -e "  Domain:        ${C_YELLOW}$DOMAIN${C_RESET}"
+    echo -e "  MTU:           ${C_YELLOW}$MTU${C_RESET}"
+    echo -e "  SSH Port:      ${C_YELLOW}$SSH_PORT${C_RESET}"
+    echo -e "  Public Key:    ${C_YELLOW}${PUBKEY:0:30}...${PUBKEY: -30}${C_RESET}"
+    
+    safe_read "" dummy
+}
+
+# ========== PROTOCOL MENU ==========
+protocol_menu() {
+    while true; do
+        clear
+        show_banner
+        
+        local badvpn_status=$(check_service "badvpn")
+        local udp_status=$(check_service "udp-custom")
+        local haproxy_status=$(check_service "haproxy")
+        local dnstt_status=$(check_service "dnstt")
+        local v2ray_status=$(check_service "v2ray-dnstt")
+        local voltronproxy_status=$(check_service "voltronproxy")
+        local nginx_status=$(check_service "nginx")
+        local zivpn_status=$(check_service "zivpn")
+        local xui_status=$(command -v x-ui &>/dev/null && echo -e "${C_BLUE}(installed)${C_RESET}" || echo "")
+        
+        echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
+        echo -e "${C_BOLD}${C_PURPLE}              🔌 PROTOCOL & PANEL MANAGEMENT${C_RESET}"
+        echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
+        echo ""
+        echo -e "  ${C_GREEN}1)${C_RESET} badvpn (UDP 7300) $badvpn_status"
+        echo -e "  ${C_GREEN}2)${C_RESET} udp-custom $udp_status"
+        echo -e "  ${C_GREEN}3)${C_RESET} SSL Tunnel (HAProxy) $haproxy_status"
+        echo -e "  ${C_GREEN}4)${C_RESET} DNSTT (Port 5300) $dnstt_status"
+        echo -e "  ${C_GREEN}5)${C_RESET} ⚡ DNSTT Speed Booster"
+        echo -e "  ${C_GREEN}6)${C_RESET} V2RAY over DNSTT $v2ray_status"
+        echo -e "  ${C_GREEN}7)${C_RESET} VOLTRON Proxy $voltronproxy_status"
+        echo -e "  ${C_GREEN}8)${C_RESET} Nginx Proxy $nginx_status"
+        echo -e "  ${C_GREEN}9)${C_RESET} ZiVPN $zivpn_status"
+        echo -e "  ${C_GREEN}10)${C_RESET} X-UI Panel $xui_status"
+        echo -e "  ${C_GREEN}11)${C_RESET} DT Proxy $(check_dt_proxy_status)"
+        echo ""
+        echo -e "  ${C_RED}0)${C_RESET} Return"
+        echo ""
+        
+        local choice
+        safe_read "$(echo -e ${C_PROMPT}"👉 Select protocol to manage: "${C_RESET})" choice
+        
+        case $choice in
+            1)
+                echo -e "\n  ${C_GREEN}1)${C_RESET} Install"
+                echo -e "  ${C_RED}2)${C_RESET} Uninstall"
+                safe_read "👉 Choose: " sub
+                [ "$sub" == "1" ] && install_badvpn || uninstall_badvpn
+                ;;
+            2)
+                echo -e "\n  ${C_GREEN}1)${C_RESET} Install"
+                echo -e "  ${C_RED}2)${C_RESET} Uninstall"
+                safe_read "👉 Choose: " sub
+                [ "$sub" == "1" ] && install_udp_custom || uninstall_udp_custom
+                ;;
+            3)
+                echo -e "\n  ${C_GREEN}1)${C_RESET} Install"
+                echo -e "  ${C_RED}2)${C_RESET} Uninstall"
+                safe_read "👉 Choose: " sub
+                [ "$sub" == "1" ] && install_ssl_tunnel || uninstall_ssl_tunnel
+                ;;
+            4)
+                echo -e "\n  ${C_GREEN}1)${C_RESET} Install DNSTT"
+                echo -e "  ${C_GREEN}2)${C_RESET} View Details"
+                echo -e "  ${C_RED}3)${C_RESET} Uninstall"
+                safe_read "👉 Choose: " sub
+                if [ "$sub" == "1" ]; then install_dnstt_falcon
+                elif [ "$sub" == "2" ]; then show_dnstt_details
+                elif [ "$sub" == "3" ]; then uninstall_dnstt
+                else echo -e "${C_RED}Invalid${C_RESET}"; sleep 2; fi
+                ;;
+            5)
+                speed_booster_menu
+                ;;
+            6)
+                echo -e "\n  ${C_GREEN}1)${C_RESET} Install V2RAY"
+                echo -e "  ${C_RED}2)${C_RESET} Uninstall V2RAY"
+                safe_read "👉 Choose: " sub
+                [ "$sub" == "1" ] && install_v2ray_dnstt || uninstall_v2ray_dnstt
+                ;;
+            7)
+                echo -e "\n  ${C_GREEN}1)${C_RESET} Install"
+                echo -e "  ${C_RED}2)${C_RESET} Uninstall"
+                safe_read "👉 Choose: " sub
+                [ "$sub" == "1" ] && install_voltron_proxy || uninstall_voltron_proxy
+                ;;
+            8)
+                echo -e "\n  ${C_GREEN}1)${C_RESET} Install"
+                echo -e "  ${C_RED}2)${C_RESET} Uninstall"
+                safe_read "👉 Choose: " sub
+                [ "$sub" == "1" ] && install_nginx_proxy || uninstall_nginx_proxy
+                ;;
+            9)
+                echo -e "\n  ${C_GREEN}1)${C_RESET} Install"
+                echo -e "  ${C_RED}2)${C_RESET} Uninstall"
+                safe_read "👉 Choose: " sub
+                [ "$sub" == "1" ] && install_zivpn || uninstall_zivpn
+                ;;
+            10)
+                echo -e "\n  ${C_GREEN}1)${C_RESET} Install"
+                echo -e "  ${C_RED}2)${C_RESET} Uninstall"
+                safe_read "👉 Choose: " sub
+                [ "$sub" == "1" ] && install_xui_panel || uninstall_xui_panel
+                ;;
+            11)
+                dt_proxy_menu
+                ;;
+            0) return ;;
+            *) echo -e "\n${C_RED}❌ Invalid option${C_RESET}"; sleep 2 ;;
+        esac
+    done
+}
+
+# ========== SPEED BOOSTER MENU ==========
+speed_booster_menu() {
+    while true; do
+        clear
+        show_banner
+        
+        echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
+        echo -e "${C_BOLD}${C_PURPLE}           ⚡ DNSTT SPEED BOOSTER MANAGER${C_RESET}"
+        echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
+        echo ""
+        echo -e "  ${C_CYAN}Select Speed Level:${C_RESET}"
+        echo ""
+        echo -e "  ${C_GREEN}[1]${C_RESET} Standard  (32MB)  → 10-15 Mbps"
+        echo -e "  ${C_GREEN}[2]${C_RESET} Medium     (64MB)  → 15-20 Mbps  🚀"
+        echo -e "  ${C_GREEN}[3]${C_RESET} High       (128MB) → 20-25 Mbps  🚀🚀"
+        echo -e "  ${C_GREEN}[4]${C_RESET} Ultra      (256MB) → 25-35 Mbps  🚀🚀🚀"
+        echo -e "  ${C_GREEN}[5]${C_RESET} Extreme    (512MB) → 35-50 Mbps  💥💥💥"
+        echo ""
+        echo -e "  ${C_YELLOW}[6]${C_RESET} View Current Settings"
+        echo -e "  ${C_RED}[7]${C_RESET} Reset to Default"
+        echo ""
+        echo -e "  ${C_RED}[0]${C_RESET} Return"
+        echo ""
+        
+        local choice
+        safe_read "$(echo -e ${C_PROMPT}"👉 Select speed level: "${C_RESET})" choice
+        
+        case $choice in
+            1) apply_dnstt_standard ;;
+            2) apply_dnstt_medium ;;
+            3) apply_dnstt_high ;;
+            4) apply_dnstt_ultra ;;
+            5) apply_dnstt_extreme ;;
+            6)
+                echo -e "\n${C_CYAN}Current System Settings:${C_RESET}"
+                echo -e "  ${C_WHITE}TCP Congestion:${C_RESET} $(sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null)"
+                echo -e "  ${C_WHITE}Network Buffer (rmem):${C_RESET} $(sysctl -n net.core.rmem_max 2>/dev/null | numfmt --to=iec 2>/dev/null || echo "Unknown")"
+                echo -e "  ${C_WHITE}UDP Buffer (min):${C_RESET} $(sysctl -n net.ipv4.udp_rmem_min 2>/dev/null) bytes"
+                safe_read "" dummy
+                ;;
+            7)
+                echo -e "\n${C_RED}⚠️ Reset to default system settings?${C_RESET}"
+                read -p "Confirm (y/n): " confirm
+                if [[ "$confirm" == "y" ]]; then
+                    sysctl -w net.core.rmem_max=212992 >/dev/null 2>&1
+                    sysctl -w net.ipv4.tcp_congestion_control=cubic >/dev/null 2>&1
+                    sysctl -w net.ipv4.udp_rmem_min=4096 >/dev/null 2>&1
+                    echo -e "${C_GREEN}✅ Reset to default${C_RESET}"
+                fi
+                safe_read "" dummy
+                ;;
+            0) return ;;
+            *) echo -e "\n${C_RED}❌ Invalid option${C_RESET}"; sleep 2 ;;
+        esac
+    done
 }
 
 # ========== MAIN MENU ==========
