@@ -1,10 +1,10 @@
 #!/bin/bash
 
 # ========== VOLTRON TECH ULTIMATE SCRIPT ==========
-# Version: 10.0 (FALCON STYLE)
-# Description: SSH • DNSTT • V2RAY • BADVPN • UDP-CUSTOM • SSL • PROXY • ZIVPN • X-UI
+# Version: 10.1 (FALCON STYLE - COMPLETE)
+# Description: SSH • DNSTT • V2RAY • BADVPN • UDP • SSL • ZiVPN
 # Author: Voltron Tech
-# Features: DNSTT with Falcon Style, Auto HTML Banner, User Manager, Speed Boosters
+# Features: DNSTT with Falcon Style, Auto HTML Banner, User Manager (Falcon), Speed Boosters
 
 # ========== COLOR CODES ==========
 C_RESET='\033[0m'
@@ -27,6 +27,7 @@ C_DANGER=$C_RED
 C_STATUS_A=$C_GREEN
 C_STATUS_I=$C_DIM
 C_ACCENT=$C_CYAN
+C_ORANGE='\033[38;5;208m'
 
 # ========== DESEC DNS CONFIGURATION ==========
 DESEC_TOKEN="3WxD4Hkiu5VYBLWVizVhf1rzyKbz"
@@ -111,6 +112,7 @@ VOLTRON_PROXY_PORT=8080
 ZIVPN_PORT=5667
 
 SELECTED_USER=""
+SELECTED_USERS=()
 UNINSTALL_MODE="interactive"
 
 # ========== CREATE DIRECTORIES ==========
@@ -308,7 +310,7 @@ show_banner() {
     local current_mtu=$(get_current_mtu)
     
     echo -e "${C_BOLD}${C_PURPLE}╔═══════════════════════════════════════════════════════════════╗${C_RESET}"
-    echo -e "${C_BOLD}${C_PURPLE}║           🔥 VOLTRON TECH ULTIMATE v10.0 🔥                    ║${C_RESET}"
+    echo -e "${C_BOLD}${C_PURPLE}║           🔥 VOLTRON TECH ULTIMATE v10.1 🔥                    ║${C_RESET}"
     echo -e "${C_BOLD}${C_PURPLE}║        SSH • DNSTT • V2RAY • BADVPN • UDP • SSL • ZiVPN        ║${C_RESET}"
     echo -e "${C_BOLD}${C_PURPLE}║                   FALCON STYLE EDITION                         ║${C_RESET}"
     echo -e "${C_BOLD}${C_PURPLE}╠═══════════════════════════════════════════════════════════════╣${C_RESET}"
@@ -869,7 +871,7 @@ show_client_commands_falcon_style() {
     echo -e "${C_WHITE}  ssh username@127.0.0.1 -p $ssh_port${C_RESET}"
 }
 
-# ========== AUTO HTML BANNER FUNCTIONS ==========
+# ========== AUTO HTML BANNER FUNCTIONS (FALCON STYLE - WITH USER SELECTION) ==========
 _connect_auto_banner_to_ssh() {
     echo -e "\n${C_BLUE}🔗 Connecting Auto HTML Banner to SSH...${C_RESET}"
     
@@ -919,268 +921,162 @@ _disable_auto_banner() {
     safe_read "" dummy
 }
 
-_view_auto_banner_status() {
-    clear
-    show_banner
-    echo -e "${C_BOLD}${C_PURPLE}--- 🎨 Auto HTML Banner Status ---${C_RESET}"
-    
-    if [ -f "/etc/voltrontech/banners_enabled" ]; then
-        echo -e "\n${C_GREEN}✅ Auto HTML Banner: ENABLED${C_RESET}"
-        echo -e "${C_CYAN}📌 Banner location: /etc/voltrontech/banners/{username}.txt${C_RESET}"
-        
-        local first_user=$(head -1 "$DB_FILE" 2>/dev/null | cut -d: -f1)
-        if [ -n "$first_user" ] && [ -f "/etc/voltrontech/banners/${first_user}.txt" ]; then
-            echo -e "\n${C_CYAN}📌 Sample banner for user '$first_user':${C_RESET}"
-            echo -e "${C_YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
-            cat "/etc/voltrontech/banners/${first_user}.txt"
-            echo -e "${C_YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
-        fi
-    else
-        echo -e "\n${C_RED}❌ Auto HTML Banner: DISABLED${C_RESET}"
+# ========== SELECT USER INTERFACE (FROM FALCON) ==========
+_select_user_interface() {
+    local title="$1"
+    clear; show_banner
+    echo -e "${C_BOLD}${C_PURPLE}${title}${C_RESET}\n"
+    if [[ ! -s $DB_FILE ]]; then
+        echo -e "${C_YELLOW}ℹ️ No users found in the database.${C_RESET}"
+        SELECTED_USER="NO_USERS"; return
     fi
     
-    safe_read "" dummy
-}
-
-auto_banner_menu() {
-    while true; do
-        clear
-        show_banner
-        
-        local banner_status=""
-        if [ -f "/etc/voltrontech/banners_enabled" ]; then
-            banner_status="${C_GREEN}ENABLED${C_RESET}"
+    mapfile -t all_users < <(cut -d: -f1 "$DB_FILE" | sort)
+    
+    if [ ${#all_users[@]} -ge 15 ]; then
+        read -p "👉 Enter a search term (or press Enter to list all): " search_term
+        if [[ -n "$search_term" ]]; then
+            mapfile -t users < <(printf "%s\n" "${all_users[@]}" | grep -i "$search_term")
         else
-            banner_status="${C_RED}DISABLED${C_RESET}"
+            users=("${all_users[@]}")
         fi
-        
-        echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
-        echo -e "${C_BOLD}${C_PURPLE}           🎨 AUTO HTML BANNER (FALCON STYLE)${C_RESET}"
-        echo -e "${C_BOLD}${C_PURPLE}           📱 For HTTP Custom / HTTP Injector${C_RESET}"
-        echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
-        echo ""
-        echo -e "  ${C_CYAN}Current Status:${C_RESET} $banner_status"
-        echo ""
-        echo -e "  ${C_GREEN}1)${C_RESET} Enable Auto HTML Banner"
-        echo -e "  ${C_RED}2)${C_RESET} Disable Auto HTML Banner"
-        echo -e "  ${C_GREEN}3)${C_RESET} View Status & Sample Banner"
-        echo ""
-        echo -e "  ${C_RED}0)${C_RESET} Return"
-        echo ""
-        
-        local choice
-        safe_read "$(echo -e ${C_PROMPT}"👉 Select option: "${C_RESET})" choice
-        
-        case $choice in
-            1) _enable_auto_banner ;;
-            2) _disable_auto_banner ;;
-            3) _view_auto_banner_status ;;
-            0) return ;;
-            *) echo -e "\n${C_RED}❌ Invalid option${C_RESET}"; sleep 2 ;;
-        esac
+    else
+        users=("${all_users[@]}")
+    fi
+
+    if [ ${#users[@]} -eq 0 ]; then
+        echo -e "\n${C_YELLOW}ℹ️ No users found matching your criteria.${C_RESET}"
+        SELECTED_USER="NO_USERS"; return
+    fi
+    echo -e "\nPlease select a user:\n"
+    for i in "${!users[@]}"; do
+        printf "  ${C_GREEN}[%2d]${C_RESET} %s\n" "$((i+1))" "${users[$i]}"
+    done
+    echo -e "\n  ${C_RED} [ 0]${C_RESET} ↩️ Cancel and return to main menu"
+    echo
+    local choice
+    while true; do
+        read -p "👉 Enter the number of the user: " choice
+        if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge 0 ] && [ "$choice" -le "${#users[@]}" ]; then
+            if [ "$choice" -eq 0 ]; then
+                SELECTED_USER=""; return
+            else
+                SELECTED_USER="${users[$((choice-1))]}"; return
+            fi
+        else
+            echo -e "${C_RED}❌ Invalid selection. Please try again.${C_RESET}"
+        fi
     done
 }
 
-# ========== AUTO REBOOT FUNCTIONS ==========
-_enable_auto_reboot() {
-    echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "${C_BLUE}           🔄 ENABLING AUTO REBOOT${C_RESET}"
-    echo -e "${C_BLUE}           ⏰ Schedule: Daily at 00:00 (Midnight)${C_RESET}"
-    echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
-    
-    (crontab -l 2>/dev/null | grep -v "systemctl reboot") | crontab - 2>/dev/null
-    (crontab -l 2>/dev/null; echo "0 0 * * * /usr/sbin/systemctl reboot") | crontab - 2>/dev/null
-    
-    echo -e "${C_GREEN}✅ Auto reboot scheduled for every day at 00:00 (Midnight)${C_RESET}"
-    safe_read "" dummy
-}
-
-_disable_auto_reboot() {
-    echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
-    echo -e "${C_BLUE}           🛑 DISABLING AUTO REBOOT${C_RESET}"
-    echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
-    
-    (crontab -l 2>/dev/null | grep -v "systemctl reboot") | crontab - 2>/dev/null
-    
-    echo -e "${C_GREEN}✅ Auto reboot disabled${C_RESET}"
-    safe_read "" dummy
-}
-
-_view_auto_reboot_status() {
-    clear
-    show_banner
-    echo -e "${C_BOLD}${C_PURPLE}--- 🔄 Auto Reboot Status ---${C_RESET}"
-    
-    local cron_check=$(crontab -l 2>/dev/null | grep "systemctl reboot")
-    if [[ -n "$cron_check" ]]; then
-        echo -e "\n${C_GREEN}✅ Auto Reboot: ENABLED${C_RESET}"
-        echo -e "${C_CYAN}📌 Schedule: Daily at 00:00 (Midnight)${C_RESET}"
-    else
-        echo -e "\n${C_RED}❌ Auto Reboot: DISABLED${C_RESET}"
+_select_multi_user_interface() {
+    local title="$1"
+    clear; show_banner
+    echo -e "${C_BOLD}${C_PURPLE}${title}${C_RESET}\n"
+    SELECTED_USERS=()
+    if [[ ! -s $DB_FILE ]]; then
+        echo -e "${C_YELLOW}ℹ️ No users found in the database.${C_RESET}"
+        SELECTED_USERS=("NO_USERS"); return
     fi
     
-    safe_read "" dummy
-}
-
-auto_reboot_menu() {
-    while true; do
-        clear
-        show_banner
-        
-        local reboot_status=""
-        local cron_check=$(crontab -l 2>/dev/null | grep "systemctl reboot")
-        if [[ -n "$cron_check" ]]; then
-            reboot_status="${C_GREEN}ENABLED (Daily at 00:00)${C_RESET}"
+    mapfile -t all_users < <(cut -d: -f1 "$DB_FILE" | sort)
+    
+    if [ ${#all_users[@]} -ge 15 ]; then
+        read -p "👉 Enter a search term (or press Enter to list all): " search_term
+        if [[ -n "$search_term" ]]; then
+            mapfile -t users < <(printf "%s\n" "${all_users[@]}" | grep -i "$search_term")
         else
-            reboot_status="${C_RED}DISABLED${C_RESET}"
+            users=("${all_users[@]}")
+        fi
+    else
+        users=("${all_users[@]}")
+    fi
+
+    if [ ${#users[@]} -eq 0 ]; then
+        echo -e "\n${C_YELLOW}ℹ️ No users found matching your criteria.${C_RESET}"
+        SELECTED_USERS=("NO_USERS"); return
+    fi
+    echo -e "\nPlease select users:\n"
+    for i in "${!users[@]}"; do
+        printf "  ${C_GREEN}[%2d]${C_RESET} %s\n" "$((i+1))" "${users[$i]}"
+    done
+    echo -e "\n  ${C_GREEN}[all]${C_RESET} Select ALL listed users"
+    echo -e "  ${C_RED}  [0]${C_RESET} ↩️ Cancel and return to main menu"
+    echo -e "\n${C_CYAN}💡 You can select multiple! (e.g. '1 3 5' or '1,3' or '1-4')${C_RESET}"
+    echo
+    local choice
+    while true; do
+        read -p "👉 Enter user numbers: " choice
+        choice=$(echo "$choice" | tr ',' ' ')
+        
+        if [[ -z "$choice" ]]; then
+            echo -e "${C_RED}❌ Invalid selection. Please try again.${C_RESET}"
+            continue
+        fi
+
+        if [[ "$choice" == "0" ]]; then
+            SELECTED_USERS=(); return
         fi
         
-        echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
-        echo -e "${C_BOLD}${C_PURPLE}           🔄 AUTO REBOOT MANAGEMENT${C_RESET}"
-        echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
-        echo ""
-        echo -e "  ${C_CYAN}Current Status:${C_RESET} $reboot_status"
-        echo ""
-        echo -e "  ${C_GREEN}1)${C_RESET} Enable Auto Reboot (Daily at 00:00)"
-        echo -e "  ${C_RED}2)${C_RESET} Disable Auto Reboot"
-        echo -e "  ${C_GREEN}3)${C_RESET} View Status"
-        echo ""
-        echo -e "  ${C_RED}0)${C_RESET} Return"
-        echo ""
+        if [[ "${choice,,}" == "all" ]]; then
+            SELECTED_USERS=("${users[@]}")
+            return
+        fi
         
-        local choice
-        safe_read "$(echo -e ${C_PROMPT}"👉 Select option: "${C_RESET})" choice
+        local valid=true
+        local selected_indices=()
+        for token in $choice; do
+            if [[ "$token" =~ ^[0-9]+-[0-9]+$ ]]; then
+                local start=${token%-*}
+                local end=${token#*-}
+                if [ "$start" -le "$end" ]; then
+                    for (( idx=start; idx<=end; idx++ )); do
+                        if [ "$idx" -ge 1 ] && [ "$idx" -le "${#users[@]}" ]; then
+                            selected_indices+=($idx)
+                        else
+                            valid=false; break
+                        fi
+                    done
+                else
+                    valid=false; break
+                fi
+            elif [[ "$token" =~ ^[0-9]+$ ]]; then
+                if [ "$token" -ge 1 ] && [ "$token" -le "${#users[@]}" ]; then
+                    selected_indices+=($token)
+                else
+                    valid=false; break
+                fi
+            else
+                valid=false; break
+            fi
+        done
         
-        case $choice in
-            1) _enable_auto_reboot ;;
-            2) _disable_auto_reboot ;;
-            3) _view_auto_reboot_status ;;
-            0) return ;;
-            *) echo -e "\n${C_RED}❌ Invalid option${C_RESET}"; sleep 2 ;;
-        esac
+        if [[ "$valid" == true && ${#selected_indices[@]} -gt 0 ]]; then
+            mapfile -t unique_indices < <(printf "%s\n" "${selected_indices[@]}" | sort -u -n)
+            for idx in "${unique_indices[@]}"; do
+                SELECTED_USERS+=("${users[$((idx-1))]}")
+            done
+            return
+        else
+            echo -e "${C_RED}❌ Invalid selection. Please check your numbers.${C_RESET}"
+            SELECTED_USERS=()
+            selected_indices=()
+        fi
     done
 }
 
-# ========== SSH BANNER (PLAIN TEXT) ==========
-_set_ssh_banner() {
-    clear
-    show_banner
-    echo -e "${C_BOLD}${C_PURPLE}--- 📋 Paste SSH Banner ---${C_RESET}"
-    echo -e "Paste your banner code below. Press ${C_YELLOW}[Ctrl+D]${C_RESET} when finished."
-    echo -e "${C_DIM}The current banner will be overwritten.${C_RESET}"
-    echo -e "--------------------------------------------------"
-    
-    cat > "$SSH_BANNER_FILE"
-    chmod 644 "$SSH_BANNER_FILE"
-    
-    echo -e "\n--------------------------------------------------"
-    echo -e "\n${C_GREEN}✅ Banner saved!${C_RESET}"
-    
-    _enable_banner_in_sshd_config
-    _restart_ssh
-    safe_read "" dummy
+get_user_status() {
+    local username="$1"
+    if ! id "$username" &>/dev/null; then echo -e "${C_RED}Not Found${C_RESET}"; return; fi
+    local expiry_date=$(grep "^$username:" "$DB_FILE" | cut -d: -f3)
+    if passwd -S "$username" 2>/dev/null | grep -q " L "; then echo -e "${C_YELLOW}🔒 Locked${C_RESET}"; return; fi
+    local expiry_ts=$(date -d "$expiry_date" +%s 2>/dev/null || echo 0)
+    local current_ts=$(date +%s)
+    if [[ $expiry_ts -lt $current_ts ]]; then echo -e "${C_RED}🗓️ Expired${C_RESET}"; return; fi
+    echo -e "${C_GREEN}🟢 Active${C_RESET}"
 }
 
-_view_ssh_banner() {
-    clear
-    show_banner
-    echo -e "${C_BOLD}${C_PURPLE}--- 👁️ Current SSH Banner ---${C_RESET}"
-    
-    if [ -f "$SSH_BANNER_FILE" ]; then
-        echo -e "\n${C_CYAN}--- BEGIN BANNER ---${C_RESET}"
-        cat "$SSH_BANNER_FILE"
-        echo -e "${C_CYAN}---- END BANNER ----${C_RESET}"
-    else
-        echo -e "\n${C_YELLOW}ℹ️ No banner found.${C_RESET}"
-    fi
-    
-    safe_read "" dummy
-}
-
-_remove_ssh_banner() {
-    clear
-    show_banner
-    echo -e "${C_BOLD}${C_PURPLE}--- 🗑️ Remove SSH Banner ---${C_RESET}"
-    
-    read -p "👉 Are you sure? (y/n): " confirm
-    if [[ "$confirm" != "y" ]]; then
-        echo -e "\n${C_YELLOW}Cancelled.${C_RESET}"
-        safe_read "" dummy
-        return
-    fi
-    
-    rm -f "$SSH_BANNER_FILE"
-    rm -f "/etc/ssh/sshd_config.d/voltrontech-banner.conf"
-    
-    echo -e "\n${C_GREEN}✅ Banner removed.${C_RESET}"
-    _restart_ssh
-    safe_read "" dummy
-}
-
-_enable_banner_in_sshd_config() {
-    echo -e "\n${C_BLUE}⚙️ Configuring sshd_config...${C_RESET}"
-    
-    mkdir -p /etc/ssh/sshd_config.d
-    
-    cat > /etc/ssh/sshd_config.d/voltrontech-banner.conf <<EOF
-# Voltron Tech SSH Banner
-Banner $SSH_BANNER_FILE
-EOF
-
-    if ! grep -q "Include /etc/ssh/sshd_config.d/" /etc/ssh/sshd_config 2>/dev/null; then
-        echo "Include /etc/ssh/sshd_config.d/*.conf" >> /etc/ssh/sshd_config
-    fi
-    
-    echo -e "${C_GREEN}✅ sshd_config updated.${C_RESET}"
-}
-
-_restart_ssh() {
-    echo -e "\n${C_BLUE}🔄 Restarting SSH service...${C_RESET}"
-    
-    if systemctl list-units --full -all | grep -q "sshd.service"; then
-        systemctl restart sshd
-    elif systemctl list-units --full -all | grep -q "ssh.service"; then
-        systemctl restart ssh
-    else
-        echo -e "${C_RED}❌ SSH service not found.${C_RESET}"
-        return 1
-    fi
-    
-    echo -e "${C_GREEN}✅ SSH service restarted.${C_RESET}"
-}
-
-ssh_banner_menu() {
-    while true; do
-        clear
-        show_banner
-        
-        local banner_status=""
-        if [ -f "$SSH_BANNER_FILE" ] && [ -f "/etc/ssh/sshd_config.d/voltrontech-banner.conf" ]; then
-            banner_status="${C_GREEN}(Active)${C_RESET}"
-        else
-            banner_status="${C_DIM}(Inactive)${C_RESET}"
-        fi
-        
-        echo -e "\n   ${C_TITLE}════════════════════[ ${C_BOLD}🎨 SSH Banner Management ${banner_status} ${C_RESET}${C_TITLE}]════════════════════${C_RESET}"
-        echo -e "     ${C_GREEN}1)${C_RESET} 📋 Set Banner"
-        echo -e "     ${C_GREEN}2)${C_RESET} 👁️ View Banner"
-        echo -e "     ${C_RED}3)${C_RESET} 🗑️ Remove Banner"
-        echo -e "   ${C_DIM}~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~${C_RESET}"
-        echo -e "     ${C_YELLOW}0)${C_RESET} ↩️ Return"
-        echo
-        read -p "$(echo -e ${C_PROMPT}"👉 Select option: "${C_RESET})" choice
-        
-        case $choice in
-            1) _set_ssh_banner ;;
-            2) _view_ssh_banner ;;
-            3) _remove_ssh_banner ;;
-            0) return ;;
-            *) echo -e "\n${C_RED}❌ Invalid option.${C_RESET}" && sleep 2 ;;
-        esac
-    done
-}
-
-# ========== USER MANAGEMENT ==========
+# ========== USER MANAGEMENT (FROM FALCON - FULL) ==========
 _create_user() {
     clear; show_banner
     echo -e "${C_BOLD}${C_PURPLE}--- ✨ Create New SSH User ---${C_RESET}"
@@ -1677,161 +1573,6 @@ client_config_menu() {
     generate_client_config "$u" "$pass"
 }
 
-# ========== SELECT USER INTERFACE ==========
-_select_user_interface() {
-    local title="$1"
-    clear; show_banner
-    echo -e "${C_BOLD}${C_PURPLE}${title}${C_RESET}\n"
-    if [[ ! -s $DB_FILE ]]; then
-        echo -e "${C_YELLOW}ℹ️ No users found in the database.${C_RESET}"
-        SELECTED_USER="NO_USERS"; return
-    fi
-    
-    mapfile -t all_users < <(cut -d: -f1 "$DB_FILE" | sort)
-    
-    if [ ${#all_users[@]} -ge 15 ]; then
-        read -p "👉 Enter a search term (or press Enter to list all): " search_term
-        if [[ -n "$search_term" ]]; then
-            mapfile -t users < <(printf "%s\n" "${all_users[@]}" | grep -i "$search_term")
-        else
-            users=("${all_users[@]}")
-        fi
-    else
-        users=("${all_users[@]}")
-    fi
-
-    if [ ${#users[@]} -eq 0 ]; then
-        echo -e "\n${C_YELLOW}ℹ️ No users found matching your criteria.${C_RESET}"
-        SELECTED_USER="NO_USERS"; return
-    fi
-    echo -e "\nPlease select a user:\n"
-    for i in "${!users[@]}"; do
-        printf "  ${C_GREEN}[%2d]${C_RESET} %s\n" "$((i+1))" "${users[$i]}"
-    done
-    echo -e "\n  ${C_RED} [ 0]${C_RESET} ↩️ Cancel and return to main menu"
-    echo
-    local choice
-    while true; do
-        read -p "👉 Enter the number of the user: " choice
-        if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge 0 ] && [ "$choice" -le "${#users[@]}" ]; then
-            if [ "$choice" -eq 0 ]; then
-                SELECTED_USER=""; return
-            else
-                SELECTED_USER="${users[$((choice-1))]}"; return
-            fi
-        else
-            echo -e "${C_RED}❌ Invalid selection. Please try again.${C_RESET}"
-        fi
-    done
-}
-
-_select_multi_user_interface() {
-    local title="$1"
-    clear; show_banner
-    echo -e "${C_BOLD}${C_PURPLE}${title}${C_RESET}\n"
-    SELECTED_USERS=()
-    if [[ ! -s $DB_FILE ]]; then
-        echo -e "${C_YELLOW}ℹ️ No users found in the database.${C_RESET}"
-        SELECTED_USERS=("NO_USERS"); return
-    fi
-    
-    mapfile -t all_users < <(cut -d: -f1 "$DB_FILE" | sort)
-    
-    if [ ${#all_users[@]} -ge 15 ]; then
-        read -p "👉 Enter a search term (or press Enter to list all): " search_term
-        if [[ -n "$search_term" ]]; then
-            mapfile -t users < <(printf "%s\n" "${all_users[@]}" | grep -i "$search_term")
-        else
-            users=("${all_users[@]}")
-        fi
-    else
-        users=("${all_users[@]}")
-    fi
-
-    if [ ${#users[@]} -eq 0 ]; then
-        echo -e "\n${C_YELLOW}ℹ️ No users found matching your criteria.${C_RESET}"
-        SELECTED_USERS=("NO_USERS"); return
-    fi
-    echo -e "\nPlease select users:\n"
-    for i in "${!users[@]}"; do
-        printf "  ${C_GREEN}[%2d]${C_RESET} %s\n" "$((i+1))" "${users[$i]}"
-    done
-    echo -e "\n  ${C_GREEN}[all]${C_RESET} Select ALL listed users"
-    echo -e "  ${C_RED}  [0]${C_RESET} ↩️ Cancel and return to main menu"
-    echo -e "\n${C_CYAN}💡 You can select multiple! (e.g. '1 3 5' or '1,3' or '1-4')${C_RESET}"
-    echo
-    local choice
-    while true; do
-        read -p "👉 Enter user numbers: " choice
-        choice=$(echo "$choice" | tr ',' ' ')
-        
-        if [[ -z "$choice" ]]; then
-            echo -e "${C_RED}❌ Invalid selection. Please try again.${C_RESET}"
-            continue
-        fi
-
-        if [[ "$choice" == "0" ]]; then
-            SELECTED_USERS=(); return
-        fi
-        
-        if [[ "${choice,,}" == "all" ]]; then
-            SELECTED_USERS=("${users[@]}")
-            return
-        fi
-        
-        local valid=true
-        local selected_indices=()
-        for token in $choice; do
-            if [[ "$token" =~ ^[0-9]+-[0-9]+$ ]]; then
-                local start=${token%-*}
-                local end=${token#*-}
-                if [ "$start" -le "$end" ]; then
-                    for (( idx=start; idx<=end; idx++ )); do
-                        if [ "$idx" -ge 1 ] && [ "$idx" -le "${#users[@]}" ]; then
-                            selected_indices+=($idx)
-                        else
-                            valid=false; break
-                        fi
-                    done
-                else
-                    valid=false; break
-                fi
-            elif [[ "$token" =~ ^[0-9]+$ ]]; then
-                if [ "$token" -ge 1 ] && [ "$token" -le "${#users[@]}" ]; then
-                    selected_indices+=($token)
-                else
-                    valid=false; break
-                fi
-            else
-                valid=false; break
-            fi
-        done
-        
-        if [[ "$valid" == true && ${#selected_indices[@]} -gt 0 ]]; then
-            mapfile -t unique_indices < <(printf "%s\n" "${selected_indices[@]}" | sort -u -n)
-            for idx in "${unique_indices[@]}"; do
-                SELECTED_USERS+=("${users[$((idx-1))]}")
-            done
-            return
-        else
-            echo -e "${C_RED}❌ Invalid selection. Please check your numbers.${C_RESET}"
-            SELECTED_USERS=()
-            selected_indices=()
-        fi
-    done
-}
-
-get_user_status() {
-    local username="$1"
-    if ! id "$username" &>/dev/null; then echo -e "${C_RED}Not Found${C_RESET}"; return; fi
-    local expiry_date=$(grep "^$username:" "$DB_FILE" | cut -d: -f3)
-    if passwd -S "$username" 2>/dev/null | grep -q " L "; then echo -e "${C_YELLOW}🔒 Locked${C_RESET}"; return; fi
-    local expiry_ts=$(date -d "$expiry_date" +%s 2>/dev/null || echo 0)
-    local current_ts=$(date +%s)
-    if [[ $expiry_ts -lt $current_ts ]]; then echo -e "${C_RED}🗓️ Expired${C_RESET}"; return; fi
-    echo -e "${C_GREEN}🟢 Active${C_RESET}"
-}
-
 _update_ssh_banners_config() {
     if [[ ! -f "/etc/voltrontech/banners_enabled" ]]; then
         return
@@ -1857,6 +1598,284 @@ EOF
     
     systemctl reload sshd 2>/dev/null || systemctl reload ssh 2>/dev/null
     rm -f "$tmp_conf"
+}
+
+# ========== VIEW AUTO BANNER STATUS (WITH USER SELECTION - FIXED) ==========
+_view_auto_banner_status() {
+    clear
+    show_banner
+    
+    # Check if banner is enabled
+    if [ ! -f "/etc/voltrontech/banners_enabled" ]; then
+        echo -e "${C_BOLD}${C_PURPLE}--- 🎨 Auto HTML Banner Status ---${C_RESET}"
+        echo -e "\n${C_RED}❌ Auto HTML Banner is DISABLED${C_RESET}"
+        echo -e "${C_YELLOW}Please enable it first from the main Auto HTML Banner menu.${C_RESET}"
+        safe_read "" dummy
+        return
+    fi
+    
+    # Check if there are users
+    if [[ ! -s "$DB_FILE" ]]; then
+        echo -e "${C_BOLD}${C_PURPLE}--- 🎨 Auto HTML Banner Status ---${C_RESET}"
+        echo -e "\n${C_YELLOW}ℹ️ No users found in the database.${C_RESET}"
+        safe_read "" dummy
+        return
+    fi
+    
+    # Select user first (from Falcon style)
+    _select_user_interface "--- 📝 Preview Login Banner ---"
+    local u=$SELECTED_USER
+    if [[ "$u" == "NO_USERS" || -z "$u" ]]; then return; fi
+    
+    echo -e "\n${C_CYAN}--- Banner Preview for user '$u' ---${C_RESET}\n"
+    
+    if [[ -f "/etc/voltrontech/banners/${u}.txt" ]]; then
+        cat "/etc/voltrontech/banners/${u}.txt"
+    else
+        echo -e "${C_YELLOW}⚠️ Banner file not generated yet.${C_RESET}"
+        echo -e "${C_DIM}The limiter service will generate it within 15 seconds.${C_RESET}"
+        echo -e "${C_DIM}Please try again in a moment.${C_RESET}"
+    fi
+    
+    safe_read "" dummy
+}
+
+auto_banner_menu() {
+    while true; do
+        clear
+        show_banner
+        
+        local banner_status=""
+        if [ -f "/etc/voltrontech/banners_enabled" ]; then
+            banner_status="${C_GREEN}ENABLED${C_RESET}"
+        else
+            banner_status="${C_RED}DISABLED${C_RESET}"
+        fi
+        
+        echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
+        echo -e "${C_BOLD}${C_PURPLE}           🎨 AUTO HTML BANNER (FALCON STYLE)${C_RESET}"
+        echo -e "${C_BOLD}${C_PURPLE}           📱 For HTTP Custom / HTTP Injector${C_RESET}"
+        echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
+        echo ""
+        echo -e "  ${C_CYAN}Current Status:${C_RESET} $banner_status"
+        echo ""
+        echo -e "  ${C_GREEN}1)${C_RESET} Enable Auto HTML Banner"
+        echo -e "  ${C_RED}2)${C_RESET} Disable Auto HTML Banner"
+        echo -e "  ${C_GREEN}3)${C_RESET} View Status & Sample Banner (Select User)"
+        echo ""
+        echo -e "  ${C_RED}0)${C_RESET} Return"
+        echo ""
+        
+        local choice
+        safe_read "$(echo -e ${C_PROMPT}"👉 Select option: "${C_RESET})" choice
+        
+        case $choice in
+            1) _enable_auto_banner ;;
+            2) _disable_auto_banner ;;
+            3) _view_auto_banner_status ;;
+            0) return ;;
+            *) echo -e "\n${C_RED}❌ Invalid option${C_RESET}"; sleep 2 ;;
+        esac
+    done
+}
+
+# ========== AUTO REBOOT FUNCTIONS ==========
+_enable_auto_reboot() {
+    echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    echo -e "${C_BLUE}           🔄 ENABLING AUTO REBOOT${C_RESET}"
+    echo -e "${C_BLUE}           ⏰ Schedule: Daily at 00:00 (Midnight)${C_RESET}"
+    echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    
+    (crontab -l 2>/dev/null | grep -v "systemctl reboot") | crontab - 2>/dev/null
+    (crontab -l 2>/dev/null; echo "0 0 * * * /usr/sbin/systemctl reboot") | crontab - 2>/dev/null
+    
+    echo -e "${C_GREEN}✅ Auto reboot scheduled for every day at 00:00 (Midnight)${C_RESET}"
+    safe_read "" dummy
+}
+
+_disable_auto_reboot() {
+    echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    echo -e "${C_BLUE}           🛑 DISABLING AUTO REBOOT${C_RESET}"
+    echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    
+    (crontab -l 2>/dev/null | grep -v "systemctl reboot") | crontab - 2>/dev/null
+    
+    echo -e "${C_GREEN}✅ Auto reboot disabled${C_RESET}"
+    safe_read "" dummy
+}
+
+_view_auto_reboot_status() {
+    clear
+    show_banner
+    echo -e "${C_BOLD}${C_PURPLE}--- 🔄 Auto Reboot Status ---${C_RESET}"
+    
+    local cron_check=$(crontab -l 2>/dev/null | grep "systemctl reboot")
+    if [[ -n "$cron_check" ]]; then
+        echo -e "\n${C_GREEN}✅ Auto Reboot: ENABLED${C_RESET}"
+        echo -e "${C_CYAN}📌 Schedule: Daily at 00:00 (Midnight)${C_RESET}"
+    else
+        echo -e "\n${C_RED}❌ Auto Reboot: DISABLED${C_RESET}"
+    fi
+    
+    safe_read "" dummy
+}
+
+auto_reboot_menu() {
+    while true; do
+        clear
+        show_banner
+        
+        local reboot_status=""
+        local cron_check=$(crontab -l 2>/dev/null | grep "systemctl reboot")
+        if [[ -n "$cron_check" ]]; then
+            reboot_status="${C_GREEN}ENABLED (Daily at 00:00)${C_RESET}"
+        else
+            reboot_status="${C_RED}DISABLED${C_RESET}"
+        fi
+        
+        echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
+        echo -e "${C_BOLD}${C_PURPLE}           🔄 AUTO REBOOT MANAGEMENT${C_RESET}"
+        echo -e "${C_BOLD}${C_PURPLE}═══════════════════════════════════════════════════════════════${C_RESET}"
+        echo ""
+        echo -e "  ${C_CYAN}Current Status:${C_RESET} $reboot_status"
+        echo ""
+        echo -e "  ${C_GREEN}1)${C_RESET} Enable Auto Reboot (Daily at 00:00)"
+        echo -e "  ${C_RED}2)${C_RESET} Disable Auto Reboot"
+        echo -e "  ${C_GREEN}3)${C_RESET} View Status"
+        echo ""
+        echo -e "  ${C_RED}0)${C_RESET} Return"
+        echo ""
+        
+        local choice
+        safe_read "$(echo -e ${C_PROMPT}"👉 Select option: "${C_RESET})" choice
+        
+        case $choice in
+            1) _enable_auto_reboot ;;
+            2) _disable_auto_reboot ;;
+            3) _view_auto_reboot_status ;;
+            0) return ;;
+            *) echo -e "\n${C_RED}❌ Invalid option${C_RESET}"; sleep 2 ;;
+        esac
+    done
+}
+
+# ========== SSH BANNER (PLAIN TEXT) ==========
+_set_ssh_banner() {
+    clear
+    show_banner
+    echo -e "${C_BOLD}${C_PURPLE}--- 📋 Paste SSH Banner ---${C_RESET}"
+    echo -e "Paste your banner code below. Press ${C_YELLOW}[Ctrl+D]${C_RESET} when finished."
+    echo -e "${C_DIM}The current banner will be overwritten.${C_RESET}"
+    echo -e "--------------------------------------------------"
+    
+    cat > "$SSH_BANNER_FILE"
+    chmod 644 "$SSH_BANNER_FILE"
+    
+    echo -e "\n--------------------------------------------------"
+    echo -e "\n${C_GREEN}✅ Banner saved!${C_RESET}"
+    
+    _enable_banner_in_sshd_config
+    _restart_ssh
+    safe_read "" dummy
+}
+
+_view_ssh_banner() {
+    clear
+    show_banner
+    echo -e "${C_BOLD}${C_PURPLE}--- 👁️ Current SSH Banner ---${C_RESET}"
+    
+    if [ -f "$SSH_BANNER_FILE" ]; then
+        echo -e "\n${C_CYAN}--- BEGIN BANNER ---${C_RESET}"
+        cat "$SSH_BANNER_FILE"
+        echo -e "${C_CYAN}---- END BANNER ----${C_RESET}"
+    else
+        echo -e "\n${C_YELLOW}ℹ️ No banner found.${C_RESET}"
+    fi
+    
+    safe_read "" dummy
+}
+
+_remove_ssh_banner() {
+    clear
+    show_banner
+    echo -e "${C_BOLD}${C_PURPLE}--- 🗑️ Remove SSH Banner ---${C_RESET}"
+    
+    read -p "👉 Are you sure? (y/n): " confirm
+    if [[ "$confirm" != "y" ]]; then
+        echo -e "\n${C_YELLOW}Cancelled.${C_RESET}"
+        safe_read "" dummy
+        return
+    fi
+    
+    rm -f "$SSH_BANNER_FILE"
+    rm -f "/etc/ssh/sshd_config.d/voltrontech-banner.conf"
+    
+    echo -e "\n${C_GREEN}✅ Banner removed.${C_RESET}"
+    _restart_ssh
+    safe_read "" dummy
+}
+
+_enable_banner_in_sshd_config() {
+    echo -e "\n${C_BLUE}⚙️ Configuring sshd_config...${C_RESET}"
+    
+    mkdir -p /etc/ssh/sshd_config.d
+    
+    cat > /etc/ssh/sshd_config.d/voltrontech-banner.conf <<EOF
+# Voltron Tech SSH Banner
+Banner $SSH_BANNER_FILE
+EOF
+
+    if ! grep -q "Include /etc/ssh/sshd_config.d/" /etc/ssh/sshd_config 2>/dev/null; then
+        echo "Include /etc/ssh/sshd_config.d/*.conf" >> /etc/ssh/sshd_config
+    fi
+    
+    echo -e "${C_GREEN}✅ sshd_config updated.${C_RESET}"
+}
+
+_restart_ssh() {
+    echo -e "\n${C_BLUE}🔄 Restarting SSH service...${C_RESET}"
+    
+    if systemctl list-units --full -all | grep -q "sshd.service"; then
+        systemctl restart sshd
+    elif systemctl list-units --full -all | grep -q "ssh.service"; then
+        systemctl restart ssh
+    else
+        echo -e "${C_RED}❌ SSH service not found.${C_RESET}"
+        return 1
+    fi
+    
+    echo -e "${C_GREEN}✅ SSH service restarted.${C_RESET}"
+}
+
+ssh_banner_menu() {
+    while true; do
+        clear
+        show_banner
+        
+        local banner_status=""
+        if [ -f "$SSH_BANNER_FILE" ] && [ -f "/etc/ssh/sshd_config.d/voltrontech-banner.conf" ]; then
+            banner_status="${C_GREEN}(Active)${C_RESET}"
+        else
+            banner_status="${C_DIM}(Inactive)${C_RESET}"
+        fi
+        
+        echo -e "\n   ${C_TITLE}════════════════════[ ${C_BOLD}🎨 SSH Banner Management ${banner_status} ${C_RESET}${C_TITLE}]════════════════════${C_RESET}"
+        echo -e "     ${C_GREEN}1)${C_RESET} 📋 Set Banner"
+        echo -e "     ${C_GREEN}2)${C_RESET} 👁️ View Banner"
+        echo -e "     ${C_RED}3)${C_RESET} 🗑️ Remove Banner"
+        echo -e "   ${C_DIM}~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~${C_RESET}"
+        echo -e "     ${C_YELLOW}0)${C_RESET} ↩️ Return"
+        echo
+        read -p "$(echo -e ${C_PROMPT}"👉 Select option: "${C_RESET})" choice
+        
+        case $choice in
+            1) _set_ssh_banner ;;
+            2) _view_ssh_banner ;;
+            3) _remove_ssh_banner ;;
+            0) return ;;
+            *) echo -e "\n${C_RED}❌ Invalid option.${C_RESET}" && sleep 2 ;;
+        esac
+    done
 }
 
 # ========== PROTOCOLS ==========
