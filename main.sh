@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ========== VOLTRON TECH ULTIMATE SCRIPT ==========
-# Version: 10.1 (FALCON STYLE - COMPLETE)
+# Version: 10.2 (FALCON STYLE - FULLY FIXED)
 # Description: SSH • DNSTT • V2RAY • BADVPN • UDP • SSL • ZiVPN
 # Author: Voltron Tech
 # Features: DNSTT with Falcon Style, Auto HTML Banner, User Manager (Falcon), Speed Boosters
@@ -310,7 +310,7 @@ show_banner() {
     local current_mtu=$(get_current_mtu)
     
     echo -e "${C_BOLD}${C_PURPLE}╔═══════════════════════════════════════════════════════════════╗${C_RESET}"
-    echo -e "${C_BOLD}${C_PURPLE}║           🔥 VOLTRON TECH ULTIMATE v10.1 🔥                    ║${C_RESET}"
+    echo -e "${C_BOLD}${C_PURPLE}║           🔥 VOLTRON TECH ULTIMATE v10.2 🔥                    ║${C_RESET}"
     echo -e "${C_BOLD}${C_PURPLE}║        SSH • DNSTT • V2RAY • BADVPN • UDP • SSL • ZiVPN        ║${C_RESET}"
     echo -e "${C_BOLD}${C_PURPLE}║                   FALCON STYLE EDITION                         ║${C_RESET}"
     echo -e "${C_BOLD}${C_PURPLE}╠═══════════════════════════════════════════════════════════════╣${C_RESET}"
@@ -1164,6 +1164,7 @@ _delete_user() {
     done
     
     _update_ssh_banners_config
+    safe_read "" dummy
 }
 
 _edit_user() {
@@ -1259,6 +1260,7 @@ _lock_user() {
             echo -e " ❌ Failed to lock ${C_YELLOW}$u${C_RESET}."
         fi
     done
+    safe_read "" dummy
 }
 
 _unlock_user() {
@@ -1279,12 +1281,14 @@ _unlock_user() {
             echo -e " ❌ Failed to unlock ${C_YELLOW}$u${C_RESET}."
         fi
     done
+    safe_read "" dummy
 }
 
 _list_users() {
     clear; show_banner
     if [[ ! -s "$DB_FILE" ]]; then
         echo -e "\n${C_YELLOW}ℹ️ No users are currently being managed.${C_RESET}"
+        safe_read "" dummy
         return
     fi
     echo -e "${C_BOLD}${C_PURPLE}--- 📋 Managed Users ---${C_RESET}"
@@ -1323,6 +1327,7 @@ _list_users() {
         printf "${line_color}%-18s ${C_RESET}| ${C_YELLOW}%-12s ${C_RESET}| ${C_CYAN}%-10s ${C_RESET}| ${C_ORANGE}%-15s ${C_RESET}| %-20s\n" "$user" "$expiry" "$connection_string" "$bw_string" "$status_text"
     done < <(sort "$DB_FILE")
     echo -e "${C_CYAN}=========================================================================================${C_RESET}\n"
+    safe_read "" dummy
 }
 
 _renew_user() {
@@ -1340,6 +1345,7 @@ _renew_user() {
         sed -i "s/^$u:.*/$u:$pass:$new_expire_date:$limit:$bw:$traffic:ACTIVE/" "$DB_FILE"
         echo -e " ✅ ${C_YELLOW}$u${C_RESET} renewed until ${C_GREEN}${new_expire_date}${C_RESET}."
     done
+    safe_read "" dummy
 }
 
 _cleanup_expired() {
@@ -1352,6 +1358,7 @@ _cleanup_expired() {
 
     if [[ ! -s "$DB_FILE" ]]; then
         echo -e "\n${C_GREEN}✅ User database is empty. No expired users found.${C_RESET}"
+        safe_read "" dummy
         return
     fi
     
@@ -1366,6 +1373,7 @@ _cleanup_expired() {
 
     if [ ${#expired_users[@]} -eq 0 ]; then
         echo -e "\n${C_GREEN}✅ No expired users found.${C_RESET}"
+        safe_read "" dummy
         return
     fi
 
@@ -1385,6 +1393,7 @@ _cleanup_expired() {
     else
         echo -e "\n${C_YELLOW}❌ Cleanup cancelled.${C_RESET}"
     fi
+    safe_read "" dummy
 }
 
 _bulk_create_users() {
@@ -1439,6 +1448,7 @@ _bulk_create_users() {
     
     echo -e "${C_YELLOW}================================================================${C_RESET}"
     echo -e "\n${C_GREEN}✅ Created $created users. Conn Limit: ${limit} | BW: ${bw_display}${C_RESET}"
+    safe_read "" dummy
 }
 
 _view_user_bandwidth() {
@@ -1485,6 +1495,7 @@ _view_user_bandwidth() {
             echo -e "\n  ${C_RED}⚠️ USER HAS EXCEEDED BANDWIDTH QUOTA — ACCOUNT LOCKED${C_RESET}"
         fi
     fi
+    safe_read "" dummy
 }
 
 generate_client_config() {
@@ -1562,6 +1573,7 @@ generate_client_config() {
     fi
     
     echo -e "${C_YELLOW}========================================${C_RESET}"
+    safe_read "" dummy
 }
 
 client_config_menu() {
@@ -1580,24 +1592,24 @@ _update_ssh_banners_config() {
     
     mkdir -p "/etc/voltrontech/banners" /etc/ssh/sshd_config.d
     
-    tmp_conf="/tmp/ff_banners_new.conf"
-    echo "# Voltron Tech - Show login info native banners" > "$tmp_conf"
+    # Remove old config
+    rm -f /etc/ssh/sshd_config.d/voltron-banners.conf
     
-    if [[ -f "$DB_FILE" ]]; then
-        while IFS=: read -r u _rest; do
-            [[ -z "$u" || "$u" == \#* ]] && continue
-            echo "Match User $u" >> "$tmp_conf"
-            echo "    Banner /etc/voltrontech/banners/${u}.txt" >> "$tmp_conf"
-        done < "$DB_FILE"
+    # Create new config with Match User for each user
+    while IFS=: read -r user _rest; do
+        [[ -z "$user" || "$user" == \#* ]] && continue
+        cat >> /etc/ssh/sshd_config.d/voltron-banners.conf <<EOF
+Match User $user
+    Banner /etc/voltrontech/banners/${user}.txt
+EOF
+    done < "$DB_FILE"
+    
+    # Ensure Include directive exists
+    if ! grep -q "Include /etc/ssh/sshd_config.d/" /etc/ssh/sshd_config 2>/dev/null; then
+        echo "Include /etc/ssh/sshd_config.d/*.conf" >> /etc/ssh/sshd_config
     fi
     
-    cat > /etc/ssh/sshd_config.d/voltron-banners.conf <<EOF
-# Voltron Tech Auto Banners
-Include /tmp/ff_banners_new.conf
-EOF
-    
     systemctl reload sshd 2>/dev/null || systemctl reload ssh 2>/dev/null
-    rm -f "$tmp_conf"
 }
 
 # ========== VIEW AUTO BANNER STATUS (WITH USER SELECTION - FIXED) ==========
@@ -2884,7 +2896,7 @@ generate_cloudflare_dns() {
     safe_read "" dummy
 }
 
-# ========== LIMITER SERVICE ==========
+# ========== LIMITER SERVICE (WITH FIXED BANNER FORMAT - NO DIV WRAPPER) ==========
 create_limiter_service() {
     cat > "$LIMITER_SCRIPT" << 'EOF'
 #!/bin/bash
@@ -2954,7 +2966,7 @@ while true; do
             fi
         fi
         
-        # --- AUTO HTML BANNER GENERATION (FALCON STYLE) ---
+        # --- AUTO HTML BANNER GENERATION (FALCON STYLE - HTTP CUSTOM COMPATIBLE) ---
         if [[ -f "/etc/voltrontech/banners_enabled" ]]; then
             mkdir -p "$BANNER_DIR"
             days_left="N/A"
@@ -2979,7 +2991,7 @@ while true; do
                 bw_info="${used_gb}/${traffic_limit} GB used | ${remain_gb} GB left"
             fi
             
-            # YOUR BANNER (TOP SECTION - CENTER ALIGNED)
+            # TOP SECTION (CENTER ALIGNED)
             cat > "$BANNER_DIR/${user}.txt" << 'BANNER_TOP'
 <H3 style="text-align:center">
   <span style="padding: 8px 15px; display: inline-block; margin: 3px; width: 180px;">
@@ -3024,16 +3036,14 @@ while true; do
 </H3>
 BANNER_TOP
 
-            # FALCON ORIGINAL BANNER (CENTER ALIGNED) - WITH echo -e
-            echo -e "<div style=\"text-align:center\">" >> "$BANNER_DIR/${user}.txt"
+            # ACCOUNT STATUS SECTION (NO DIV WRAPPER - HTTP CUSTOM COMPATIBLE)
             echo -e "<br><font color=\"yellow\"><b>      ✨ ACCOUNT STATUS ✨      </b></font><br><br>" >> "$BANNER_DIR/${user}.txt"
             echo -e "<font color=\"white\">👤 <b>Username   :</b> $user</font><br>" >> "$BANNER_DIR/${user}.txt"
             echo -e "<font color=\"white\">📅 <b>Expiration :</b> $expiry ($days_left)</font><br>" >> "$BANNER_DIR/${user}.txt"
             echo -e "<font color=\"white\">📊 <b>Bandwidth  :</b> $bw_info</font><br>" >> "$BANNER_DIR/${user}.txt"
             echo -e "<font color=\"white\">🔌 <b>Sessions   :</b> $online_count/$limit</font><br><br>" >> "$BANNER_DIR/${user}.txt"
-            echo -e "</div>" >> "$BANNER_DIR/${user}.txt"
             
-            # YOUR BANNER (BOTTOM SECTION - CENTER ALIGNED)
+            # BOTTOM SECTION (CENTER ALIGNED)
             cat >> "$BANNER_DIR/${user}.txt" << 'BANNER_BOTTOM'
 <H3 style="text-align:center">
   <span style="padding: 8px 15px; display: inline-block; margin: 3px; width: 180px;">
