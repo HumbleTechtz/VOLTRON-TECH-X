@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ========== VOLTRON TECH ULTIMATE SCRIPT ==========
-# Version: 10.3 (FALCON STYLE - FIXED)
+# Version: 10.4 (FALCON STYLE - FULLY FIXED)
 # Description: SSH • DNSTT • V2RAY • BADVPN • UDP • SSL • ZiVPN
 # Author: Voltron Tech
 
@@ -309,7 +309,7 @@ show_banner() {
     local current_mtu=$(get_current_mtu)
     
     echo -e "${C_BOLD}${C_PURPLE}╔═══════════════════════════════════════════════════════════════╗${C_RESET}"
-    echo -e "${C_BOLD}${C_PURPLE}║           🔥 VOLTRON TECH ULTIMATE v10.3 🔥                    ║${C_RESET}"
+    echo -e "${C_BOLD}${C_PURPLE}║           🔥 VOLTRON TECH ULTIMATE v10.4 🔥                    ║${C_RESET}"
     echo -e "${C_BOLD}${C_PURPLE}║        SSH • DNSTT • V2RAY • BADVPN • UDP • SSL • ZiVPN        ║${C_RESET}"
     echo -e "${C_BOLD}${C_PURPLE}║                   FALCON STYLE EDITION                         ║${C_RESET}"
     echo -e "${C_BOLD}${C_PURPLE}╠═══════════════════════════════════════════════════════════════╣${C_RESET}"
@@ -385,7 +385,7 @@ download_dnstt_binary() {
     return 0
 }
 
-# ========== SPEED BOOSTERS ==========
+# ========== SPEED BOOSTERS (7 LEVELS) ==========
 apply_dnstt_standard() {
     echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
     echo -e "${C_BLUE}           ⚡ STANDARD BOOSTER (32MB)${C_RESET}"
@@ -536,6 +536,70 @@ apply_dnstt_extreme() {
     echo -e "${C_GREEN}✓ File descriptors: 8M${C_RESET}"
     
     echo -e "\n${C_GREEN}✅ EXTREME Booster applied! (35-50 Mbps) 💥💥💥${C_RESET}"
+    sleep 1
+}
+
+apply_dnstt_ultra_plus() {
+    echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    echo -e "${C_BLUE}           🚀 ULTRA PLUS BOOSTER (768MB)${C_RESET}"
+    echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    
+    modprobe tcp_bbr 2>/dev/null
+    sysctl -w net.ipv4.tcp_congestion_control=bbr >/dev/null 2>&1
+    sysctl -w net.core.default_qdisc=fq_codel >/dev/null 2>&1
+    echo -e "${C_GREEN}✓ BBR v2 enabled${C_RESET}"
+    
+    sysctl -w net.ipv4.udp_rmem_min=6291456 >/dev/null 2>&1
+    sysctl -w net.ipv4.udp_wmem_min=6291456 >/dev/null 2>&1
+    echo -e "${C_GREEN}✓ UDP buffers: 6MB${C_RESET}"
+    
+    sysctl -w net.core.rmem_max=805306368 >/dev/null 2>&1
+    sysctl -w net.core.wmem_max=805306368 >/dev/null 2>&1
+    echo -e "${C_GREEN}✓ Network buffers: 768MB${C_RESET}"
+    
+    sysctl -w net.core.netdev_max_backlog=800000 >/dev/null 2>&1
+    sysctl -w net.core.somaxconn=3145728 >/dev/null 2>&1
+    echo -e "${C_GREEN}✓ Packet backlog: 800K${C_RESET}"
+    
+    sysctl -w net.netfilter.nf_conntrack_max=24000000 >/dev/null 2>&1
+    echo -e "${C_GREEN}✓ Connection tracking: 24M${C_RESET}"
+    
+    ulimit -n 6291456 2>/dev/null
+    echo -e "${C_GREEN}✓ File descriptors: 6M${C_RESET}"
+    
+    echo -e "\n${C_GREEN}✅ ULTRA PLUS Booster applied! (40-60 Mbps) 🚀🚀🚀🚀${C_RESET}"
+    sleep 1
+}
+
+apply_dnstt_extreme_plus() {
+    echo -e "\n${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    echo -e "${C_BLUE}           💥 EXTREME PLUS BOOSTER (1GB)${C_RESET}"
+    echo -e "${C_BLUE}═══════════════════════════════════════════════════════════════${C_RESET}"
+    
+    modprobe tcp_bbr 2>/dev/null
+    sysctl -w net.ipv4.tcp_congestion_control=bbr >/dev/null 2>&1
+    sysctl -w net.core.default_qdisc=fq_codel >/dev/null 2>&1
+    echo -e "${C_GREEN}✓ BBR v3 enabled${C_RESET}"
+    
+    sysctl -w net.ipv4.udp_rmem_min=12582912 >/dev/null 2>&1
+    sysctl -w net.ipv4.udp_wmem_min=12582912 >/dev/null 2>&1
+    echo -e "${C_GREEN}✓ UDP buffers: 12MB${C_RESET}"
+    
+    sysctl -w net.core.rmem_max=1073741824 >/dev/null 2>&1
+    sysctl -w net.core.wmem_max=1073741824 >/dev/null 2>&1
+    echo -e "${C_GREEN}✓ Network buffers: 1GB${C_RESET}"
+    
+    sysctl -w net.core.netdev_max_backlog=1200000 >/dev/null 2>&1
+    sysctl -w net.core.somaxconn=6291456 >/dev/null 2>&1
+    echo -e "${C_GREEN}✓ Packet backlog: 1.2M${C_RESET}"
+    
+    sysctl -w net.netfilter.nf_conntrack_max=48000000 >/dev/null 2>&1
+    echo -e "${C_GREEN}✓ Connection tracking: 48M${C_RESET}"
+    
+    ulimit -n 12582912 2>/dev/null
+    echo -e "${C_GREEN}✓ File descriptors: 12M${C_RESET}"
+    
+    echo -e "\n${C_GREEN}✅ EXTREME PLUS Booster applied! (60-100 Mbps) 💥💥💥💥💥${C_RESET}"
     sleep 1
 }
 
@@ -870,7 +934,7 @@ show_client_commands_falcon_style() {
     echo -e "${C_WHITE}  ssh username@127.0.0.1 -p $ssh_port${C_RESET}"
 }
 
-# ========== AUTO HTML BANNER FUNCTIONS (FALCON STYLE - WITH USER SELECTION) ==========
+# ========== AUTO HTML BANNER FUNCTIONS (FALCON STYLE - FULL) ==========
 _connect_auto_banner_to_ssh() {
     echo -e "\n${C_BLUE}🔗 Connecting Auto HTML Banner to SSH...${C_RESET}"
     
@@ -1075,7 +1139,7 @@ get_user_status() {
     echo -e "${C_GREEN}🟢 Active${C_RESET}"
 }
 
-# ========== GET REAL CONNECTION COUNT (FIX) ==========
+# ========== GET REAL CONNECTION COUNT ==========
 _get_real_connection_count() {
     local username="$1"
     pgrep -c -u "$username" sshd 2>/dev/null
@@ -1306,7 +1370,6 @@ _list_users() {
         bandwidth_gb=${bandwidth_gb:-0}
         traffic_used=${traffic_used:-0}
         
-        # Get REAL connection count using fixed function
         local online_count=$(_get_real_connection_count "$user")
         
         local status_text
@@ -1590,10 +1653,9 @@ client_config_menu() {
     generate_client_config "$u" "$pass"
 }
 
-# ========== FIXED SSH BANNER CONFIG (FOR HTTP CUSTOM) ==========
+# ========== SSH BANNER CONFIG (FIXED - BOTH AUTO AND MANUAL) ==========
 _update_ssh_banners_config() {
     if [[ ! -f "/etc/voltrontech/banners_enabled" ]]; then
-        # Remove config if banner is disabled
         rm -f /etc/ssh/sshd_config.d/voltron-banners.conf
         systemctl reload sshd 2>/dev/null || systemctl reload ssh 2>/dev/null
         return
@@ -1601,7 +1663,7 @@ _update_ssh_banners_config() {
     
     mkdir -p "/etc/voltrontech/banners" /etc/ssh/sshd_config.d
     
-    # Create new config with Match User for each user
+    # Create config with Match User for EACH user (Falcon style)
     > /etc/ssh/sshd_config.d/voltron-banners.conf
     echo "# Voltron Tech Auto Banners - Generated by script" >> /etc/ssh/sshd_config.d/voltron-banners.conf
     
@@ -1625,12 +1687,11 @@ EOF
     systemctl reload sshd 2>/dev/null || systemctl reload ssh 2>/dev/null
 }
 
-# ========== VIEW AUTO BANNER STATUS (WITH USER SELECTION - FIXED) ==========
+# ========== VIEW AUTO BANNER STATUS (WITH USER SELECTION) ==========
 _view_auto_banner_status() {
     clear
     show_banner
     
-    # Check if banner is enabled
     if [ ! -f "/etc/voltrontech/banners_enabled" ]; then
         echo -e "${C_BOLD}${C_PURPLE}--- 🎨 Auto HTML Banner Status ---${C_RESET}"
         echo -e "\n${C_RED}❌ Auto HTML Banner is DISABLED${C_RESET}"
@@ -1639,7 +1700,6 @@ _view_auto_banner_status() {
         return
     fi
     
-    # Check if there are users
     if [[ ! -s "$DB_FILE" ]]; then
         echo -e "${C_BOLD}${C_PURPLE}--- 🎨 Auto HTML Banner Status ---${C_RESET}"
         echo -e "\n${C_YELLOW}ℹ️ No users found in the database.${C_RESET}"
@@ -1647,7 +1707,6 @@ _view_auto_banner_status() {
         return
     fi
     
-    # Select user first (from Falcon style)
     _select_user_interface "--- 📝 Preview Login Banner ---"
     local u=$SELECTED_USER
     if [[ "$u" == "NO_USERS" || -z "$u" ]]; then return; fi
@@ -1784,7 +1843,7 @@ auto_reboot_menu() {
     done
 }
 
-# ========== SSH BANNER (PLAIN TEXT) ==========
+# ========== SSH BANNER (PLAIN TEXT - FIXED) ==========
 _set_ssh_banner() {
     clear
     show_banner
@@ -2909,7 +2968,7 @@ generate_cloudflare_dns() {
     safe_read "" dummy
 }
 
-# ========== LIMITER SERVICE (WITH BANDWIDTH DB UPDATE - FIXED) ==========
+# ========== LIMITER SERVICE (WITH FALCON BANNER FORMAT) ==========
 create_limiter_service() {
     cat > "$LIMITER_SCRIPT" << 'EOF'
 #!/bin/bash
@@ -3004,7 +3063,7 @@ while true; do
                 bw_info="${used_gb}/${traffic_limit} GB used | ${remain_gb} GB left"
             fi
             
-            # TOP SECTION (CENTER ALIGNED)
+            # ========== TOP SECTION (FALCON STYLE) ==========
             cat > "$BANNER_DIR/${user}.txt" << 'BANNER_TOP'
 <H3 style="text-align:center">
   <span style="padding: 8px 15px; display: inline-block; margin: 3px; width: 180px;">
@@ -3049,14 +3108,14 @@ while true; do
 </H3>
 BANNER_TOP
 
-            # ACCOUNT STATUS SECTION (NO DIV WRAPPER - HTTP CUSTOM COMPATIBLE)
+            # ========== ACCOUNT STATUS SECTION (FALCON STYLE - NO DIV WRAPPER) ==========
             echo -e "<br><font color=\"yellow\"><b>      ✨ ACCOUNT STATUS ✨      </b></font><br><br>" >> "$BANNER_DIR/${user}.txt"
             echo -e "<font color=\"white\">👤 <b>Username   :</b> $user</font><br>" >> "$BANNER_DIR/${user}.txt"
             echo -e "<font color=\"white\">📅 <b>Expiration :</b> $expiry ($days_left)</font><br>" >> "$BANNER_DIR/${user}.txt"
             echo -e "<font color=\"white\">📊 <b>Bandwidth  :</b> $bw_info</font><br>" >> "$BANNER_DIR/${user}.txt"
             echo -e "<font color=\"white\">🔌 <b>Sessions   :</b> $online_count/$limit</font><br><br>" >> "$BANNER_DIR/${user}.txt"
             
-            # BOTTOM SECTION (CENTER ALIGNED)
+            # ========== BOTTOM SECTION (FALCON STYLE) ==========
             cat >> "$BANNER_DIR/${user}.txt" << 'BANNER_BOTTOM'
 <H3 style="text-align:center">
   <span style="padding: 8px 15px; display: inline-block; margin: 3px; width: 180px;">
@@ -3067,7 +3126,7 @@ BANNER_BOTTOM
         fi
 
         
-        # --- Bandwidth Check ---
+        # --- Bandwidth Check and DB Update ---
         [[ -z "$traffic_limit" || "$traffic_limit" == "0" ]] && continue
         
         # Get user UID
@@ -3169,7 +3228,7 @@ BANNER_BOTTOM
             fi
         fi
         
-        # FIX: Update DB with real bandwidth usage (in GB)
+        # Update DB with real bandwidth usage (in GB)
         traffic_used_gb=$(awk "BEGIN {printf \"%.2f\", $new_total / 1073741824}" 2>/dev/null)
         if [[ -n "$traffic_used_gb" ]]; then
             sed -i "s/^$user:[^:]*:[^:]*:[^:]*:[^:]*:[^:]*:[^:]*/$user:$pass:$expiry:$limit:$traffic_limit:$traffic_used_gb:$status/" "$DB_FILE" 2>/dev/null
@@ -3348,7 +3407,7 @@ uninstall_script() {
     exit 0
 }
 
-# ========== DNSTT INSTALLATION ==========
+# ========== DNSTT INSTALLATION (WITH 7 SPEED BOOSTERS) ==========
 install_dnstt_falcon() {
     clear
     show_banner
@@ -3367,7 +3426,7 @@ install_dnstt_falcon() {
     
     # Step 1: Install dependencies
     echo -e "\n${C_BLUE}[1/8] Installing dependencies...${C_RESET}"
-    $PKG_INSTALL wget curl openssl
+    $PKG_INSTALL wget curl openssl bc
     
     # Step 2: Download binary (Falcon style)
     echo -e "\n${C_BLUE}[2/8] Downloading DNSTT binary...${C_RESET}"
@@ -3393,17 +3452,19 @@ install_dnstt_falcon() {
     echo -e "\n${C_BLUE}[6/8] Generating keys...${C_RESET}"
     generate_keys
     
-    # Step 7: Select Speed Booster
+    # Step 7: Select Speed Booster (UPDATED WITH 7 OPTIONS)
     echo -e "\n${C_BLUE}[7/8] Select Speed Booster Level...${C_RESET}"
     echo ""
-    echo -e "  ${C_GREEN}1)${C_RESET} Standard  (32MB)  → 10-15 Mbps"
-    echo -e "  ${C_GREEN}2)${C_RESET} Medium     (64MB)  → 15-20 Mbps  🚀"
-    echo -e "  ${C_GREEN}3)${C_RESET} High       (128MB) → 20-25 Mbps  🚀🚀"
-    echo -e "  ${C_GREEN}4)${C_RESET} Ultra      (256MB) → 25-35 Mbps  🚀🚀🚀"
-    echo -e "  ${C_GREEN}5)${C_RESET} Extreme    (512MB) → 35-50 Mbps  💥💥💥"
-    echo -e "  ${C_GREEN}6)${C_RESET} Skip (No booster)"
+    echo -e "  ${C_GREEN}1)${C_RESET} Standard  (32MB)   → 10-15 Mbps"
+    echo -e "  ${C_GREEN}2)${C_RESET} Medium     (64MB)   → 15-20 Mbps  🚀"
+    echo -e "  ${C_GREEN}3)${C_RESET} High       (128MB)  → 20-25 Mbps  🚀🚀"
+    echo -e "  ${C_GREEN}4)${C_RESET} Ultra      (256MB)  → 25-35 Mbps  🚀🚀🚀"
+    echo -e "  ${C_GREEN}5)${C_RESET} Extreme    (512MB)  → 35-50 Mbps  💥💥💥"
+    echo -e "  ${C_GREEN}6)${C_RESET} Ultra Plus (768MB)  → 40-60 Mbps  🚀🚀🚀🚀"
+    echo -e "  ${C_GREEN}7)${C_RESET} Extreme Plus (1GB)  → 60-100 Mbps 💥💥💥💥💥"
+    echo -e "  ${C_GREEN}8)${C_RESET} Skip (No booster)"
     echo ""
-    read -p "👉 Choose booster level [1-6, default=3]: " booster_choice
+    read -p "👉 Choose booster level [1-8, default=3]: " booster_choice
     booster_choice=${booster_choice:-3}
     
     case $booster_choice in
@@ -3412,7 +3473,9 @@ install_dnstt_falcon() {
         3) apply_dnstt_high ;;
         4) apply_dnstt_ultra ;;
         5) apply_dnstt_extreme ;;
-        6) echo -e "${C_YELLOW}⚠️ Skipping speed booster${C_RESET}" ;;
+        6) apply_dnstt_ultra_plus ;;
+        7) apply_dnstt_extreme_plus ;;
+        8) echo -e "${C_YELLOW}⚠️ Skipping speed booster${C_RESET}" ;;
         *) apply_dnstt_high ;;
     esac
     
@@ -3601,7 +3664,7 @@ protocol_menu() {
     done
 }
 
-# ========== SPEED BOOSTER MENU ==========
+# ========== SPEED BOOSTER MENU (WITH 7 OPTIONS) ==========
 speed_booster_menu() {
     while true; do
         clear
@@ -3613,14 +3676,16 @@ speed_booster_menu() {
         echo ""
         echo -e "  ${C_CYAN}Select Speed Level:${C_RESET}"
         echo ""
-        echo -e "  ${C_GREEN}[1]${C_RESET} Standard  (32MB)  → 10-15 Mbps"
-        echo -e "  ${C_GREEN}[2]${C_RESET} Medium     (64MB)  → 15-20 Mbps  🚀"
-        echo -e "  ${C_GREEN}[3]${C_RESET} High       (128MB) → 20-25 Mbps  🚀🚀"
-        echo -e "  ${C_GREEN}[4]${C_RESET} Ultra      (256MB) → 25-35 Mbps  🚀🚀🚀"
-        echo -e "  ${C_GREEN}[5]${C_RESET} Extreme    (512MB) → 35-50 Mbps  💥💥💥"
+        echo -e "  ${C_GREEN}[1]${C_RESET} Standard  (32MB)   → 10-15 Mbps"
+        echo -e "  ${C_GREEN}[2]${C_RESET} Medium     (64MB)   → 15-20 Mbps  🚀"
+        echo -e "  ${C_GREEN}[3]${C_RESET} High       (128MB)  → 20-25 Mbps  🚀🚀"
+        echo -e "  ${C_GREEN}[4]${C_RESET} Ultra      (256MB)  → 25-35 Mbps  🚀🚀🚀"
+        echo -e "  ${C_GREEN}[5]${C_RESET} Extreme    (512MB)  → 35-50 Mbps  💥💥💥"
+        echo -e "  ${C_GREEN}[6]${C_RESET} Ultra Plus (768MB)  → 40-60 Mbps  🚀🚀🚀🚀"
+        echo -e "  ${C_GREEN}[7]${C_RESET} Extreme Plus (1GB)  → 60-100 Mbps 💥💥💥💥💥"
         echo ""
-        echo -e "  ${C_YELLOW}[6]${C_RESET} View Current Settings"
-        echo -e "  ${C_RED}[7]${C_RESET} Reset to Default"
+        echo -e "  ${C_YELLOW}[8]${C_RESET} View Current Settings"
+        echo -e "  ${C_RED}[9]${C_RESET} Reset to Default"
         echo ""
         echo -e "  ${C_RED}[0]${C_RESET} Return"
         echo ""
@@ -3634,14 +3699,16 @@ speed_booster_menu() {
             3) apply_dnstt_high ;;
             4) apply_dnstt_ultra ;;
             5) apply_dnstt_extreme ;;
-            6)
+            6) apply_dnstt_ultra_plus ;;
+            7) apply_dnstt_extreme_plus ;;
+            8)
                 echo -e "\n${C_CYAN}Current System Settings:${C_RESET}"
                 echo -e "  ${C_WHITE}TCP Congestion:${C_RESET} $(sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null)"
                 echo -e "  ${C_WHITE}Network Buffer (rmem):${C_RESET} $(sysctl -n net.core.rmem_max 2>/dev/null | numfmt --to=iec 2>/dev/null || echo "Unknown")"
                 echo -e "  ${C_WHITE}UDP Buffer (min):${C_RESET} $(sysctl -n net.ipv4.udp_rmem_min 2>/dev/null) bytes"
                 safe_read "" dummy
                 ;;
-            7)
+            9)
                 echo -e "\n${C_RED}⚠️ Reset to default system settings?${C_RESET}"
                 read -p "Confirm (y/n): " confirm
                 if [[ "$confirm" == "y" ]]; then
